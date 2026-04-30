@@ -23,6 +23,7 @@ class ActiveSession:
     timeout_at: str
     handle: ProviderSessionHandle
     timeout_task: asyncio.Task[None] | None = None
+    provider_events: asyncio.Queue[dict[str, Any]] | None = None
     audio_chunks: int = 0
     audio_bytes: int = 0
     transcript_started: bool = False
@@ -92,8 +93,24 @@ class SessionManager:
         session_id = str(uuid.uuid4())
         started_at = datetime.now(tz=UTC)
         timeout_at = started_at + timedelta(seconds=self.session_limit_seconds)
+        provider_events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
-        handle = await provider.start_session(session_id, env)
+        agent = self.db.get_default_agent()
+        profile = self.db.get_business_profile()
+        instructions = str(agent.get("system_prompt") or "").strip()
+        business_content = str(profile.get("content") or "").strip()
+        if business_content:
+            instructions = f"{instructions}\n\nBusiness information:\n{business_content}".strip()
+
+        async def queue_provider_event(event: dict[str, Any]) -> None:
+            await provider_events.put(event)
+
+        handle = await provider.start_session(
+            session_id,
+            env,
+            session_config={"instructions": instructions},
+            event_callback=queue_provider_event,
+        )
         self.db.create_session(
             session_id=session_id,
             provider=provider_key,
@@ -110,6 +127,7 @@ class SessionManager:
             timeout_at=timeout_at.isoformat(),
             handle=handle,
             timeout_task=timeout_task,
+            provider_events=provider_events,
         )
         self.active_sessions[session_id] = active
         return {
@@ -120,7 +138,12 @@ class SessionManager:
             "provider_session": handle.metadata,
         }
 
-    async def stop_session(self, session_id: str, reason: EndReason = EndReason.USER_STOPPED) -> dict[str, Any]:
+    async def stop_session(
+        self,
+        session_id: str,
+        reason: EndReason = EndReason.USER_STOPPED,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
         active = self.active_sessions.pop(session_id, None)
         if not active:
             return {"id": session_id, "status": SessionStatus.STOPPED, "ended_reason": reason}
@@ -131,21 +154,32 @@ class SessionManager:
         if provider:
             await provider.close_session(active.handle)
 
-        status = SessionStatus.TIMEOUT if reason == EndReason.TIMEOUT_5_MINUTES else SessionStatus.STOPPED
-        self.db.finish_session(session_id, status, reason)
+        if reason == EndReason.TIMEOUT_5_MINUTES:
+            status = SessionStatus.TIMEOUT
+        elif reason in {EndReason.PROVIDER_ERROR, EndReason.NETWORK_ERROR}:
+            status = SessionStatus.ERROR
+        else:
+            status = SessionStatus.STOPPED
+        self.db.finish_session(session_id, status, reason, error_message)
         self.db.add_transcript(session_id, "system", f"Session ended: {reason}", True)
+        if active.provider_events:
+            await active.provider_events.put({"type": "session.ended", "ended_reason": reason})
         return {"id": session_id, "status": status, "ended_reason": reason}
 
     def get_active_session(self, session_id: str) -> ActiveSession | None:
         return self.active_sessions.get(session_id)
 
-    def receive_audio_chunk(self, session_id: str, chunk_size: int) -> dict[str, Any]:
+    async def receive_audio_chunk(self, session_id: str, pcm16_chunk: bytes) -> dict[str, Any]:
         active = self.active_sessions.get(session_id)
         if not active:
             raise KeyError(f"Session is not active: {session_id}")
 
+        chunk_size = len(pcm16_chunk)
         active.audio_chunks += 1
         active.audio_bytes += chunk_size
+        provider = self.providers.get(active.provider)
+        if provider:
+            await provider.send_audio(active.handle, pcm16_chunk)
         event: dict[str, Any] = {
             "type": "audio.chunk_ack",
             "session_id": session_id,
@@ -156,7 +190,7 @@ class SessionManager:
 
         if not active.transcript_started:
             active.transcript_started = True
-            content = "Microphone audio is streaming to the local session. Provider audio transport is ready to connect next."
+            content = "Microphone audio is streaming to the active provider session."
             self.db.add_transcript(session_id, "system", content, True)
             self.db.add_message(session_id, "system", content)
             event["transcript"] = {
@@ -166,6 +200,12 @@ class SessionManager:
             }
 
         return event
+
+    async def next_provider_event(self, session_id: str) -> dict[str, Any] | None:
+        active = self.active_sessions.get(session_id)
+        if not active or not active.provider_events:
+            return None
+        return await active.provider_events.get()
 
     async def _timeout_session(self, session_id: str) -> None:
         try:

@@ -10,6 +10,8 @@ from voice_agent.config.paths import repo_root
 ENV_DEFAULTS: dict[str, str] = {
     "OPENAI_API_KEY": "",
     "GEMINI_API_KEY": "",
+    "OPENAI_REALTIME_MODEL": "gpt-realtime",
+    "OPENAI_REALTIME_MOCK": "false",
     "DEFAULT_REALTIME_PROVIDER": "openai",
     "DEFAULT_VOICE": "",
 }
@@ -69,6 +71,8 @@ class EnvStore:
         return {
             "OPENAI_API_KEY": mask_secret(values.get("OPENAI_API_KEY", "")),
             "GEMINI_API_KEY": mask_secret(values.get("GEMINI_API_KEY", "")),
+            "OPENAI_REALTIME_MODEL": values.get("OPENAI_REALTIME_MODEL", "gpt-realtime"),
+            "OPENAI_REALTIME_MOCK": values.get("OPENAI_REALTIME_MOCK", "false"),
             "DEFAULT_REALTIME_PROVIDER": values.get("DEFAULT_REALTIME_PROVIDER", "openai"),
             "DEFAULT_VOICE": values.get("DEFAULT_VOICE", ""),
             "has_openai_key": bool(values.get("OPENAI_API_KEY")),

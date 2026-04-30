@@ -10,7 +10,9 @@ The first build is a local-only MVP:
 - SQLite stored under local `data/`.
 - OpenAI Realtime and Gemini Live provider adapter boundaries.
 - 5-minute maximum AI session lifecycle.
-- Local Test Call streams 16kHz mono PCM16 audio chunks over the backend WebSocket.
+- Local Test Call streams 24kHz mono PCM16 audio chunks over the backend WebSocket.
+- OpenAI Realtime WebSocket transport forwards PCM16 to `input_audio_buffer.append` and returns PCM16 output audio deltas to the desktop app.
+- OpenAI Realtime input transcription is enabled for user-side transcript capture in session logs.
 
 ## Setup
 
@@ -19,6 +21,18 @@ Create the local environment file:
 ```bash
 cp .env.example .env
 ```
+
+Useful Realtime settings:
+
+```bash
+OPENAI_API_KEY=
+OPENAI_REALTIME_MODEL=gpt-realtime
+OPENAI_REALTIME_MOCK=false
+DEFAULT_REALTIME_PROVIDER=openai
+DEFAULT_VOICE=
+```
+
+Set `OPENAI_REALTIME_MOCK=true` only for local smoke tests that should not call the remote OpenAI API.
 
 Install backend dependencies:
 
@@ -107,6 +121,7 @@ python -m unittest discover -s tests
 - This project is designed for local running only.
 - `.env` must never be committed.
 - The default Tauri bundle target is `.app`; DMG packaging is intentionally not the default MVP target.
-- Realtime provider audio transport is the next implementation step after the local app/backend skeleton.
-- The browser/Tauri frontend already sends provider-ready PCM16 chunks; the next backend step is forwarding these chunks to OpenAI Realtime and Gemini Live adapters.
+- OpenAI Realtime audio transport is implemented; Gemini Live transport is still reserved for the next provider pass.
+- The browser/Tauri frontend sends provider-ready PCM16 chunks and can play PCM16 output audio returned by provider adapters.
+- Logs supports session detail drill-down for transcripts, tool calls, and provider/app events.
 - Background runtime can stay in standby, but each AI session is capped at 5 minutes.

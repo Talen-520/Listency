@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from voice_agent.providers.base import ProviderConfigError, ProviderSessionHandle
+from typing import Any
+
+from voice_agent.providers.base import ProviderConfigError, ProviderEventCallback, ProviderSessionHandle
 
 
 class GeminiLiveAdapter:
@@ -15,7 +17,13 @@ class GeminiLiveAdapter:
         configured = env.get("DEFAULT_VOICE", "").strip()
         return [configured] if configured else ["default"]
 
-    async def start_session(self, session_id: str, env: dict[str, str]) -> ProviderSessionHandle:
+    async def start_session(
+        self,
+        session_id: str,
+        env: dict[str, str],
+        session_config: dict[str, Any] | None = None,
+        event_callback: ProviderEventCallback | None = None,
+    ) -> ProviderSessionHandle:
         self.validate_config(env)
         return ProviderSessionHandle(
             provider=self.name,
@@ -25,6 +33,9 @@ class GeminiLiveAdapter:
                 "note": "Provider adapter boundary is ready; live audio transport is the next implementation step.",
             },
         )
+
+    async def send_audio(self, handle: ProviderSessionHandle, pcm16_chunk: bytes) -> None:
+        return None
 
     async def close_session(self, handle: ProviderSessionHandle) -> None:
         return None

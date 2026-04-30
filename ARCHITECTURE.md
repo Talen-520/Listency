@@ -17,7 +17,7 @@
 ```text
 Tauri Desktop App
   React + Tailwind + shadcn-style UI
-  Mic capture: 16kHz mono PCM16
+  Mic capture: 24kHz mono PCM16
         |
         | HTTP / WebSocket on localhost
         v
@@ -30,17 +30,18 @@ Python FastAPI Backend
         |
         v
 Realtime Providers
-  OpenAI Realtime adapter boundary
+  OpenAI Realtime WebSocket transport
   Gemini Live adapter boundary
 ```
 
-当前已经实现的是本地 app/backend 骨架、配置、SQLite、工具系统、session 生命周期、前端麦克风 PCM16 采集、后端 WebSocket 音频通道。
+当前已经实现的是本地 app/backend 骨架、配置、SQLite、工具系统、session 生命周期、前端麦克风 PCM16 采集、后端 WebSocket 音频通道，以及 OpenAI Realtime 的基础 WebSocket transport。
 
-下一步真正要接的是 provider transport：
+当前 provider transport 状态：
 
-- OpenAI Realtime：把后端收到的 PCM16 chunk 转成 `input_audio_buffer.append`。
-- Gemini Live：把后端收到的 PCM16 chunk 转成 Live API realtime input。
-- Provider 返回的音频 chunk 再通过当前 WebSocket 发回前端播放。
+- OpenAI Realtime：后端收到的 PCM16 chunk 会转成 `input_audio_buffer.append`。
+- OpenAI Realtime：`response.output_audio.delta` / `response.audio.delta` 会标准化成 `provider.output_audio.delta` 并通过当前 WebSocket 回前端播放。
+- Gemini Live：仍是 adapter boundary，暂未接真实 Live API transport。
+- Pipeline mode：只保留为第二阶段方向，MVP 暂不实现。
 
 ## 3. 主要目录
 
@@ -124,6 +125,7 @@ POST /sessions/test
 POST /sessions/{session_id}/stop
 GET  /sessions
 GET  /transcripts
+GET  /app-logs
 GET  /business-profile
 PUT  /business-profile
 GET  /agent
@@ -153,6 +155,10 @@ WS /sessions/{session_id}/stream
 - `audio.input_started`
 - `audio.input_stopped`
 - `audio.chunk_ack`
+- `provider.output_audio.delta`
+- `provider.transcript.delta`
+- `provider.transcript.done`
+- `provider.error`
 - `session.error`
 - `session.ended`
 - `pong`
@@ -206,7 +212,7 @@ backend_shutdown
 navigator.mediaDevices.getUserMedia()
   -> AudioContext
   -> ScriptProcessorNode
-  -> downsample to 16kHz
+  -> resample to 24kHz
   -> float32 to PCM16 little-endian
   -> WebSocket binary chunks
   -> FastAPI backend
@@ -217,13 +223,24 @@ navigator.mediaDevices.getUserMedia()
 - 更新 active session 的 `audio_chunks`。
 - 更新 active session 的 `audio_bytes`。
 - 第一次收到音频时写入一条 system transcript。
+- 调用 active provider 的 `send_audio()`。
 - 回推 `audio.chunk_ack` 给前端。
 
-Provider 接入位置：
+OpenAI Realtime transport：
 
-- 在 `SessionManager.receive_audio_chunk()` 或新的 provider transport 层中，把 PCM16 chunk 转发给 active provider。
-- OpenAI Realtime 用 `input_audio_buffer.append`。
-- Gemini Live 用 realtime input media/audio event。
+- `SessionManager.receive_audio_chunk()` 接收前端 binary PCM16。
+- `OpenAIRealtimeAdapter.send_audio()` base64 编码 PCM16。
+- 后端发送 `{"type": "input_audio_buffer.append", "audio": "..."}`。
+- OpenAI session 使用 `audio.input.format = {"type": "audio/pcm", "rate": 24000}` 和同样的 output format。
+- OpenAI session 启用 `audio.input.transcription.model = "gpt-4o-transcribe"`，用于把用户语音写入 transcript。
+- adapter listener 读取 provider events。
+- 音频 delta 标准化后通过 backend WebSocket 发回前端。
+- 前端按 PCM16 little-endian 解码，并用 Web Audio API 播放。
+
+Gemini Live 后续接入位置：
+
+- 复用 `ProviderSessionHandle` 和 `send_audio(handle, pcm16_chunk)`。
+- 在 Gemini adapter 内部把 PCM16 chunk 转成 Live API realtime input。
 
 ## 7. Provider Adapter
 
@@ -233,14 +250,15 @@ Provider adapter 位于：
 app/backend/voice_agent/providers/
 ```
 
-当前 adapter 是边界层，还没有真实远程音频 transport。
+OpenAI adapter 已有真实远程 WebSocket transport；Gemini adapter 仍是边界层。
 
 接口概念：
 
 ```text
 validate_config(env)
 list_voices(env)
-start_session(session_id, env)
+start_session(session_id, env, session_config, event_callback)
+send_audio(handle, pcm16_chunk)
 close_session(handle)
 ```
 
@@ -249,12 +267,12 @@ close_session(handle)
 - `openai`：`OpenAIRealtimeAdapter`
 - `gemini`：`GeminiLiveAdapter`
 
-下一步建议新增 transport 方法：
+后续仍需要补的 provider 能力：
 
 ```text
-send_audio(handle, pcm16_chunk)
-receive_events(handle)
 send_tool_result(handle, tool_call_id, output)
+commit_audio_if_manual_turn_detection(handle)
+cancel_response(handle)
 ```
 
 不要让前端直接连接模型 provider。API Key 必须留在 backend `.env`。
@@ -380,10 +398,11 @@ python ../../scripts/smoke_ws.py
 
 ## 12. Current Known Limits
 
-- Provider adapter 已有边界，但还没有真实 OpenAI/Gemini 远程音频 transport。
-- 前端还没有播放 provider 返回的音频 chunk。
+- OpenAI Realtime transport 已接入；Gemini Live 仍是 adapter boundary。
+- 前端已播放 provider 返回的 PCM16 audio delta。
 - Tauri `.app` 可以 build；DMG 暂时不是 MVP 默认目标。
-- 当前 Test Call 的 transcript 是本地 system transcript，不是模型真实转写。
+- Logs 页支持点击 session 查看对话明细、tool calls 和 provider/app events。
+- 用户语音转写依赖 OpenAI Realtime input transcription；历史 session 在启用前不会自动补全用户发言。
 - 电话 provider 只预留架构，还没接入 Twilio/Telnyx/SIP。
 
 ## 13. Before Starting A New Codex Session

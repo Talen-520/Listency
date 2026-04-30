@@ -33,6 +33,8 @@ async def main() -> None:
                 [
                     "OPENAI_API_KEY=sk-local-smoke-test",
                     "GEMINI_API_KEY=",
+                    "OPENAI_REALTIME_MODEL=gpt-realtime",
+                    "OPENAI_REALTIME_MOCK=true",
                     "DEFAULT_REALTIME_PROVIDER=openai",
                     "DEFAULT_VOICE=",
                     "",

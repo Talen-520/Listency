@@ -284,17 +284,20 @@ class Database:
                 ),
             )
 
-    def list_tool_calls(self, limit: int = 100) -> list[dict[str, Any]]:
-        with self.connect() as connection:
-            rows = connection.execute(
-                """
+    def list_tool_calls(self, limit: int = 100, session_id: str | None = None) -> list[dict[str, Any]]:
+        query = """
                 SELECT id, session_id, tool_name, input_json, output_json, status, started_at, ended_at, error_message
                 FROM tool_calls
-                ORDER BY started_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+                """
+        params: Iterable[Any]
+        if session_id:
+            query += " WHERE session_id = ?"
+            params = (session_id,)
+        else:
+            params = ()
+        query += " ORDER BY started_at DESC LIMIT ?"
+        with self.connect() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
         return [dict(row) for row in rows]
 
     def create_booking(self, customer_name: str, booking_time: str, notes: str = "") -> dict[str, Any]:
@@ -329,3 +332,19 @@ class Database:
                     utc_now(),
                 ),
             )
+
+    def list_logs(self, limit: int = 100, session_id: str | None = None) -> list[dict[str, Any]]:
+        query = """
+                SELECT id, level, event, message, metadata_json, created_at
+                FROM app_logs
+                """
+        params: Iterable[Any]
+        if session_id:
+            query += " WHERE metadata_json LIKE ?"
+            params = (f'%"session_id": "{session_id}"%',)
+        else:
+            params = ()
+        query += " ORDER BY created_at DESC LIMIT ?"
+        with self.connect() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
+        return [dict(row) for row in rows]

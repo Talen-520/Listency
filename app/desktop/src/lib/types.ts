@@ -17,6 +17,8 @@ export type ActiveSession = {
 export type PublicConfig = {
   OPENAI_API_KEY: string;
   GEMINI_API_KEY: string;
+  OPENAI_REALTIME_MODEL: string;
+  OPENAI_REALTIME_MOCK: string;
   DEFAULT_REALTIME_PROVIDER: string;
   DEFAULT_VOICE: string;
   has_openai_key: boolean;
@@ -83,4 +85,13 @@ export type ToolCallRecord = {
   started_at: string;
   ended_at: string | null;
   error_message: string | null;
+};
+
+export type AppLogRecord = {
+  id: number;
+  level: string;
+  event: string;
+  message: string;
+  metadata_json: string | null;
+  created_at: string;
 };

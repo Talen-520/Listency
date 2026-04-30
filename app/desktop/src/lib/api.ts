@@ -1,5 +1,6 @@
 import type {
   AgentProfile,
+  AppLogRecord,
   BusinessProfile,
   ProviderInfo,
   PublicConfig,
@@ -39,6 +40,8 @@ export const api = {
   saveConfig: (payload: {
     openai_api_key: string;
     gemini_api_key: string;
+    openai_realtime_model: string;
+    openai_realtime_mock: string;
     default_realtime_provider: string;
     default_voice: string;
   }) =>
@@ -58,9 +61,21 @@ export const api = {
   stopSession: (id: string) => request(`/sessions/${id}/stop`, { method: "POST" }),
   sessionStreamUrl: (id: string) => `${websocketBase()}/sessions/${id}/stream`,
   sessions: () => request<{ sessions: SessionRecord[] }>("/sessions"),
-  transcripts: (sessionId?: string) =>
-    request<{ transcripts: TranscriptRecord[] }>(`/transcripts${sessionId ? `?session_id=${sessionId}` : ""}`),
-  toolCalls: () => request<{ tool_calls: ToolCallRecord[] }>("/tool-calls"),
+  transcripts: (sessionId?: string, limit = 100) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (sessionId) params.set("session_id", sessionId);
+    return request<{ transcripts: TranscriptRecord[] }>(`/transcripts?${params.toString()}`);
+  },
+  toolCalls: (sessionId?: string, limit = 100) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (sessionId) params.set("session_id", sessionId);
+    return request<{ tool_calls: ToolCallRecord[] }>(`/tool-calls?${params.toString()}`);
+  },
+  appLogs: (sessionId?: string, limit = 100) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (sessionId) params.set("session_id", sessionId);
+    return request<{ logs: AppLogRecord[] }>(`/app-logs?${params.toString()}`);
+  },
   tools: () => request<{ tools: ToolInfo[] }>("/tools"),
   setToolEnabled: (name: string, enabled: boolean) =>
     request<ToolInfo>(`/tools/${name}/enabled`, {

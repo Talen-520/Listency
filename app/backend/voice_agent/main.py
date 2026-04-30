@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import json
 from typing import Any
 
@@ -20,6 +21,8 @@ from voice_agent.tools import ToolContext, build_default_registry
 class EnvUpdate(BaseModel):
     openai_api_key: str = ""
     gemini_api_key: str = ""
+    openai_realtime_model: str = "gpt-realtime"
+    openai_realtime_mock: str = "false"
     default_realtime_provider: str = "openai"
     default_voice: str = ""
 
@@ -87,6 +90,8 @@ async def get_config() -> dict[str, Any]:
 @app.put("/config")
 async def save_config(update: EnvUpdate) -> dict[str, Any]:
     updates = {
+        "OPENAI_REALTIME_MODEL": update.openai_realtime_model,
+        "OPENAI_REALTIME_MOCK": update.openai_realtime_mock,
         "DEFAULT_REALTIME_PROVIDER": update.default_realtime_provider,
         "DEFAULT_VOICE": update.default_voice,
     }
@@ -171,54 +176,137 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
     await websocket.send_json({"type": "session.ready", "session_id": session_id})
     try:
         while True:
-            message = await websocket.receive()
-            if message.get("type") == "websocket.disconnect":
-                break
-            if message.get("bytes") is not None:
-                try:
-                    event = session_manager.receive_audio_chunk(session_id, len(message["bytes"]))
-                except KeyError:
-                    await websocket.send_json({"type": "session.ended", "session_id": session_id})
-                    await websocket.close(code=4000)
-                    return
-                await websocket.send_json(event)
-                continue
+            receive_task = asyncio.create_task(websocket.receive())
+            provider_task = asyncio.create_task(session_manager.next_provider_event(session_id))
+            done, pending = await asyncio.wait(
+                {receive_task, provider_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
 
-            text = message.get("text")
-            if text is None:
-                continue
-
-            try:
-                payload = json.loads(text)
-            except json.JSONDecodeError:
-                await websocket.send_json({"type": "session.error", "message": "Invalid JSON event."})
-                continue
-
-            event_type = payload.get("type")
-            if event_type == "ping":
-                await websocket.send_json({"type": "pong", "session_id": session_id})
-            elif event_type == "audio.start":
-                await websocket.send_json({"type": "audio.input_started", "session_id": session_id})
-            elif event_type == "audio.stop":
-                await websocket.send_json({"type": "audio.input_stopped", "session_id": session_id})
-            elif event_type == "audio.chunk":
-                data = str(payload.get("data", ""))
-                try:
-                    chunk_size = len(base64.b64decode(data, validate=True))
-                except Exception:
-                    await websocket.send_json({"type": "session.error", "message": "Invalid base64 audio chunk."})
+            if provider_task in done:
+                provider_event = provider_task.result()
+                if provider_event:
+                    await _handle_provider_event(websocket, session_id, provider_event)
+                    if provider_event.get("type") == "session.ended":
+                        await websocket.close(code=4000)
+                        return
                     continue
-                try:
-                    event = session_manager.receive_audio_chunk(session_id, chunk_size)
-                except KeyError:
-                    await websocket.send_json({"type": "session.ended", "session_id": session_id})
-                    await websocket.close(code=4000)
-                    return
-                await websocket.send_json(event)
-            else:
-                await websocket.send_json({"type": "session.error", "message": f"Unsupported event: {event_type}"})
+                await websocket.send_json({"type": "session.ended", "session_id": session_id})
+                await websocket.close(code=4000)
+                return
+
+            message = receive_task.result()
+            should_continue = await _handle_client_stream_message(websocket, session_id, message)
+            if not should_continue:
+                break
     except (WebSocketDisconnect, RuntimeError):
         db.add_log("info", "session_stream_disconnected", "Client stream disconnected.", {"session_id": session_id})
+
+
+async def _handle_provider_event(websocket: WebSocket, session_id: str, event: dict[str, Any]) -> None:
+    event = {"session_id": session_id, **event}
+    _log_provider_event(session_id, event)
+    if event.get("type") == "provider.error":
+        message = str(event.get("message") or "Realtime provider returned an error.")
+        db.add_log(
+            "error",
+            "provider_error",
+            message,
+            {
+                "session_id": session_id,
+                "provider": event.get("provider"),
+                "raw_type": event.get("raw_type"),
+                "code": event.get("code"),
+                "error_type": event.get("error_type"),
+            },
+        )
+        db.add_transcript(session_id, "system", f"Provider error: {message}", True)
+        await session_manager.stop_session(session_id, EndReason.PROVIDER_ERROR, message)
+    if event.get("type") in {"provider.transcript.delta", "provider.transcript.done"}:
+        content = str(event.get("content") or "")
+        if content and event.get("is_final"):
+            db.add_transcript(session_id, str(event.get("speaker") or "assistant"), content, True)
+    await websocket.send_json(event)
+
+
+def _log_provider_event(session_id: str, event: dict[str, Any]) -> None:
+    raw_type = str(event.get("raw_type") or event.get("type") or "")
+    tracked_events = {
+        "session.created",
+        "session.updated",
+        "input_audio_buffer.speech_started",
+        "input_audio_buffer.speech_stopped",
+        "input_audio_buffer.committed",
+        "response.created",
+        "response.done",
+        "response.output_audio.done",
+        "response.output_audio_transcript.done",
+        "response.output_text.done",
+        "rate_limits.updated",
+    }
+    if raw_type not in tracked_events:
+        return
+    db.add_log(
+        "debug",
+        "provider_event",
+        raw_type,
+        {
+            "session_id": session_id,
+            "provider": event.get("provider"),
+            "raw_type": raw_type,
+        },
+    )
+
+
+async def _handle_client_stream_message(websocket: WebSocket, session_id: str, message: dict[str, Any]) -> bool:
+    if message.get("type") == "websocket.disconnect":
+        return False
+    if message.get("bytes") is not None:
+        try:
+            event = await session_manager.receive_audio_chunk(session_id, message["bytes"])
+        except KeyError:
+            await websocket.send_json({"type": "session.ended", "session_id": session_id})
+            await websocket.close(code=4000)
+            return False
+        await websocket.send_json(event)
+        return True
+
+    text = message.get("text")
+    if text is None:
+        return True
+
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        await websocket.send_json({"type": "session.error", "message": "Invalid JSON event."})
+        return True
+
+    event_type = payload.get("type")
+    if event_type == "ping":
+        await websocket.send_json({"type": "pong", "session_id": session_id})
+    elif event_type == "audio.start":
+        await websocket.send_json({"type": "audio.input_started", "session_id": session_id})
+    elif event_type == "audio.stop":
+        await websocket.send_json({"type": "audio.input_stopped", "session_id": session_id})
+    elif event_type == "audio.chunk":
+        data = str(payload.get("data", ""))
+        try:
+            chunk = base64.b64decode(data, validate=True)
+        except Exception:
+            await websocket.send_json({"type": "session.error", "message": "Invalid base64 audio chunk."})
+            return True
+        try:
+            event = await session_manager.receive_audio_chunk(session_id, chunk)
+        except KeyError:
+            await websocket.send_json({"type": "session.ended", "session_id": session_id})
+            await websocket.close(code=4000)
+            return False
+        await websocket.send_json(event)
+    else:
+        await websocket.send_json({"type": "session.error", "message": f"Unsupported event: {event_type}"})
+    return True
 
 
 @app.get("/business-profile")
@@ -269,5 +357,10 @@ async def call_tool(tool_name: str, request: ToolCallRequest) -> dict[str, Any]:
 
 
 @app.get("/tool-calls")
-async def list_tool_calls(limit: int = 100) -> dict[str, Any]:
-    return {"tool_calls": db.list_tool_calls(limit)}
+async def list_tool_calls(limit: int = 100, session_id: str | None = None) -> dict[str, Any]:
+    return {"tool_calls": db.list_tool_calls(limit, session_id)}
+
+
+@app.get("/app-logs")
+async def list_app_logs(limit: int = 100, session_id: str | None = None) -> dict[str, Any]:
+    return {"logs": db.list_logs(limit, session_id)}

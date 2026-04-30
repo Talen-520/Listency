@@ -16,6 +16,7 @@ import {
 import { api } from "./lib/api";
 import type {
   AgentProfile,
+  AppLogRecord,
   BusinessProfile,
   ProviderInfo,
   PublicConfig,
@@ -34,6 +35,8 @@ import { cn } from "./lib/utils";
 
 type View = "dashboard" | "agent" | "voice" | "business" | "tools" | "test" | "logs" | "settings";
 
+const REALTIME_PCM_SAMPLE_RATE = 24000;
+
 const navItems: Array<{ id: View; label: string; icon: ComponentType<{ className?: string }> }> = [
   { id: "dashboard", label: "Dashboard", icon: Activity },
   { id: "agent", label: "Agent", icon: Bot },
@@ -48,6 +51,8 @@ const navItems: Array<{ id: View; label: string; icon: ComponentType<{ className
 const emptyConfig: PublicConfig = {
   OPENAI_API_KEY: "",
   GEMINI_API_KEY: "",
+  OPENAI_REALTIME_MODEL: "gpt-realtime",
+  OPENAI_REALTIME_MOCK: "false",
   DEFAULT_REALTIME_PROVIDER: "openai",
   DEFAULT_VOICE: "",
   has_openai_key: false,
@@ -71,6 +76,12 @@ export function App() {
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [transcripts, setTranscripts] = useState<TranscriptRecord[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCallRecord[]>([]);
+  const [appLogs, setAppLogs] = useState<AppLogRecord[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sessionTranscripts, setSessionTranscripts] = useState<TranscriptRecord[]>([]);
+  const [sessionToolCalls, setSessionToolCalls] = useState<ToolCallRecord[]>([]);
+  const [sessionAppLogs, setSessionAppLogs] = useState<AppLogRecord[]>([]);
+  const [sessionDetailLoading, setSessionDetailLoading] = useState(false);
   const [business, setBusiness] = useState<BusinessProfile>({ id: "default", name: "Default Business", content: "", updated_at: null });
   const [agent, setAgent] = useState<AgentProfile>({
     id: "default",
@@ -81,6 +92,8 @@ export function App() {
   const [openAiKey, setOpenAiKey] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
   const [providerChoice, setProviderChoice] = useState("openai");
+  const [openAiModel, setOpenAiModel] = useState("gpt-realtime");
+  const [openAiMock, setOpenAiMock] = useState("false");
   const [voice, setVoice] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +105,8 @@ export function App() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const silentGainRef = useRef<GainNode | null>(null);
+  const outputAudioContextRef = useRef<AudioContext | null>(null);
+  const outputPlaybackTimeRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -100,10 +115,52 @@ export function App() {
     if (!activeSession) return null;
     return Math.max(0, Math.ceil((new Date(activeSession.timeout_at).getTime() - now) / 1000));
   }, [activeSession, now]);
+  const selectedSession = useMemo(
+    () => sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null,
+    [selectedSessionId, sessions],
+  );
+  const selectedSessionDetailId = selectedSession?.id ?? null;
+
+  useEffect(() => {
+    if (!selectedSessionDetailId) {
+      setSessionTranscripts([]);
+      setSessionToolCalls([]);
+      setSessionAppLogs([]);
+      return;
+    }
+
+    let isCurrent = true;
+    setSessionDetailLoading(true);
+    Promise.all([
+      api.transcripts(selectedSessionDetailId, 500),
+      api.toolCalls(selectedSessionDetailId, 200),
+      api.appLogs(selectedSessionDetailId, 300),
+    ])
+      .then(([transcriptList, toolCallList, appLogList]) => {
+        if (!isCurrent) return;
+        setSessionTranscripts(transcriptList.transcripts);
+        setSessionToolCalls(toolCallList.tool_calls);
+        setSessionAppLogs(appLogList.logs);
+      })
+      .catch((err) => {
+        if (isCurrent) {
+          setError(err instanceof Error ? err.message : "Session detail unavailable");
+        }
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setSessionDetailLoading(false);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedSessionDetailId]);
 
   async function loadAll() {
     try {
-      const [runtime, cfg, providerList, toolList, sessionList, transcriptList, toolCallList, businessProfile, agentProfile] = await Promise.all([
+      const [runtime, cfg, providerList, toolList, sessionList, transcriptList, toolCallList, appLogList, businessProfile, agentProfile] = await Promise.all([
         api.runtimeStatus(),
         api.getConfig(),
         api.providers(),
@@ -111,6 +168,7 @@ export function App() {
         api.sessions(),
         api.transcripts(),
         api.toolCalls(),
+        api.appLogs(),
         api.businessProfile(),
         api.agent(),
       ]);
@@ -121,9 +179,12 @@ export function App() {
       setSessions(sessionList.sessions);
       setTranscripts(transcriptList.transcripts);
       setToolCalls(toolCallList.tool_calls);
+      setAppLogs(appLogList.logs);
       setBusiness(businessProfile);
       setAgent(agentProfile);
       setProviderChoice(cfg.DEFAULT_REALTIME_PROVIDER || "openai");
+      setOpenAiModel(cfg.OPENAI_REALTIME_MODEL || "gpt-realtime");
+      setOpenAiMock(cfg.OPENAI_REALTIME_MOCK || "false");
       setVoice(cfg.DEFAULT_VOICE || "");
       setError(null);
     } catch (err) {
@@ -179,6 +240,8 @@ export function App() {
     await api.saveConfig({
       openai_api_key: openAiKey,
       gemini_api_key: geminiKey,
+      openai_realtime_model: openAiModel,
+      openai_realtime_mock: openAiMock,
       default_realtime_provider: providerChoice,
       default_voice: voice,
     });
@@ -206,6 +269,9 @@ export function App() {
 
     audioContextRef.current?.close().catch(() => undefined);
     audioContextRef.current = null;
+    outputAudioContextRef.current?.close().catch(() => undefined);
+    outputAudioContextRef.current = null;
+    outputPlaybackTimeRef.current = 0;
 
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       try {
@@ -231,6 +297,12 @@ export function App() {
     streamRef.current = stream;
     setMicReady(true);
 
+    const AudioContextCtor =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const outputAudioContext = outputAudioContextRef.current ?? new AudioContextCtor();
+    outputAudioContextRef.current = outputAudioContext;
+    void outputAudioContext.resume().catch(() => undefined);
+
     try {
       const session = await api.startTestSession(providerChoice);
       appendEvent(`session ${session.id.slice(0, 8)} started`);
@@ -241,7 +313,24 @@ export function App() {
 
       socket.onmessage = (event) => {
         const payload = JSON.parse(event.data);
-        appendEvent(payload.type);
+        appendEvent(payload.type === "provider.error" && payload.message ? `${payload.type}: ${payload.message}` : payload.type);
+        if (payload.type === "provider.output_audio.delta" && payload.audio) {
+          playPcm16Audio(payload.audio, payload.sample_rate ?? 24000);
+        }
+        if (payload.type === "provider.error") {
+          const message = String(payload.message ?? "Realtime provider returned an error.");
+          setError(message);
+          setTranscripts((current) => [
+            {
+              session_id: session.id,
+              speaker: "system",
+              content: `Provider error: ${message}`,
+              is_final: 1,
+              created_at: new Date().toISOString(),
+            },
+            ...current,
+          ]);
+        }
         if (payload.transcript) {
           setTranscripts((current) => [
             {
@@ -253,6 +342,21 @@ export function App() {
             },
             ...current,
           ]);
+        }
+        if (payload.type === "provider.transcript.delta" || payload.type === "provider.transcript.done") {
+          const content = String(payload.content ?? "");
+          if (content) {
+            setTranscripts((current) => [
+              {
+                session_id: session.id,
+                speaker: String(payload.speaker ?? "assistant"),
+                content,
+                is_final: payload.is_final ? 1 : 0,
+                created_at: new Date().toISOString(),
+              },
+              ...current,
+            ]);
+          }
         }
       };
 
@@ -266,11 +370,10 @@ export function App() {
         socket.onerror = () => reject(new Error("WebSocket connection failed"));
       });
 
-      socket.send(JSON.stringify({ type: "audio.start", format: "pcm16", sample_rate: 16000, channels: 1 }));
+      socket.send(JSON.stringify({ type: "audio.start", format: "pcm16", sample_rate: REALTIME_PCM_SAMPLE_RATE, channels: 1 }));
 
-      const AudioContextCtor =
-        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const audioContext = new AudioContextCtor();
+      void audioContext.resume().catch(() => undefined);
       const source = audioContext.createMediaStreamSource(stream);
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       const silentGain = audioContext.createGain();
@@ -286,8 +389,8 @@ export function App() {
           return;
         }
         const input = event.inputBuffer.getChannelData(0);
-        const downsampled = downsampleTo16k(input, audioContext.sampleRate);
-        socket.send(floatToPcm16(downsampled));
+        const resampled = resampleMono(input, audioContext.sampleRate, REALTIME_PCM_SAMPLE_RATE);
+        socket.send(floatToPcm16(resampled));
       };
 
       source.connect(processor);
@@ -310,6 +413,30 @@ export function App() {
     if (sessionId) {
       await api.stopSession(sessionId);
     }
+  }
+
+  function playPcm16Audio(base64Audio: string, sampleRate: number) {
+    const AudioContextCtor =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const audioContext = outputAudioContextRef.current ?? new AudioContextCtor();
+    outputAudioContextRef.current = audioContext;
+    void audioContext.resume().catch(() => undefined);
+
+    const samples = decodeBase64Pcm16(base64Audio);
+    if (!samples.length) {
+      return;
+    }
+
+    const buffer = audioContext.createBuffer(1, samples.length, sampleRate);
+    buffer.copyToChannel(samples, 0);
+
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+
+    const startAt = Math.max(audioContext.currentTime + 0.02, outputPlaybackTimeRef.current || 0);
+    source.start(startAt);
+    outputPlaybackTimeRef.current = startAt + buffer.duration;
   }
 
   const selectedProviderReady = providers.find((provider) => provider.name === providerChoice)?.ready ?? false;
@@ -433,6 +560,19 @@ export function App() {
                   >
                     <option value="openai">OpenAI Realtime</option>
                     <option value="gemini">Gemini Live</option>
+                  </select>
+                </Field>
+                <Field label="OpenAI Realtime Model">
+                  <Input value={openAiModel} onChange={(event) => setOpenAiModel(event.target.value)} placeholder="gpt-realtime" />
+                </Field>
+                <Field label="OpenAI Mock Mode">
+                  <select
+                    className="h-10 w-full rounded-md border border-[#2a3658] bg-[#0b1020]/90 px-3 text-sm text-text outline-none"
+                    value={openAiMock}
+                    onChange={(event) => setOpenAiMock(event.target.value)}
+                  >
+                    <option value="false">Off</option>
+                    <option value="true">On</option>
                   </select>
                 </Field>
                 <Field label="Default Voice">
@@ -576,13 +716,29 @@ export function App() {
           )}
 
           {view === "logs" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Sessions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <SessionTable sessions={sessions} />
-                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-[1fr_1.15fr]">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Sessions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <SessionTable sessions={sessions} selectedSessionId={selectedSessionDetailId} onSelect={setSelectedSessionId} />
+                </CardContent>
+              </Card>
+
+              <SessionDetailPanel
+                session={selectedSession}
+                transcripts={sessionTranscripts}
+                toolCalls={sessionToolCalls}
+                appLogs={sessionAppLogs}
+                loading={sessionDetailLoading}
+              />
+
+              <Card className="xl:col-span-2">
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 lg:grid-cols-3">
                   <LivePanel
                     title="Recent Transcripts"
                     items={transcripts.slice(0, 12).map((item) => `${formatDate(item.created_at)} ${item.speaker}: ${item.content}`)}
@@ -593,9 +749,14 @@ export function App() {
                     items={toolCalls.slice(0, 12).map((item) => `${formatDate(item.started_at)} ${item.tool_name} ${item.status}`)}
                     empty="No tool calls yet."
                   />
-                </div>
-              </CardContent>
-            </Card>
+                  <LivePanel
+                    title="App Logs"
+                    items={appLogs.slice(0, 12).map((item) => `${formatDate(item.created_at)} ${item.level} ${item.event}: ${item.message}`)}
+                    empty="No app logs yet."
+                  />
+                </CardContent>
+              </Card>
+            </div>
           )}
         </div>
       </section>
@@ -642,7 +803,114 @@ function LivePanel({ title, items, empty }: { title: string; items: string[]; em
   );
 }
 
-function SessionTable({ sessions }: { sessions: SessionRecord[] }) {
+function SessionDetailPanel({
+  session,
+  transcripts,
+  toolCalls,
+  appLogs,
+  loading,
+}: {
+  session: SessionRecord | null;
+  transcripts: TranscriptRecord[];
+  toolCalls: ToolCallRecord[];
+  appLogs: AppLogRecord[];
+  loading: boolean;
+}) {
+  const orderedTranscripts = [...transcripts].sort(compareCreatedAt);
+  const orderedLogs = [...appLogs].sort(compareCreatedAt);
+  const orderedToolCalls = [...toolCalls].sort((left, right) => new Date(left.started_at).getTime() - new Date(right.started_at).getTime());
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle>Session Detail</CardTitle>
+          {session && <Badge tone={session.status === "error" ? "red" : session.status === "stopped" ? "neutral" : "cyan"}>{session.status}</Badge>}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {!session ? (
+          <div className="rounded-md border border-[#1f2a44] bg-white/5 p-6 text-sm text-[#b8c2d9]">No session selected.</div>
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Metric label="Provider" value={session.provider} />
+              <Metric label="Reason" value={session.ended_reason ?? "-"} />
+              <Metric label="Started" value={formatDate(session.started_at)} />
+              <Metric label="Ended" value={formatDate(session.ended_at)} />
+            </div>
+            {session.error_message && <Badge tone="red">{session.error_message}</Badge>}
+            <div className="text-xs text-muted">Session ID {session.id}</div>
+
+            <div className="rounded-md border border-[#1f2a44] bg-white/5">
+              <div className="flex items-center justify-between border-b border-[#1f2a44] px-4 py-3 text-sm font-bold text-text">
+                <span>Conversation</span>
+                {loading && <span className="text-xs text-muted">Loading</span>}
+              </div>
+              <div className="max-h-[28rem] overflow-auto p-3">
+                {orderedTranscripts.length === 0 ? (
+                  <div className="text-sm text-[#b8c2d9]">No transcript for this session.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {orderedTranscripts.map((item, index) => (
+                      <TranscriptBubble key={`${item.created_at}-${index}`} item={item} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <LivePanel
+                title="Session Events"
+                items={orderedLogs.map((item) => `${formatDate(item.created_at)} ${item.event}: ${item.message}`)}
+                empty="No events for this session."
+              />
+              <LivePanel
+                title="Tool Calls"
+                items={orderedToolCalls.map((item) => `${formatDate(item.started_at)} ${item.tool_name} ${item.status}${item.error_message ? `: ${item.error_message}` : ""}`)}
+                empty="No tool calls for this session."
+              />
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TranscriptBubble({ item }: { item: TranscriptRecord }) {
+  const speakerTone = item.speaker === "assistant" ? "cyan" : item.speaker === "user" ? "green" : "neutral";
+  const alignment = item.speaker === "assistant" ? "justify-start" : item.speaker === "user" ? "justify-end" : "justify-center";
+  const bubbleClass =
+    item.speaker === "assistant"
+      ? "bg-cyan/10 text-text"
+      : item.speaker === "user"
+        ? "bg-emerald-400/10 text-text"
+        : "bg-page/70 text-[#b8c2d9]";
+
+  return (
+    <div className={cn("flex", alignment)}>
+      <div className={cn("max-w-[88%] rounded-md border border-[#1f2a44] px-3 py-2", bubbleClass)}>
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+          <Badge tone={speakerTone}>{item.speaker}</Badge>
+          <span>{formatDate(item.created_at)}</span>
+        </div>
+        <div className="whitespace-pre-wrap text-sm leading-6">{item.content}</div>
+      </div>
+    </div>
+  );
+}
+
+function SessionTable({
+  sessions,
+  selectedSessionId,
+  onSelect,
+}: {
+  sessions: SessionRecord[];
+  selectedSessionId?: string | null;
+  onSelect?: (sessionId: string) => void;
+}) {
   if (sessions.length === 0) {
     return <div className="rounded-md border border-[#1f2a44] bg-white/5 p-6 text-sm text-[#b8c2d9]">No sessions yet.</div>;
   }
@@ -661,7 +929,15 @@ function SessionTable({ sessions }: { sessions: SessionRecord[] }) {
         </thead>
         <tbody>
           {sessions.map((session) => (
-            <tr key={session.id} className="border-t border-[#1f2a44] text-[#b8c2d9]">
+            <tr
+              key={session.id}
+              className={cn(
+                "border-t border-[#1f2a44] text-[#b8c2d9]",
+                onSelect && "cursor-pointer transition hover:bg-white/10",
+                selectedSessionId === session.id && "bg-white/10 text-text",
+              )}
+              onClick={() => onSelect?.(session.id)}
+            >
               <td className="px-4 py-3 font-semibold text-text">{session.provider}</td>
               <td className="px-4 py-3">{session.status}</td>
               <td className="px-4 py-3">{formatDate(session.started_at)}</td>
@@ -675,6 +951,10 @@ function SessionTable({ sessions }: { sessions: SessionRecord[] }) {
   );
 }
 
+function compareCreatedAt(left: { created_at: string }, right: { created_at: string }) {
+  return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+}
+
 function formatDate(value: string | null) {
   if (!value) return "-";
   return new Date(value).toLocaleString();
@@ -686,8 +966,7 @@ function formatBytes(value: number) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function downsampleTo16k(input: Float32Array, sourceRate: number) {
-  const targetRate = 16000;
+function resampleMono(input: Float32Array, sourceRate: number, targetRate: number) {
   if (sourceRate === targetRate) {
     return input;
   }
@@ -714,4 +993,17 @@ function floatToPcm16(input: Float32Array) {
     view.setInt16(i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
   }
   return buffer;
+}
+
+function decodeBase64Pcm16(base64: string) {
+  const binary = window.atob(base64);
+  const output = new Float32Array(binary.length / 2);
+  for (let i = 0; i < output.length; i += 1) {
+    const lo = binary.charCodeAt(i * 2);
+    const hi = binary.charCodeAt(i * 2 + 1);
+    const value = (hi << 8) | lo;
+    const signed = value >= 0x8000 ? value - 0x10000 : value;
+    output[i] = signed / 0x8000;
+  }
+  return output;
 }
