@@ -13,6 +13,8 @@ The first build is a local-only MVP:
 - Local Test Call streams 24kHz mono PCM16 audio chunks over the backend WebSocket.
 - OpenAI Realtime WebSocket transport forwards PCM16 to `input_audio_buffer.append` and returns PCM16 output audio deltas to the desktop app.
 - OpenAI Realtime input transcription is enabled for user-side transcript capture in session logs.
+- OpenAI Realtime function calling routes enabled local tools through the backend tool registry.
+- `end_call` lets the AI end a Test Call after its goodbye audio is delivered.
 
 ## Setup
 
@@ -124,4 +126,6 @@ python -m unittest discover -s tests
 - OpenAI Realtime audio transport is implemented; Gemini Live transport is still reserved for the next provider pass.
 - The browser/Tauri frontend sends provider-ready PCM16 chunks and can play PCM16 output audio returned by provider adapters.
 - Logs supports session detail drill-down for transcripts, tool calls, and provider/app events.
+- Tool calls are persisted to SQLite and can be inspected per session.
+- AI-ended calls use `agent_hung_up` as the session ended reason.
 - Background runtime can stay in standby, but each AI session is capped at 5 minutes.

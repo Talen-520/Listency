@@ -81,6 +81,23 @@ class OpenAIRealtimeAdapter:
             )
         )
 
+    async def send_tool_result(self, handle: ProviderSessionHandle, tool_call_id: str, output: dict[str, Any]) -> None:
+        if handle.connection is None:
+            return
+        await handle.connection.send(
+            json.dumps(
+                {
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "function_call_output",
+                        "call_id": tool_call_id,
+                        "output": json.dumps(output, ensure_ascii=False),
+                    },
+                }
+            )
+        )
+        await handle.connection.send(json.dumps({"type": "response.create"}))
+
     async def close_session(self, handle: ProviderSessionHandle) -> None:
         if handle.listener_task:
             handle.listener_task.cancel()
@@ -101,6 +118,7 @@ class OpenAIRealtimeAdapter:
         session: dict[str, Any] = {
             "type": "realtime",
             "output_modalities": ["audio"],
+            "tool_choice": "auto",
             "audio": {
                 "input": {
                     "format": {
@@ -122,6 +140,9 @@ class OpenAIRealtimeAdapter:
                 "output": output,
             },
         }
+        tools = list((session_config or {}).get("tools") or [])
+        if tools:
+            session["tools"] = tools
         if instructions:
             session["instructions"] = instructions
         return {"type": "session.update", "session": session}
@@ -219,6 +240,26 @@ class OpenAIRealtimeAdapter:
                     "is_final": True,
                 }
             )
+        elif event_type == "response.function_call_arguments.done":
+            normalized.update(
+                {
+                    "type": "provider.tool_call.done",
+                    "tool_call_id": event.get("call_id", ""),
+                    "tool_name": event.get("name", ""),
+                    "arguments": event.get("arguments", "{}"),
+                }
+            )
+        elif event_type == "conversation.item.done":
+            item = event.get("item") or {}
+            if isinstance(item, dict) and item.get("type") == "function_call":
+                normalized.update(
+                    {
+                        "type": "provider.tool_call.done",
+                        "tool_call_id": item.get("call_id", ""),
+                        "tool_name": item.get("name", ""),
+                        "arguments": item.get("arguments", "{}"),
+                    }
+                )
         elif event_type == "error":
             error = event.get("error") or {}
             normalized.update(

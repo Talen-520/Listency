@@ -37,5 +37,8 @@ class GeminiLiveAdapter:
     async def send_audio(self, handle: ProviderSessionHandle, pcm16_chunk: bytes) -> None:
         return None
 
+    async def send_tool_result(self, handle: ProviderSessionHandle, tool_call_id: str, output: dict[str, Any]) -> None:
+        return None
+
     async def close_session(self, handle: ProviderSessionHandle) -> None:
         return None

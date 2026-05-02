@@ -107,6 +107,7 @@ export function App() {
   const silentGainRef = useRef<GainNode | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const outputPlaybackTimeRef = useRef(0);
+  const agentHangupTimerRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -255,6 +256,11 @@ export function App() {
   }
 
   function cleanupLocalStream() {
+    if (agentHangupTimerRef.current !== null) {
+      window.clearTimeout(agentHangupTimerRef.current);
+      agentHangupTimerRef.current = null;
+    }
+
     if (processorRef.current) {
       processorRef.current.onaudioprocess = null;
       processorRef.current.disconnect();
@@ -313,9 +319,16 @@ export function App() {
 
       socket.onmessage = (event) => {
         const payload = JSON.parse(event.data);
-        appendEvent(payload.type === "provider.error" && payload.message ? `${payload.type}: ${payload.message}` : payload.type);
+        appendEvent(formatStreamEvent(payload));
         if (payload.type === "provider.output_audio.delta" && payload.audio) {
           playPcm16Audio(payload.audio, payload.sample_rate ?? 24000);
+        }
+        if (payload.type === "tool.call") {
+          api.toolCalls().then((toolCallList) => setToolCalls(toolCallList.tool_calls)).catch(() => undefined);
+          api.appLogs().then((appLogList) => setAppLogs(appLogList.logs)).catch(() => undefined);
+        }
+        if (payload.type === "session.agent_hangup_ready") {
+          scheduleAgentHangupComplete();
         }
         if (payload.type === "provider.error") {
           const message = String(payload.message ?? "Realtime provider returned an error.");
@@ -437,6 +450,23 @@ export function App() {
     const startAt = Math.max(audioContext.currentTime + 0.02, outputPlaybackTimeRef.current || 0);
     source.start(startAt);
     outputPlaybackTimeRef.current = startAt + buffer.duration;
+  }
+
+  function scheduleAgentHangupComplete() {
+    if (agentHangupTimerRef.current !== null) {
+      window.clearTimeout(agentHangupTimerRef.current);
+    }
+    const audioContext = outputAudioContextRef.current;
+    const queuedAudioMs = audioContext ? Math.max(0, outputPlaybackTimeRef.current - audioContext.currentTime) * 1000 : 0;
+    const delayMs = Math.max(900, queuedAudioMs + 500);
+    setNotice("AI will end the call after goodbye");
+    agentHangupTimerRef.current = window.setTimeout(() => {
+      agentHangupTimerRef.current = null;
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "session.agent_hangup_complete" }));
+      }
+    }, delayMs);
   }
 
   const selectedProviderReady = providers.find((provider) => provider.name === providerChoice)?.ready ?? false;
@@ -964,6 +994,20 @@ function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatStreamEvent(payload: Record<string, unknown>) {
+  if (payload.type === "provider.error" && payload.message) {
+    return `${payload.type}: ${payload.message}`;
+  }
+  if (payload.type === "tool.call" && payload.tool_name) {
+    const ok = (payload.output as { ok?: boolean } | undefined)?.ok;
+    return `${payload.type}: ${payload.tool_name} ${ok === false ? "failed" : "completed"}`;
+  }
+  if (payload.type === "session.agent_hangup_ready") {
+    return "AI goodbye complete, ending call";
+  }
+  return String(payload.type ?? "event");
 }
 
 function resampleMono(input: Float32Array, sourceRate: number, targetRate: number) {

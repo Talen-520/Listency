@@ -26,6 +26,7 @@ class SessionStatus(StrEnum):
 class EndReason(StrEnum):
     USER_STOPPED = "user_stopped"
     CALLER_HUNG_UP = "caller_hung_up"
+    AGENT_HUNG_UP = "agent_hung_up"
     TIMEOUT_5_MINUTES = "timeout_5_minutes"
     PROVIDER_ERROR = "provider_error"
     NETWORK_ERROR = "network_error"

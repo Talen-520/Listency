@@ -51,10 +51,10 @@ class ToolRegistry:
         return tool.public_dict()
 
     def call(self, name: str, payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
-        tool = self.get(name)
-        if not tool.enabled:
-            raise RuntimeError(f"Tool is disabled: {name}")
         try:
+            tool = self.get(name)
+            if not tool.enabled:
+                raise RuntimeError(f"Tool is disabled: {name}")
             result = tool.handler(payload, context)
             context.db.add_tool_call(name, payload, result, "completed", context.session_id)
             return result

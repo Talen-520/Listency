@@ -100,6 +100,57 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(stored["ended_reason"], "provider_error")
             self.assertEqual(stored["error_message"], "quota exceeded")
 
+    async def test_tool_call_ids_are_deduplicated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            db = Database(root / "test.sqlite3")
+            env = EnvStore(root / ".env", root / ".env.example")
+            env.write(
+                {
+                    "OPENAI_API_KEY": "sk-test",
+                    "OPENAI_REALTIME_MOCK": "true",
+                    "DEFAULT_REALTIME_PROVIDER": "openai",
+                }
+            )
+            manager = SessionManager(
+                db=db,
+                env_store=env,
+                providers={"openai": OpenAIRealtimeAdapter()},
+                session_limit_seconds=30,
+            )
+
+            session = await manager.start_test_session("openai")
+
+            self.assertTrue(manager.mark_tool_call_handled(session["id"], "call_123"))
+            self.assertFalse(manager.mark_tool_call_handled(session["id"], "call_123"))
+
+    async def test_agent_hangup_state_tracks_ready_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            db = Database(root / "test.sqlite3")
+            env = EnvStore(root / ".env", root / ".env.example")
+            env.write(
+                {
+                    "OPENAI_API_KEY": "sk-test",
+                    "OPENAI_REALTIME_MOCK": "true",
+                    "DEFAULT_REALTIME_PROVIDER": "openai",
+                }
+            )
+            manager = SessionManager(
+                db=db,
+                env_store=env,
+                providers={"openai": OpenAIRealtimeAdapter()},
+                session_limit_seconds=30,
+            )
+
+            session = await manager.start_test_session("openai")
+
+            self.assertFalse(manager.mark_agent_hangup_ready(session["id"]))
+            self.assertTrue(manager.request_agent_hangup(session["id"]))
+            self.assertTrue(manager.mark_agent_hangup_ready(session["id"]))
+            self.assertFalse(manager.mark_agent_hangup_ready(session["id"]))
+            self.assertTrue(manager.is_agent_hangup_ready(session["id"]))
+
 
 if __name__ == "__main__":
     unittest.main()

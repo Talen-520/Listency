@@ -40,6 +40,7 @@ Realtime Providers
 
 - OpenAI Realtime：后端收到的 PCM16 chunk 会转成 `input_audio_buffer.append`。
 - OpenAI Realtime：`response.output_audio.delta` / `response.audio.delta` 会标准化成 `provider.output_audio.delta` 并通过当前 WebSocket 回前端播放。
+- OpenAI Realtime：启用的本地 tools 会注册到 `session.tools`，provider tool call 会路由到本地 `tool_registry` 执行并回传 `function_call_output`。
 - Gemini Live：仍是 adapter boundary，暂未接真实 Live API transport。
 - Pipeline mode：只保留为第二阶段方向，MVP 暂不实现。
 
@@ -158,7 +159,10 @@ WS /sessions/{session_id}/stream
 - `provider.output_audio.delta`
 - `provider.transcript.delta`
 - `provider.transcript.done`
+- `provider.tool_call.done`
 - `provider.error`
+- `tool.call`
+- `session.agent_hangup_ready`
 - `session.error`
 - `session.ended`
 - `pong`
@@ -198,6 +202,7 @@ idle -> starting -> running -> stopping -> stopped
 ```text
 user_stopped
 caller_hung_up
+agent_hung_up
 timeout_5_minutes
 provider_error
 network_error
@@ -270,7 +275,6 @@ close_session(handle)
 后续仍需要补的 provider 能力：
 
 ```text
-send_tool_result(handle, tool_call_id, output)
 commit_audio_if_manual_turn_detection(handle)
 cancel_response(handle)
 ```
@@ -299,10 +303,21 @@ app/backend/voice_agent/tools/
 - `create_booking`
 - `transfer_call`
 - `log_customer_request`
+- `end_call`
 
 工具调用会写入 SQLite `tool_calls`。
 
-Provider function calling 接入时，不要让模型直接执行任意代码；必须经由 registry 查找、schema 校验、handler 执行、结果回传。
+Provider function calling 已接入 OpenAI Realtime：
+
+- `enabled_tools_for_provider()` 把启用工具转换成 OpenAI function tool schema。
+- OpenAI 返回 `response.function_call_arguments.done` 后，backend 解析参数。
+- backend 经由 `tool_registry.call()` 执行本地 handler。
+- result 通过 `conversation.item.create` 的 `function_call_output` 回传给 OpenAI。
+- backend 发送 `response.create` 让模型继续回复用户。
+- tool call 输入、输出、错误会写入 SQLite `tool_calls`。
+- `end_call` 会请求 AI 在最后一句 goodbye 后结束 session；前端等输出音频播放完再发送 `session.agent_hangup_complete`。
+
+不要让模型直接执行任意代码；必须经由 registry 查找、schema 校验、handler 执行、结果回传。
 
 ## 9. Storage
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import base64
 import asyncio
+import base64
 import json
 from typing import Any
 
@@ -53,9 +53,28 @@ class ToolCallRequest(BaseModel):
 db = Database()
 env_store = EnvStore()
 tool_registry = build_default_registry()
+
+
+def enabled_tools_for_provider() -> list[dict[str, Any]]:
+    tools = []
+    for tool in tool_registry.list_tools():
+        if not tool["enabled"]:
+            continue
+        tools.append(
+            {
+                "type": "function",
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["input_schema"],
+            }
+        )
+    return tools
+
+
 session_manager = SessionManager(
     db=db,
     env_store=env_store,
+    list_tools_for_provider=enabled_tools_for_provider,
     providers={
         "openai": OpenAIRealtimeAdapter(),
         "gemini": GeminiLiveAdapter(),
@@ -224,11 +243,93 @@ async def _handle_provider_event(websocket: WebSocket, session_id: str, event: d
         )
         db.add_transcript(session_id, "system", f"Provider error: {message}", True)
         await session_manager.stop_session(session_id, EndReason.PROVIDER_ERROR, message)
+    if event.get("type") == "provider.tool_call.done":
+        await _handle_provider_tool_call(websocket, session_id, event)
+        return
     if event.get("type") in {"provider.transcript.delta", "provider.transcript.done"}:
         content = str(event.get("content") or "")
         if content and event.get("is_final"):
             db.add_transcript(session_id, str(event.get("speaker") or "assistant"), content, True)
+    if _is_agent_hangup_audio_done(event) and session_manager.mark_agent_hangup_ready(session_id):
+        await websocket.send_json({"type": "session.agent_hangup_ready", "session_id": session_id})
+        asyncio.create_task(_fallback_agent_hangup(session_id))
     await websocket.send_json(event)
+
+
+async def _handle_provider_tool_call(websocket: WebSocket, session_id: str, event: dict[str, Any]) -> None:
+    tool_call_id = str(event.get("tool_call_id") or "")
+    tool_name = str(event.get("tool_name") or "")
+    raw_arguments = str(event.get("arguments") or "{}")
+    if tool_call_id and not session_manager.mark_tool_call_handled(session_id, tool_call_id):
+        await websocket.send_json(
+            {
+                "type": "tool.call_ignored",
+                "session_id": session_id,
+                "tool_call_id": tool_call_id,
+                "tool_name": tool_name,
+                "reason": "duplicate",
+            }
+        )
+        return
+    try:
+        payload = json.loads(raw_arguments)
+        if not isinstance(payload, dict):
+            raise ValueError("Tool arguments must be a JSON object.")
+    except Exception as exc:
+        payload = {"_raw_arguments": raw_arguments}
+        output = {"ok": False, "error": f"Invalid tool arguments: {exc}"}
+        db.add_tool_call(tool_name or "unknown_tool", payload, output, "failed", session_id, output["error"])
+    else:
+        try:
+            result = tool_registry.call(tool_name, payload, ToolContext(db=db, session_id=session_id))
+            output = {"ok": True, "result": result}
+            if tool_name == "end_call":
+                session_manager.request_agent_hangup(session_id)
+            db.add_log(
+                "info",
+                "tool_call_completed",
+                f"{tool_name} completed.",
+                {"session_id": session_id, "tool_name": tool_name, "tool_call_id": tool_call_id},
+            )
+        except Exception as exc:
+            output = {"ok": False, "error": str(exc)}
+            db.add_log(
+                "error",
+                "tool_call_failed",
+                str(exc),
+                {"session_id": session_id, "tool_name": tool_name, "tool_call_id": tool_call_id},
+            )
+
+    await websocket.send_json(
+        {
+            "type": "tool.call",
+            "session_id": session_id,
+            "tool_call_id": tool_call_id,
+            "tool_name": tool_name,
+            "arguments": payload,
+            "output": output,
+        }
+    )
+
+    if not tool_call_id:
+        return
+    try:
+        await session_manager.send_tool_result(session_id, tool_call_id, output)
+    except KeyError:
+        await websocket.send_json({"type": "session.ended", "session_id": session_id})
+    except Exception as exc:
+        await websocket.send_json({"type": "session.error", "message": f"Tool result delivery failed: {exc}"})
+
+
+def _is_agent_hangup_audio_done(event: dict[str, Any]) -> bool:
+    raw_type = str(event.get("raw_type") or "")
+    return raw_type in {"response.output_audio.done", "response.audio.done"}
+
+
+async def _fallback_agent_hangup(session_id: str) -> None:
+    await asyncio.sleep(10)
+    if session_manager.is_agent_hangup_ready(session_id):
+        await session_manager.stop_session(session_id, EndReason.AGENT_HUNG_UP)
 
 
 def _log_provider_event(session_id: str, event: dict[str, Any]) -> None:
@@ -241,9 +342,13 @@ def _log_provider_event(session_id: str, event: dict[str, Any]) -> None:
         "input_audio_buffer.committed",
         "response.created",
         "response.done",
+        "response.audio.done",
         "response.output_audio.done",
         "response.output_audio_transcript.done",
         "response.output_text.done",
+        "response.function_call_arguments.done",
+        "conversation.item.created",
+        "conversation.item.done",
         "rate_limits.updated",
     }
     if raw_type not in tracked_events:
@@ -290,6 +395,11 @@ async def _handle_client_stream_message(websocket: WebSocket, session_id: str, m
         await websocket.send_json({"type": "audio.input_started", "session_id": session_id})
     elif event_type == "audio.stop":
         await websocket.send_json({"type": "audio.input_stopped", "session_id": session_id})
+    elif event_type == "session.agent_hangup_complete":
+        await session_manager.stop_session(session_id, EndReason.AGENT_HUNG_UP)
+        await websocket.send_json({"type": "session.ended", "session_id": session_id, "ended_reason": EndReason.AGENT_HUNG_UP})
+        await websocket.close(code=4000)
+        return False
     elif event_type == "audio.chunk":
         data = str(payload.get("data", ""))
         try:

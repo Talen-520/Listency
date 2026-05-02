@@ -67,6 +67,23 @@ def log_customer_request(payload: dict[str, Any], context: ToolContext) -> dict[
     return {"status": "logged", "message": "Customer request saved locally."}
 
 
+def end_call(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
+    reason = str(payload.get("reason", "")).strip() or "caller indicated the conversation is complete"
+    goodbye = str(payload.get("goodbye_message", "")).strip() or "Thank you for calling. Goodbye."
+    context.db.add_log(
+        "info",
+        "agent_hangup_requested",
+        reason,
+        {"session_id": context.session_id, "goodbye_message": goodbye},
+    )
+    return {
+        "status": "ending_after_goodbye",
+        "reason": reason,
+        "goodbye_message": goodbye,
+        "message": "Say a brief goodbye to the caller now. The local session will end after your goodbye audio is delivered.",
+    }
+
+
 def build_default_registry() -> ToolRegistry:
     return ToolRegistry(
         [
@@ -115,6 +132,21 @@ def build_default_registry() -> ToolRegistry:
                     "required": ["request"],
                 },
                 handler=log_customer_request,
+            ),
+            ToolDefinition(
+                name="end_call",
+                description=(
+                    "End the current call after a brief goodbye. Use this when the caller says goodbye, says they are done, "
+                    "asks to end the call, or the conversation is clearly complete."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "reason": {"type": "string"},
+                        "goodbye_message": {"type": "string"},
+                    },
+                },
+                handler=end_call,
             ),
         ]
     )

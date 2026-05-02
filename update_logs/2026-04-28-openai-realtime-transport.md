@@ -37,4 +37,3 @@ Connect the existing local PCM16 microphone stream to the OpenAI Realtime provid
 
 - Real OpenAI Realtime calls require a valid `OPENAI_API_KEY` in `.env`.
 - Gemini Live remains a provider boundary for a later pass.
-- Tool-call round trip from provider events is not implemented yet.

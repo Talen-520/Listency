@@ -4,7 +4,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.state import BackgroundStatus, EndReason, SessionStatus
@@ -27,6 +27,9 @@ class ActiveSession:
     audio_chunks: int = 0
     audio_bytes: int = 0
     transcript_started: bool = False
+    handled_tool_call_ids: set[str] | None = None
+    agent_hangup_requested: bool = False
+    agent_hangup_ready: bool = False
 
 
 class SessionManager:
@@ -35,11 +38,13 @@ class SessionManager:
         db: Database,
         env_store: EnvStore,
         providers: dict[str, RealtimeProviderAdapter],
+        list_tools_for_provider: Callable[[], list[dict[str, Any]]] | None = None,
         session_limit_seconds: int = SESSION_LIMIT_SECONDS,
     ) -> None:
         self.db = db
         self.env_store = env_store
         self.providers = providers
+        self.list_tools_for_provider = list_tools_for_provider
         self.session_limit_seconds = session_limit_seconds
         self.background_status = BackgroundStatus.STOPPED
         self.active_sessions: dict[str, ActiveSession] = {}
@@ -101,6 +106,12 @@ class SessionManager:
         business_content = str(profile.get("content") or "").strip()
         if business_content:
             instructions = f"{instructions}\n\nBusiness information:\n{business_content}".strip()
+        instructions = (
+            f"{instructions}\n\n"
+            "Call control:\n"
+            "- If the caller says goodbye, says they are done, or asks to end the call, call the end_call tool.\n"
+            "- After the end_call tool returns, say one brief goodbye sentence and do not ask another question."
+        ).strip()
 
         async def queue_provider_event(event: dict[str, Any]) -> None:
             await provider_events.put(event)
@@ -108,7 +119,10 @@ class SessionManager:
         handle = await provider.start_session(
             session_id,
             env,
-            session_config={"instructions": instructions},
+            session_config={
+                "instructions": instructions,
+                "tools": self.list_tools_for_provider() if self.list_tools_for_provider else [],
+            },
             event_callback=queue_provider_event,
         )
         self.db.create_session(
@@ -200,6 +214,44 @@ class SessionManager:
             }
 
         return event
+
+    async def send_tool_result(self, session_id: str, tool_call_id: str, output: dict[str, Any]) -> None:
+        active = self.active_sessions.get(session_id)
+        if not active:
+            raise KeyError(f"Session is not active: {session_id}")
+
+        provider = self.providers.get(active.provider)
+        if provider:
+            await provider.send_tool_result(active.handle, tool_call_id, output)
+
+    def mark_tool_call_handled(self, session_id: str, tool_call_id: str) -> bool:
+        active = self.active_sessions.get(session_id)
+        if not active:
+            return False
+        if active.handled_tool_call_ids is None:
+            active.handled_tool_call_ids = set()
+        if tool_call_id in active.handled_tool_call_ids:
+            return False
+        active.handled_tool_call_ids.add(tool_call_id)
+        return True
+
+    def request_agent_hangup(self, session_id: str) -> bool:
+        active = self.active_sessions.get(session_id)
+        if not active:
+            return False
+        active.agent_hangup_requested = True
+        return True
+
+    def mark_agent_hangup_ready(self, session_id: str) -> bool:
+        active = self.active_sessions.get(session_id)
+        if not active or not active.agent_hangup_requested or active.agent_hangup_ready:
+            return False
+        active.agent_hangup_ready = True
+        return True
+
+    def is_agent_hangup_ready(self, session_id: str) -> bool:
+        active = self.active_sessions.get(session_id)
+        return bool(active and active.agent_hangup_ready)
 
     async def next_provider_event(self, session_id: str) -> dict[str, Any] | None:
         active = self.active_sessions.get(session_id)

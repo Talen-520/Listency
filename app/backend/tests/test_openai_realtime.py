@@ -10,7 +10,17 @@ class OpenAIRealtimeAdapterTest(unittest.TestCase):
         adapter = OpenAIRealtimeAdapter()
         event = adapter._session_update(
             {"DEFAULT_VOICE": "marin"},
-            {"instructions": "Answer briefly."},
+            {
+                "instructions": "Answer briefly.",
+                "tools": [
+                    {
+                        "type": "function",
+                        "name": "business_info_lookup",
+                        "description": "Look up business information.",
+                        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                    }
+                ],
+            },
         )
 
         session = event["session"]
@@ -25,6 +35,24 @@ class OpenAIRealtimeAdapterTest(unittest.TestCase):
         self.assertEqual(session["audio"]["output"]["voice"], "marin")
         self.assertEqual(session["audio"]["input"]["turn_detection"]["type"], "server_vad")
         self.assertTrue(session["audio"]["input"]["turn_detection"]["create_response"])
+        self.assertEqual(session["tool_choice"], "auto")
+        self.assertEqual(session["tools"][0]["name"], "business_info_lookup")
+
+    def test_normalize_tool_call_done(self) -> None:
+        adapter = OpenAIRealtimeAdapter()
+        event = adapter._normalize_event(
+            {
+                "type": "response.function_call_arguments.done",
+                "call_id": "call_123",
+                "name": "business_info_lookup",
+                "arguments": "{\"query\":\"hours\"}",
+            }
+        )
+
+        self.assertEqual(event["type"], "provider.tool_call.done")
+        self.assertEqual(event["tool_call_id"], "call_123")
+        self.assertEqual(event["tool_name"], "business_info_lookup")
+        self.assertEqual(event["arguments"], "{\"query\":\"hours\"}")
 
     def test_normalize_provider_error_keeps_code(self) -> None:
         adapter = OpenAIRealtimeAdapter()
