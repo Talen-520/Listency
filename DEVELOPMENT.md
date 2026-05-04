@@ -4,7 +4,10 @@
 
 The first build is a local-only MVP:
 
-- Tauri + React + shadcn/ui-style components + Tailwind CSS desktop app.
+- Tauri + React + Radix-backed shadcn/ui-style components + Tailwind CSS desktop app.
+- Black/white light and dark desktop themes driven by CSS variables.
+- Inter is bundled locally through `@fontsource/inter`.
+- Desktop action notices use Sonner toast instead of in-page notice banners.
 - Python + FastAPI local backend.
 - API keys stored in local `.env`.
 - SQLite stored under local `data/`.
@@ -129,3 +132,5 @@ python -m unittest discover -s tests
 - Tool calls are persisted to SQLite and can be inspected per session.
 - AI-ended calls use `agent_hung_up` as the session ended reason.
 - Background runtime can stay in standby, but each AI session is capped at 5 minutes.
+- Desktop UI uses local shadcn-style components under `app/desktop/src/components/ui/`; prefer these before adding one-off UI markup.
+- Settings API key fields include hover-card links to provider key pages; do not store those URLs with secrets or user-specific key values.

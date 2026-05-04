@@ -16,7 +16,7 @@ production-ready yet.
 
 ## What Works Today
 
-- Tauri + React desktop UI with Tailwind CSS and shadcn/ui-style components.
+- Tauri + React desktop UI with Tailwind CSS, Radix-backed shadcn/ui-style components, and black/white light-dark themes.
 - Python + FastAPI local backend running on `127.0.0.1`.
 - Local `.env` provider key storage editable from the desktop app.
 - Local SQLite session storage under `data/`.

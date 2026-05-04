@@ -1,24 +1,39 @@
-import type { ReactNode } from "react";
-import { cn } from "../../lib/utils";
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
 
-type BadgeProps = {
-  children: ReactNode;
-  tone?: "neutral" | "green" | "yellow" | "red" | "cyan";
-  className?: string;
-};
+const badgeVariants = cva(
+  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80",
+        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive: "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
+        outline: "border-border text-foreground",
+      },
+      tone: {
+        neutral: "border-border bg-background text-muted-foreground",
+        green: "border-border bg-secondary text-foreground",
+        yellow: "border-border bg-muted text-muted-foreground",
+        red: "border-destructive/40 bg-destructive/10 text-destructive",
+        cyan: "border-border bg-primary text-primary-foreground",
+      },
+    },
+    defaultVariants: {
+      variant: "secondary",
+    },
+  },
+);
 
-const tones = {
-  neutral: "border-[#2a3658] bg-white/5 text-[#b8c2d9]",
-  green: "border-green/30 bg-green/10 text-green",
-  yellow: "border-yellow/30 bg-yellow/10 text-yellow",
-  red: "border-red/30 bg-red/10 text-red",
-  cyan: "border-cyan/30 bg-cyan/10 text-cyan",
-};
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
 
-export function Badge({ children, tone = "neutral", className }: BadgeProps) {
+export function Badge({ className, variant, tone, ...props }: BadgeProps) {
   return (
-    <span className={cn("inline-flex items-center rounded-md border px-2 py-1 text-xs font-semibold", tones[tone], className)}>
-      {children}
-    </span>
+    <div className={cn(badgeVariants({ variant, tone, className }))} {...props} />
   );
 }
+
+export { badgeVariants };

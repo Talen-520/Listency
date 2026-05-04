@@ -205,6 +205,8 @@ cython_debug/
 data/
 app/desktop/node_modules/
 app/desktop/dist/
+app/desktop/.agents/
+app/desktop/skills-lock.json
 app/desktop/src-tauri/gen/
 app/desktop/src-tauri/target/
 !app/desktop/src/lib/

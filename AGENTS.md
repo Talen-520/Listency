@@ -31,10 +31,11 @@ experience, prefer `./DESIGN.md` for UI work.
 
 ## UI Guidance
 
-- Design for a premium AI voice platform.
-- Favor hero-led storytelling, strong CTA hierarchy, and spacious sections.
-- Use audio-native motifs such as waveforms, transcripts, speaking states, and
-  voice controls when appropriate.
+- Design the desktop app as a focused local runtime control panel.
+- Use the monochrome light/dark design system in `./DESIGN.md`.
+- Prefer local shadcn-style components under `app/desktop/src/components/ui/`
+  before adding one-off markup.
+- Use Inter as the primary UI font.
 - Keep copy concise, confident, and product-specific.
 
 ## When Details Are Missing

@@ -16,7 +16,7 @@
 
 ```text
 Tauri Desktop App
-  React + Tailwind + shadcn-style UI
+  React + Tailwind + Radix-backed shadcn-style UI
   Mic capture: 24kHz mono PCM16
         |
         | HTTP / WebSocket on localhost
@@ -101,7 +101,10 @@ Desktop 在 `app/desktop/`。
 - `src/App.tsx`：当前主 UI，包含 Dashboard、Settings、Business Info、Tools、Test Call、Logs。
 - `src/lib/api.ts`：前端访问本地 backend 的 HTTP/WebSocket helper。
 - `src/lib/types.ts`：前端共享类型。
-- `src/components/ui/`：shadcn-style 基础组件。
+- `src/components/ui/`：shadcn-style 基础组件，包含 Button、Badge、Card、Input、Textarea、Select、Switch、Tabs、Table、ScrollArea、Alert、Tooltip 等。
+- `src/components/theme-provider.tsx`：light / dark theme provider，通过 document root class 切换 CSS variables。
+- `src/components/mode-toggle.tsx`：单击式黑白主题切换入口。
+- `src/components/ui/sonner.tsx`：toast 通知入口，用于 action notice 和 runtime error 提醒。
 - `src-tauri/`：Tauri 原生壳配置和 Rust entrypoint。
 
 ## 4. Backend API
