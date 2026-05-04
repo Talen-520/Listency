@@ -11,7 +11,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ThemeProvider defaultTheme="dark">
       <TooltipProvider delayDuration={200}>
         <App />
-        <Toaster position="top-right" richColors />
+        <Toaster position="top-center" duration={2000} richColors />
       </TooltipProvider>
     </ThemeProvider>
   </React.StrictMode>,
