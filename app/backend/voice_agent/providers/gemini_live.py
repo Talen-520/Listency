@@ -20,34 +20,34 @@ GEMINI_INPUT_SAMPLE_RATE = 16000
 GEMINI_OUTPUT_SAMPLE_RATE = 24000
 GEMINI_LIVE_VOICES = [
     "Zephyr",
-    "Puck",
-    "Charon",
     "Kore",
-    "Fenrir",
-    "Leda",
     "Orus",
-    "Aoede",
-    "Callirrhoe",
     "Autonoe",
-    "Enceladus",
-    "Iapetus",
     "Umbriel",
-    "Algieba",
-    "Despina",
     "Erinome",
-    "Algenib",
-    "Rasalgethi",
     "Laomedeia",
-    "Achernar",
-    "Alnilam",
     "Schedar",
-    "Gacrux",
-    "Pulcherrima",
     "Achird",
-    "Zubenelgenubi",
-    "Vindemiatrix",
     "Sadachbia",
+    "Puck",
+    "Fenrir",
+    "Aoede",
+    "Enceladus",
+    "Algieba",
+    "Algenib",
+    "Achernar",
+    "Gacrux",
+    "Zubenelgenubi",
     "Sadaltager",
+    "Charon",
+    "Leda",
+    "Callirrhoe",
+    "Iapetus",
+    "Despina",
+    "Rasalgethi",
+    "Alnilam",
+    "Pulcherrima",
+    "Vindemiatrix",
     "Sulafat",
 ]
 
@@ -132,7 +132,7 @@ class GeminiLiveAdapter:
     def _config_message(self, env: dict[str, str], session_config: dict[str, Any] | None) -> dict[str, Any]:
         model = env.get("GEMINI_LIVE_MODEL", DEFAULT_GEMINI_LIVE_MODEL).strip() or DEFAULT_GEMINI_LIVE_MODEL
         instructions = str((session_config or {}).get("instructions") or "").strip()
-        voice = env.get("DEFAULT_VOICE", "").strip()
+        voice = self._voice(env)
 
         config: dict[str, Any] = {
             "model": self._model_resource(model),
@@ -166,6 +166,9 @@ class GeminiLiveAdapter:
                 }
             }
         }
+
+    def _voice(self, env: dict[str, str]) -> str:
+        return env.get("GEMINI_DEFAULT_VOICE", "").strip() or env.get("DEFAULT_VOICE", "").strip()
 
     def _gemini_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         declarations = []

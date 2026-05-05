@@ -44,6 +44,8 @@ export const api = {
     gemini_live_model: string;
     openai_realtime_mock: string;
     default_realtime_provider: string;
+    openai_default_voice: string;
+    gemini_default_voice: string;
     default_voice: string;
   }) =>
     request<PublicConfig>("/config", {

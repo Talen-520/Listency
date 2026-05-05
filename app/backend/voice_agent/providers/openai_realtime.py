@@ -117,7 +117,7 @@ class OpenAIRealtimeAdapter:
 
     def _session_update(self, env: dict[str, str], session_config: dict[str, Any] | None) -> dict[str, Any]:
         instructions = str((session_config or {}).get("instructions") or "").strip()
-        voice = env.get("DEFAULT_VOICE", "").strip()
+        voice = self._voice(env)
         output: dict[str, Any] = {
             "format": {
                 "type": "audio/pcm",
@@ -157,6 +157,9 @@ class OpenAIRealtimeAdapter:
         if instructions:
             session["instructions"] = instructions
         return {"type": "session.update", "session": session}
+
+    def _voice(self, env: dict[str, str]) -> str:
+        return env.get("OPENAI_DEFAULT_VOICE", "").strip() or env.get("DEFAULT_VOICE", "").strip()
 
     async def _listen(
         self,

@@ -14,6 +14,8 @@ ENV_DEFAULTS: dict[str, str] = {
     "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
     "OPENAI_REALTIME_MOCK": "false",
     "DEFAULT_REALTIME_PROVIDER": "openai",
+    "OPENAI_DEFAULT_VOICE": "",
+    "GEMINI_DEFAULT_VOICE": "",
     "DEFAULT_VOICE": "",
 }
 
@@ -76,6 +78,8 @@ class EnvStore:
             "GEMINI_LIVE_MODEL": values.get("GEMINI_LIVE_MODEL", "gemini-3.1-flash-live-preview"),
             "OPENAI_REALTIME_MOCK": values.get("OPENAI_REALTIME_MOCK", "false"),
             "DEFAULT_REALTIME_PROVIDER": values.get("DEFAULT_REALTIME_PROVIDER", "openai"),
+            "OPENAI_DEFAULT_VOICE": values.get("OPENAI_DEFAULT_VOICE", ""),
+            "GEMINI_DEFAULT_VOICE": values.get("GEMINI_DEFAULT_VOICE", ""),
             "DEFAULT_VOICE": values.get("DEFAULT_VOICE", ""),
             "has_openai_key": bool(values.get("OPENAI_API_KEY")),
             "has_gemini_key": bool(values.get("GEMINI_API_KEY")),

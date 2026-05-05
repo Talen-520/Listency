@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
+import { DEFAULT_GEMINI_LIVE_MODEL, isSupportedGeminiLiveModel } from "@/lib/models";
 import type {
   AgentProfile,
   AppLogRecord,
@@ -14,14 +15,17 @@ import type {
   ToolInfo,
   TranscriptRecord,
 } from "@/lib/types";
+import { isSupportedVoice } from "@/lib/voices";
 
 const emptyConfig: PublicConfig = {
   OPENAI_API_KEY: "",
   GEMINI_API_KEY: "",
   OPENAI_REALTIME_MODEL: "gpt-realtime",
-  GEMINI_LIVE_MODEL: "gemini-3.1-flash-live-preview",
+  GEMINI_LIVE_MODEL: DEFAULT_GEMINI_LIVE_MODEL,
   OPENAI_REALTIME_MOCK: "false",
   DEFAULT_REALTIME_PROVIDER: "openai",
+  OPENAI_DEFAULT_VOICE: "",
+  GEMINI_DEFAULT_VOICE: "",
   DEFAULT_VOICE: "",
   has_openai_key: false,
   has_gemini_key: false,
@@ -65,9 +69,10 @@ export function useAppData() {
   const [geminiKey, setGeminiKey] = useState("");
   const [providerChoice, setProviderChoice] = useState("openai");
   const [openAiModel, setOpenAiModel] = useState("gpt-realtime");
-  const [geminiModel, setGeminiModel] = useState("gemini-3.1-flash-live-preview");
+  const [geminiModel, setGeminiModel] = useState(DEFAULT_GEMINI_LIVE_MODEL);
   const [openAiMock, setOpenAiMock] = useState("false");
-  const [voice, setVoice] = useState("");
+  const [openAiVoice, setOpenAiVoice] = useState("");
+  const [geminiVoice, setGeminiVoice] = useState("");
   const [now, setNow] = useState(Date.now());
 
   const activeSession = status.active_sessions[0];
@@ -108,9 +113,18 @@ export function useAppData() {
       setAgent(agentProfile);
       setProviderChoice(cfg.DEFAULT_REALTIME_PROVIDER || "openai");
       setOpenAiModel(cfg.OPENAI_REALTIME_MODEL || "gpt-realtime");
-      setGeminiModel(cfg.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview");
+      setGeminiModel(isSupportedGeminiLiveModel(cfg.GEMINI_LIVE_MODEL) ? cfg.GEMINI_LIVE_MODEL : DEFAULT_GEMINI_LIVE_MODEL);
       setOpenAiMock(cfg.OPENAI_REALTIME_MOCK || "false");
-      setVoice(cfg.DEFAULT_VOICE || "");
+      const legacyVoice = cfg.DEFAULT_VOICE || "";
+      const defaultProvider = cfg.DEFAULT_REALTIME_PROVIDER || "openai";
+      setOpenAiVoice(
+        cfg.OPENAI_DEFAULT_VOICE ||
+          (defaultProvider === "openai" && isSupportedVoice("openai", legacyVoice) ? legacyVoice : ""),
+      );
+      setGeminiVoice(
+        cfg.GEMINI_DEFAULT_VOICE ||
+          (defaultProvider === "gemini" && isSupportedVoice("gemini", legacyVoice) ? legacyVoice : ""),
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Backend unavailable");
     }
@@ -148,11 +162,13 @@ export function useAppData() {
       gemini_live_model: geminiModel,
       openai_realtime_mock: openAiMock,
       default_realtime_provider: providerChoice,
-      default_voice: voice,
+      openai_default_voice: openAiVoice,
+      gemini_default_voice: geminiVoice,
+      default_voice: providerChoice === "gemini" ? geminiVoice : openAiVoice,
     });
     setOpenAiKey("");
     setGeminiKey("");
-  }, [geminiKey, geminiModel, openAiKey, openAiMock, openAiModel, providerChoice, voice]);
+  }, [geminiKey, geminiModel, geminiVoice, openAiKey, openAiMock, openAiModel, openAiVoice, providerChoice]);
 
   return {
     status,
@@ -174,7 +190,8 @@ export function useAppData() {
     openAiModel,
     geminiModel,
     openAiMock,
-    voice,
+    openAiVoice,
+    geminiVoice,
     activeSession,
     remainingSeconds,
     selectedProviderReady,
@@ -193,6 +210,7 @@ export function useAppData() {
     setOpenAiModel,
     setGeminiModel,
     setOpenAiMock,
-    setVoice,
+    setOpenAiVoice,
+    setGeminiVoice,
   };
 }

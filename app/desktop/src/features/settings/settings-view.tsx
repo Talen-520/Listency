@@ -1,13 +1,17 @@
-import { KeyRound } from "lucide-react";
+import type { ReactNode } from "react";
+import { CheckCircle2, KeyRound } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
+import { geminiLiveModelOptions } from "@/lib/models";
 import type { PublicConfig } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { isSupportedVoice, voiceOptionsForProvider } from "@/lib/voices";
 
 const OPENAI_API_KEYS_URL = "https://platform.openai.com/settings/organization/api-keys";
@@ -22,14 +26,16 @@ export function SettingsView({
   openAiModel,
   geminiModel,
   openAiMock,
-  voice,
+  openAiVoice,
+  geminiVoice,
   onOpenAiKeyChange,
   onGeminiKeyChange,
   onProviderChoiceChange,
   onOpenAiModelChange,
   onGeminiModelChange,
   onOpenAiMockChange,
-  onVoiceChange,
+  onOpenAiVoiceChange,
+  onGeminiVoiceChange,
   onSave,
 }: {
   config: PublicConfig;
@@ -39,30 +45,20 @@ export function SettingsView({
   openAiModel: string;
   geminiModel: string;
   openAiMock: string;
-  voice: string;
+  openAiVoice: string;
+  geminiVoice: string;
   onOpenAiKeyChange: (value: string) => void;
   onGeminiKeyChange: (value: string) => void;
   onProviderChoiceChange: (value: string) => void;
   onOpenAiModelChange: (value: string) => void;
   onGeminiModelChange: (value: string) => void;
   onOpenAiMockChange: (value: string) => void;
-  onVoiceChange: (value: string) => void;
+  onOpenAiVoiceChange: (value: string) => void;
+  onGeminiVoiceChange: (value: string) => void;
   onSave: () => void;
 }) {
-  const voiceOptions = voiceOptionsForProvider(providerChoice);
-  const hasSavedCustomVoice = voice.length > 0 && !isSupportedVoice(providerChoice, voice);
-  const voiceSelectValue = voice || PROVIDER_DEFAULT_VOICE;
-
-  function handleProviderChoiceChange(value: string) {
-    onProviderChoiceChange(value);
-    if (voice && !isSupportedVoice(value, voice)) {
-      onVoiceChange("");
-    }
-  }
-
-  function handleVoiceChange(value: string) {
-    onVoiceChange(value === PROVIDER_DEFAULT_VOICE ? "" : value);
-  }
+  const openAiVoiceOptions = voiceOptionsForProvider("openai");
+  const geminiVoiceOptions = voiceOptionsForProvider("gemini");
 
   return (
     <div className="space-y-6">
@@ -105,51 +101,92 @@ export function SettingsView({
         <p className="text-sm text-muted-foreground">Default provider and model configuration.</p>
       </div>
       <Separator />
-      <div className="grid gap-6 md:grid-cols-2">
-        <Field label="Default Provider">
-          <Select value={providerChoice} onValueChange={handleProviderChoiceChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select provider" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="openai">OpenAI Realtime</SelectItem>
-              <SelectItem value="gemini">Gemini Live</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="OpenAI Realtime Model">
-          <Input value={openAiModel} onChange={(event) => onOpenAiModelChange(event.target.value)} placeholder="gpt-realtime" />
-        </Field>
-        <Field label="Gemini Live Model">
-          <Input value={geminiModel} onChange={(event) => onGeminiModelChange(event.target.value)} placeholder="gemini-3.1-flash-live-preview" />
-        </Field>
-        <Field label="OpenAI Mock Mode">
-          <Select value={openAiMock} onValueChange={onOpenAiMockChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Mock mode" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="false">Off</SelectItem>
-              <SelectItem value="true">On</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Default Voice" action={<VoiceHelp />}>
-          <Select value={voiceSelectValue} onValueChange={handleVoiceChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Provider default" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
-              {hasSavedCustomVoice && <SelectItem value={voice}>{voice} - saved custom value</SelectItem>}
-              {voiceOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ProviderPanel
+          active={providerChoice === "openai"}
+          description="Realtime speech with OpenAI."
+          title="OpenAI Realtime"
+          onSelect={() => onProviderChoiceChange("openai")}
+        >
+          <Field label="Model">
+            <Input value={openAiModel} onChange={(event) => onOpenAiModelChange(event.target.value)} placeholder="gpt-realtime" />
+          </Field>
+          <Field label="Voice" action={<VoiceHelp />}>
+            <Select
+              value={openAiVoice || PROVIDER_DEFAULT_VOICE}
+              onValueChange={(value) => onOpenAiVoiceChange(value === PROVIDER_DEFAULT_VOICE ? "" : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Provider default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
+                {openAiVoice.length > 0 && !isSupportedVoice("openai", openAiVoice) && (
+                  <SelectItem value={openAiVoice}>{openAiVoice} - saved custom value</SelectItem>
+                )}
+                {openAiVoiceOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Mock Mode">
+            <Select value={openAiMock} onValueChange={onOpenAiMockChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Mock mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="false">Off</SelectItem>
+                <SelectItem value="true">On</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </ProviderPanel>
+
+        <ProviderPanel
+          active={providerChoice === "gemini"}
+          description="Native audio dialogue with Gemini Live."
+          title="Gemini Live"
+          onSelect={() => onProviderChoiceChange("gemini")}
+        >
+          <Field label="Model">
+            <Select value={geminiModel} onValueChange={onGeminiModelChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Gemini Live model" />
+              </SelectTrigger>
+              <SelectContent>
+                {geminiLiveModelOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Voice" action={<VoiceHelp />}>
+            <Select
+              value={geminiVoice || PROVIDER_DEFAULT_VOICE}
+              onValueChange={(value) => onGeminiVoiceChange(value === PROVIDER_DEFAULT_VOICE ? "" : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Provider default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
+                {geminiVoice.length > 0 && !isSupportedVoice("gemini", geminiVoice) && (
+                  <SelectItem value={geminiVoice}>{geminiVoice} - saved custom value</SelectItem>
+                )}
+                {geminiVoiceOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </ProviderPanel>
       </div>
 
       {/* Save Section */}
@@ -162,5 +199,60 @@ export function SettingsView({
         </Button>
       </div>
     </div>
+  );
+}
+
+function ProviderPanel({
+  active,
+  children,
+  description,
+  onSelect,
+  title,
+}: {
+  active: boolean;
+  children: ReactNode;
+  description: string;
+  onSelect: () => void;
+  title: string;
+}) {
+  return (
+    <Card
+      role="button"
+      tabIndex={0}
+      aria-pressed={active}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.currentTarget !== event.target) {
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "space-y-5 rounded-lg p-5 outline-none transition-all duration-300 ease-out",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        active
+          ? "border-foreground/35 bg-card text-card-foreground shadow-sm ring-1 ring-foreground/10"
+          : "border-border bg-muted/25 text-muted-foreground opacity-70 shadow-none hover:bg-muted/40 hover:opacity-100",
+      )}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className={cn("text-base font-semibold transition-colors duration-300", active ? "text-foreground" : "text-muted-foreground")}>{title}</h3>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+        <div
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all duration-300 ease-out",
+            active ? "border-foreground bg-foreground text-background" : "border-border bg-background text-muted-foreground",
+          )}
+        >
+          <CheckCircle2 className={cn("h-4 w-4 transition-opacity duration-300", active ? "opacity-100" : "opacity-0")} />
+        </div>
+      </div>
+      <div className="space-y-4">{children}</div>
+    </Card>
   );
 }

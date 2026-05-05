@@ -57,14 +57,16 @@ export function App() {
             openAiModel={data.openAiModel}
             geminiModel={data.geminiModel}
             openAiMock={data.openAiMock}
-            voice={data.voice}
+            openAiVoice={data.openAiVoice}
+            geminiVoice={data.geminiVoice}
             onOpenAiKeyChange={data.setOpenAiKey}
             onGeminiKeyChange={data.setGeminiKey}
             onProviderChoiceChange={data.setProviderChoice}
             onOpenAiModelChange={data.setOpenAiModel}
             onGeminiModelChange={data.setGeminiModel}
             onOpenAiMockChange={data.setOpenAiMock}
-            onVoiceChange={data.setVoice}
+            onOpenAiVoiceChange={data.setOpenAiVoice}
+            onGeminiVoiceChange={data.setGeminiVoice}
             onSave={() => void data.runAction(data.saveSettings, ".env saved")}
           />
         );

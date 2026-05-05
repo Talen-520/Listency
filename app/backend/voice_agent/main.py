@@ -25,6 +25,8 @@ class EnvUpdate(BaseModel):
     gemini_live_model: str = "gemini-3.1-flash-live-preview"
     openai_realtime_mock: str = "false"
     default_realtime_provider: str = "openai"
+    openai_default_voice: str = ""
+    gemini_default_voice: str = ""
     default_voice: str = ""
 
 
@@ -114,6 +116,8 @@ async def save_config(update: EnvUpdate) -> dict[str, Any]:
         "GEMINI_LIVE_MODEL": update.gemini_live_model,
         "OPENAI_REALTIME_MOCK": update.openai_realtime_mock,
         "DEFAULT_REALTIME_PROVIDER": update.default_realtime_provider,
+        "OPENAI_DEFAULT_VOICE": update.openai_default_voice,
+        "GEMINI_DEFAULT_VOICE": update.gemini_default_voice,
         "DEFAULT_VOICE": update.default_voice,
     }
     if update.openai_api_key:

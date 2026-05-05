@@ -9,7 +9,7 @@ class OpenAIRealtimeAdapterTest(unittest.TestCase):
     def test_session_update_uses_current_audio_schema(self) -> None:
         adapter = OpenAIRealtimeAdapter()
         event = adapter._session_update(
-            {"DEFAULT_VOICE": "marin"},
+            {"OPENAI_DEFAULT_VOICE": "marin"},
             {
                 "instructions": "Answer briefly.",
                 "tools": [
@@ -79,6 +79,9 @@ class OpenAIRealtimeAdapterTest(unittest.TestCase):
         self.assertIn("marin", voices)
         self.assertIn("cedar", voices)
         self.assertIn("alloy", voices)
+
+    def test_openai_voice_falls_back_to_legacy_default_voice(self) -> None:
+        self.assertEqual(OpenAIRealtimeAdapter()._voice({"DEFAULT_VOICE": "cedar"}), "cedar")
 
 
 if __name__ == "__main__":

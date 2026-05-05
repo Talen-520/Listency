@@ -11,7 +11,7 @@ class GeminiLiveAdapterTest(unittest.TestCase):
         adapter = GeminiLiveAdapter()
         event = adapter._config_message(
             {
-                "DEFAULT_VOICE": "Kore",
+                "GEMINI_DEFAULT_VOICE": "Kore",
                 "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
             },
             {
@@ -133,9 +133,14 @@ class GeminiLiveAdapterTest(unittest.TestCase):
     def test_list_voices_returns_gemini_live_voice_names(self) -> None:
         voices = GeminiLiveAdapter().list_voices({})
 
+        self.assertEqual(len(voices), 30)
+        self.assertEqual(voices[0], "Zephyr")
         self.assertIn("Kore", voices)
         self.assertIn("Puck", voices)
-        self.assertIn("Sulafat", voices)
+        self.assertEqual(voices[-1], "Sulafat")
+
+    def test_gemini_voice_falls_back_to_legacy_default_voice(self) -> None:
+        self.assertEqual(GeminiLiveAdapter()._voice({"DEFAULT_VOICE": "Kore"}), "Kore")
 
 
 if __name__ == "__main__":

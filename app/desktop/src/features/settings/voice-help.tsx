@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 const OPENAI_VOICE_URL = "https://platform.openai.com/docs/guides/realtime-conversations#audio-inputs-and-outputs";
-const GEMINI_LIVE_VOICE_URL = "https://ai.google.dev/gemini-api/docs/live-guide#change_voice_and_language";
+const GEMINI_LIVE_VOICE_URL = "https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api/configure-language-voice";
 
 export function VoiceHelp() {
   return (
