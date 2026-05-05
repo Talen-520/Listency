@@ -5,7 +5,8 @@ import { api } from "@/lib/api";
 import { decodeBase64Pcm16, floatToPcm16, resampleMono } from "@/lib/audio";
 import type { ActiveSession, AppLogRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
-const REALTIME_PCM_SAMPLE_RATE = 24000;
+const OPENAI_PCM_SAMPLE_RATE = 24000;
+const GEMINI_PCM_SAMPLE_RATE = 16000;
 
 type TranscriptPayload = {
   speaker?: unknown;
@@ -150,6 +151,8 @@ export function useRealtimeTest({
   }, []);
 
   const startLiveTest = useCallback(async () => {
+    const inputSampleRate = providerChoice === "gemini" ? GEMINI_PCM_SAMPLE_RATE : OPENAI_PCM_SAMPLE_RATE;
+
     setLiveEvents([]);
     setStreamStatus("requesting mic");
 
@@ -237,7 +240,7 @@ export function useRealtimeTest({
         socket.onerror = () => reject(new Error("WebSocket connection failed"));
       });
 
-      socket.send(JSON.stringify({ type: "audio.start", format: "pcm16", sample_rate: REALTIME_PCM_SAMPLE_RATE, channels: 1 }));
+      socket.send(JSON.stringify({ type: "audio.start", format: "pcm16", sample_rate: inputSampleRate, channels: 1 }));
 
       const audioContext = new AudioContextCtor();
       void audioContext.resume().catch(() => undefined);
@@ -256,7 +259,7 @@ export function useRealtimeTest({
           return;
         }
         const input = event.inputBuffer.getChannelData(0);
-        const resampled = resampleMono(input, audioContext.sampleRate, REALTIME_PCM_SAMPLE_RATE);
+        const resampled = resampleMono(input, audioContext.sampleRate, inputSampleRate);
         socket.send(floatToPcm16(resampled));
       };
 

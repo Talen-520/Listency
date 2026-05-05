@@ -16,6 +16,7 @@ class EnvStoreTest(unittest.TestCase):
                     "OPENAI_API_KEY": "sk-test-123456",
                     "GEMINI_API_KEY": "gemini-test-987654",
                     "OPENAI_REALTIME_MODEL": "gpt-realtime",
+                    "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
                     "OPENAI_REALTIME_MOCK": "true",
                     "DEFAULT_REALTIME_PROVIDER": "gemini",
                     "DEFAULT_VOICE": "default",
@@ -27,6 +28,7 @@ class EnvStoreTest(unittest.TestCase):
 
             self.assertEqual(values["DEFAULT_REALTIME_PROVIDER"], "gemini")
             self.assertEqual(values["OPENAI_REALTIME_MODEL"], "gpt-realtime")
+            self.assertEqual(values["GEMINI_LIVE_MODEL"], "gemini-3.1-flash-live-preview")
             self.assertEqual(values["OPENAI_REALTIME_MOCK"], "true")
             self.assertEqual(values["DEFAULT_VOICE"], "default")
             self.assertTrue(public["has_openai_key"])

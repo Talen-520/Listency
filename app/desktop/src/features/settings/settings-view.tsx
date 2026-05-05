@@ -18,12 +18,14 @@ export function SettingsView({
   geminiKey,
   providerChoice,
   openAiModel,
+  geminiModel,
   openAiMock,
   voice,
   onOpenAiKeyChange,
   onGeminiKeyChange,
   onProviderChoiceChange,
   onOpenAiModelChange,
+  onGeminiModelChange,
   onOpenAiMockChange,
   onVoiceChange,
   onSave,
@@ -33,12 +35,14 @@ export function SettingsView({
   geminiKey: string;
   providerChoice: string;
   openAiModel: string;
+  geminiModel: string;
   openAiMock: string;
   voice: string;
   onOpenAiKeyChange: (value: string) => void;
   onGeminiKeyChange: (value: string) => void;
   onProviderChoiceChange: (value: string) => void;
   onOpenAiModelChange: (value: string) => void;
+  onGeminiModelChange: (value: string) => void;
   onOpenAiMockChange: (value: string) => void;
   onVoiceChange: (value: string) => void;
   onSave: () => void;
@@ -98,6 +102,9 @@ export function SettingsView({
         </Field>
         <Field label="OpenAI Realtime Model">
           <Input value={openAiModel} onChange={(event) => onOpenAiModelChange(event.target.value)} placeholder="gpt-realtime" />
+        </Field>
+        <Field label="Gemini Live Model">
+          <Input value={geminiModel} onChange={(event) => onGeminiModelChange(event.target.value)} placeholder="gemini-3.1-flash-live-preview" />
         </Field>
         <Field label="OpenAI Mock Mode">
           <Select value={openAiMock} onValueChange={onOpenAiMockChange}>

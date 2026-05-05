@@ -22,6 +22,7 @@ class EnvUpdate(BaseModel):
     openai_api_key: str = ""
     gemini_api_key: str = ""
     openai_realtime_model: str = "gpt-realtime"
+    gemini_live_model: str = "gemini-3.1-flash-live-preview"
     openai_realtime_mock: str = "false"
     default_realtime_provider: str = "openai"
     default_voice: str = ""
@@ -110,6 +111,7 @@ async def get_config() -> dict[str, Any]:
 async def save_config(update: EnvUpdate) -> dict[str, Any]:
     updates = {
         "OPENAI_REALTIME_MODEL": update.openai_realtime_model,
+        "GEMINI_LIVE_MODEL": update.gemini_live_model,
         "OPENAI_REALTIME_MOCK": update.openai_realtime_mock,
         "DEFAULT_REALTIME_PROVIDER": update.default_realtime_provider,
         "DEFAULT_VOICE": update.default_voice,
@@ -323,7 +325,7 @@ async def _handle_provider_tool_call(websocket: WebSocket, session_id: str, even
 
 def _is_agent_hangup_audio_done(event: dict[str, Any]) -> bool:
     raw_type = str(event.get("raw_type") or "")
-    return raw_type in {"response.output_audio.done", "response.audio.done"}
+    return raw_type in {"response.output_audio.done", "response.audio.done", "serverContent.turnComplete"}
 
 
 async def _fallback_agent_hangup(session_id: str) -> None:
@@ -349,6 +351,11 @@ def _log_provider_event(session_id: str, event: dict[str, Any]) -> None:
         "response.function_call_arguments.done",
         "conversation.item.created",
         "conversation.item.done",
+        "setupComplete",
+        "serverContent.turnComplete",
+        "serverContent.generationComplete",
+        "toolCall",
+        "goAway",
         "rate_limits.updated",
     }
     if raw_type not in tracked_events:

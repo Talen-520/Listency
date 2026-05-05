@@ -21,8 +21,9 @@ What works today:
 - Local `.env` provider key storage editable from Settings.
 - Local SQLite session, transcript, tool-call, and app-event storage.
 - OpenAI Realtime microphone-to-speaker Test Call.
-- 24 kHz mono PCM16 audio capture and playback path.
-- OpenAI Realtime transcript capture and local tool calling.
+- Gemini Live microphone-to-speaker Test Call.
+- Provider-specific mono PCM16 input: 24 kHz for OpenAI Realtime and 16 kHz for Gemini Live.
+- OpenAI Realtime and Gemini Live transcript capture and local tool calling.
 - Built-in tools for business info lookup, booking capture, transfer request
   logging, customer request logging, and AI-ended calls.
 - Logs view with per-session transcript, tool call, and event drill-down.
@@ -30,7 +31,6 @@ What works today:
 
 Planned next:
 
-- Gemini Live transport.
 - Real phone provider configuration and inbound call lifecycle.
 - Pipeline mode with separate STT, LLM, and TTS providers.
 - More complete booking and business workflow tools.
@@ -72,6 +72,7 @@ Set provider values as needed:
 OPENAI_API_KEY=
 GEMINI_API_KEY=
 OPENAI_REALTIME_MODEL=gpt-realtime
+GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
 OPENAI_REALTIME_MOCK=false
 DEFAULT_REALTIME_PROVIDER=openai
 DEFAULT_VOICE=
@@ -146,7 +147,7 @@ app/backend/
   voice_agent/
     config/       local .env and path helpers
     core/         runtime and session lifecycle
-    providers/    OpenAI Realtime and Gemini adapter boundary
+    providers/    OpenAI Realtime and Gemini Live transports
     storage/      SQLite persistence
     tools/        local tool registry and built-in tools
 

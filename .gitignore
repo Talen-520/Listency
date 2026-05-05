@@ -202,7 +202,7 @@ cython_debug/
 # voiceAgent local runtime
 .DS_Store
 .agents/
-agent/
+/agent/
 data/
 app/desktop/node_modules/
 app/desktop/dist/

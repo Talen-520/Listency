@@ -18,6 +18,7 @@ export type PublicConfig = {
   OPENAI_API_KEY: string;
   GEMINI_API_KEY: string;
   OPENAI_REALTIME_MODEL: string;
+  GEMINI_LIVE_MODEL: string;
   OPENAI_REALTIME_MOCK: string;
   DEFAULT_REALTIME_PROVIDER: string;
   DEFAULT_VOICE: string;

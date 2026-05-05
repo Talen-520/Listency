@@ -19,6 +19,7 @@ const emptyConfig: PublicConfig = {
   OPENAI_API_KEY: "",
   GEMINI_API_KEY: "",
   OPENAI_REALTIME_MODEL: "gpt-realtime",
+  GEMINI_LIVE_MODEL: "gemini-3.1-flash-live-preview",
   OPENAI_REALTIME_MOCK: "false",
   DEFAULT_REALTIME_PROVIDER: "openai",
   DEFAULT_VOICE: "",
@@ -64,6 +65,7 @@ export function useAppData() {
   const [geminiKey, setGeminiKey] = useState("");
   const [providerChoice, setProviderChoice] = useState("openai");
   const [openAiModel, setOpenAiModel] = useState("gpt-realtime");
+  const [geminiModel, setGeminiModel] = useState("gemini-3.1-flash-live-preview");
   const [openAiMock, setOpenAiMock] = useState("false");
   const [voice, setVoice] = useState("");
   const [now, setNow] = useState(Date.now());
@@ -106,6 +108,7 @@ export function useAppData() {
       setAgent(agentProfile);
       setProviderChoice(cfg.DEFAULT_REALTIME_PROVIDER || "openai");
       setOpenAiModel(cfg.OPENAI_REALTIME_MODEL || "gpt-realtime");
+      setGeminiModel(cfg.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview");
       setOpenAiMock(cfg.OPENAI_REALTIME_MOCK || "false");
       setVoice(cfg.DEFAULT_VOICE || "");
     } catch (err) {
@@ -142,13 +145,14 @@ export function useAppData() {
       openai_api_key: openAiKey,
       gemini_api_key: geminiKey,
       openai_realtime_model: openAiModel,
+      gemini_live_model: geminiModel,
       openai_realtime_mock: openAiMock,
       default_realtime_provider: providerChoice,
       default_voice: voice,
     });
     setOpenAiKey("");
     setGeminiKey("");
-  }, [geminiKey, openAiKey, openAiMock, openAiModel, providerChoice, voice]);
+  }, [geminiKey, geminiModel, openAiKey, openAiMock, openAiModel, providerChoice, voice]);
 
   return {
     status,
@@ -168,6 +172,7 @@ export function useAppData() {
     geminiKey,
     providerChoice,
     openAiModel,
+    geminiModel,
     openAiMock,
     voice,
     activeSession,
@@ -186,6 +191,7 @@ export function useAppData() {
     setGeminiKey,
     setProviderChoice,
     setOpenAiModel,
+    setGeminiModel,
     setOpenAiMock,
     setVoice,
   };

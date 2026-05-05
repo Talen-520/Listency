@@ -41,6 +41,7 @@ export const api = {
     openai_api_key: string;
     gemini_api_key: string;
     openai_realtime_model: string;
+    gemini_live_model: string;
     openai_realtime_mock: string;
     default_realtime_provider: string;
     default_voice: string;
