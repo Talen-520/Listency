@@ -8,9 +8,11 @@ import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
 import type { PublicConfig } from "@/lib/types";
+import { isSupportedVoice, voiceOptionsForProvider } from "@/lib/voices";
 
 const OPENAI_API_KEYS_URL = "https://platform.openai.com/settings/organization/api-keys";
 const GEMINI_API_KEYS_URL = "https://aistudio.google.com/app/api-keys?project=stock-agent-f54f1";
+const PROVIDER_DEFAULT_VOICE = "__provider_default__";
 
 export function SettingsView({
   config,
@@ -47,6 +49,21 @@ export function SettingsView({
   onVoiceChange: (value: string) => void;
   onSave: () => void;
 }) {
+  const voiceOptions = voiceOptionsForProvider(providerChoice);
+  const hasSavedCustomVoice = voice.length > 0 && !isSupportedVoice(providerChoice, voice);
+  const voiceSelectValue = voice || PROVIDER_DEFAULT_VOICE;
+
+  function handleProviderChoiceChange(value: string) {
+    onProviderChoiceChange(value);
+    if (voice && !isSupportedVoice(value, voice)) {
+      onVoiceChange("");
+    }
+  }
+
+  function handleVoiceChange(value: string) {
+    onVoiceChange(value === PROVIDER_DEFAULT_VOICE ? "" : value);
+  }
+
   return (
     <div className="space-y-6">
       {/* API Keys Section */}
@@ -90,7 +107,7 @@ export function SettingsView({
       <Separator />
       <div className="grid gap-6 md:grid-cols-2">
         <Field label="Default Provider">
-          <Select value={providerChoice} onValueChange={onProviderChoiceChange}>
+          <Select value={providerChoice} onValueChange={handleProviderChoiceChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select provider" />
             </SelectTrigger>
@@ -118,7 +135,20 @@ export function SettingsView({
           </Select>
         </Field>
         <Field label="Default Voice" action={<VoiceHelp />}>
-          <Input value={voice} onChange={(event) => onVoiceChange(event.target.value)} placeholder="provider default" />
+          <Select value={voiceSelectValue} onValueChange={handleVoiceChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Provider default" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
+              {hasSavedCustomVoice && <SelectItem value={voice}>{voice} - saved custom value</SelectItem>}
+              {voiceOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
       </div>
 

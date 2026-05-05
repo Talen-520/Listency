@@ -130,6 +130,13 @@ class GeminiLiveAdapterTest(unittest.TestCase):
         self.assertEqual(events[0]["arguments"], "{\"query\": \"hours\"}")
         self.assertEqual(handle.metadata["tool_call_names"]["call_123"], "business_info_lookup")
 
+    def test_list_voices_returns_gemini_live_voice_names(self) -> None:
+        voices = GeminiLiveAdapter().list_voices({})
+
+        self.assertIn("Kore", voices)
+        self.assertIn("Puck", voices)
+        self.assertIn("Sulafat", voices)
+
 
 if __name__ == "__main__":
     unittest.main()

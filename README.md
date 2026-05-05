@@ -22,6 +22,7 @@ What works today:
 - Local SQLite session, transcript, tool-call, and app-event storage.
 - OpenAI Realtime microphone-to-speaker Test Call.
 - Gemini Live microphone-to-speaker Test Call.
+- Provider-aware voice selection for OpenAI Realtime and Gemini Live.
 - Provider-specific mono PCM16 input: 24 kHz for OpenAI Realtime and 16 kHz for Gemini Live.
 - OpenAI Realtime and Gemini Live transcript capture and local tool calling.
 - Built-in tools for business info lookup, booking capture, transfer request

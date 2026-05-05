@@ -18,6 +18,38 @@ GEMINI_LIVE_BASE_URL = (
 DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview"
 GEMINI_INPUT_SAMPLE_RATE = 16000
 GEMINI_OUTPUT_SAMPLE_RATE = 24000
+GEMINI_LIVE_VOICES = [
+    "Zephyr",
+    "Puck",
+    "Charon",
+    "Kore",
+    "Fenrir",
+    "Leda",
+    "Orus",
+    "Aoede",
+    "Callirrhoe",
+    "Autonoe",
+    "Enceladus",
+    "Iapetus",
+    "Umbriel",
+    "Algieba",
+    "Despina",
+    "Erinome",
+    "Algenib",
+    "Rasalgethi",
+    "Laomedeia",
+    "Achernar",
+    "Alnilam",
+    "Schedar",
+    "Gacrux",
+    "Pulcherrima",
+    "Achird",
+    "Zubenelgenubi",
+    "Vindemiatrix",
+    "Sadachbia",
+    "Sadaltager",
+    "Sulafat",
+]
 
 
 class GeminiLiveAdapter:
@@ -29,8 +61,7 @@ class GeminiLiveAdapter:
             raise ProviderConfigError("GEMINI_API_KEY is missing in .env")
 
     def list_voices(self, env: dict[str, str]) -> list[str]:
-        configured = env.get("DEFAULT_VOICE", "").strip()
-        return [configured] if configured else ["default"]
+        return list(GEMINI_LIVE_VOICES)
 
     async def start_session(
         self,

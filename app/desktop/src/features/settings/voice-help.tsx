@@ -3,8 +3,8 @@ import { CircleHelp, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
-const OPENAI_VOICE_URL = "https://developers.openai.com/api/docs/guides/text-to-speech";
-const GEMINI_LIVE_VOICE_URL = "https://ai.google.dev/gemini-api/docs/live-api/capabilities#change_voice_and_language";
+const OPENAI_VOICE_URL = "https://platform.openai.com/docs/guides/realtime-conversations#audio-inputs-and-outputs";
+const GEMINI_LIVE_VOICE_URL = "https://ai.google.dev/gemini-api/docs/live-guide#change_voice_and_language";
 
 export function VoiceHelp() {
   return (
@@ -24,8 +24,8 @@ export function VoiceHelp() {
         <div className="space-y-3">
           <div className="text-sm font-medium">Default voice</div>
           <p className="text-sm leading-6 text-muted-foreground">
-            Leave empty to use the provider default. For OpenAI Realtime, use a supported voice such as <code>marin</code> or <code>cedar</code>.
-            For Gemini Live, use a Live API voice name such as <code>Kore</code>.
+            Choose Provider default to let the selected provider decide. OpenAI Realtime recommends <code>marin</code> or <code>cedar</code>.
+            Gemini Live supports TTS voices such as <code>Kore</code>.
           </p>
           <div className="flex flex-wrap gap-3">
             <a

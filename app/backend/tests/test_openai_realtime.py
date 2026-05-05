@@ -73,6 +73,13 @@ class OpenAIRealtimeAdapterTest(unittest.TestCase):
         self.assertEqual(event["error_type"], "insufficient_quota")
         self.assertEqual(event["message"], "You exceeded your current quota.")
 
+    def test_list_voices_returns_supported_realtime_voices(self) -> None:
+        voices = OpenAIRealtimeAdapter().list_voices({})
+
+        self.assertIn("marin", voices)
+        self.assertIn("cedar", voices)
+        self.assertIn("alloy", voices)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,18 @@ from voice_agent.providers.base import ProviderConfigError, ProviderEventCallbac
 
 
 OPENAI_REALTIME_BASE_URL = "wss://api.openai.com/v1/realtime"
+OPENAI_REALTIME_VOICES = [
+    "alloy",
+    "ash",
+    "ballad",
+    "coral",
+    "echo",
+    "sage",
+    "shimmer",
+    "verse",
+    "marin",
+    "cedar",
+]
 
 
 class OpenAIRealtimeAdapter:
@@ -24,8 +36,7 @@ class OpenAIRealtimeAdapter:
             raise ProviderConfigError("OPENAI_API_KEY is missing in .env")
 
     def list_voices(self, env: dict[str, str]) -> list[str]:
-        configured = env.get("DEFAULT_VOICE", "").strip()
-        return [configured] if configured else ["default"]
+        return list(OPENAI_REALTIME_VOICES)
 
     async def start_session(
         self,
