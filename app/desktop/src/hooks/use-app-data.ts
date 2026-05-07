@@ -14,6 +14,7 @@ import type {
   ToolCallRecord,
   ToolInfo,
   TranscriptRecord,
+  VoicePreviewCache,
 } from "@/lib/types";
 import { isSupportedVoice } from "@/lib/voices";
 
@@ -39,6 +40,10 @@ const emptyStatus: RuntimeStatus = {
   session_limit_seconds: 300,
 };
 
+const emptyVoicePreviewCache: VoicePreviewCache = {
+  cached: {},
+};
+
 const defaultBusiness: BusinessProfile = {
   id: "default",
   name: "Default Business",
@@ -62,6 +67,7 @@ export function useAppData() {
   const [transcripts, setTranscripts] = useState<TranscriptRecord[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCallRecord[]>([]);
   const [appLogs, setAppLogs] = useState<AppLogRecord[]>([]);
+  const [voicePreviewCache, setVoicePreviewCache] = useState<VoicePreviewCache>(emptyVoicePreviewCache);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessProfile>(defaultBusiness);
   const [agent, setAgent] = useState<AgentProfile>(defaultAgent);
@@ -89,7 +95,19 @@ export function useAppData() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [runtime, cfg, providerList, toolList, sessionList, transcriptList, toolCallList, appLogList, businessProfile, agentProfile] = await Promise.all([
+      const [
+        runtime,
+        cfg,
+        providerList,
+        toolList,
+        sessionList,
+        transcriptList,
+        toolCallList,
+        appLogList,
+        businessProfile,
+        agentProfile,
+        previewCache,
+      ] = await Promise.all([
         api.runtimeStatus(),
         api.getConfig(),
         api.providers(),
@@ -100,6 +118,7 @@ export function useAppData() {
         api.appLogs(),
         api.businessProfile(),
         api.agent(),
+        api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
       ]);
       setStatus(runtime);
       setConfig(cfg);
@@ -109,6 +128,7 @@ export function useAppData() {
       setTranscripts(transcriptList.transcripts);
       setToolCalls(toolCallList.tool_calls);
       setAppLogs(appLogList.logs);
+      setVoicePreviewCache(previewCache);
       setBusiness(businessProfile);
       setAgent(agentProfile);
       setProviderChoice(cfg.DEFAULT_REALTIME_PROVIDER || "openai");
@@ -170,6 +190,25 @@ export function useAppData() {
     setGeminiKey("");
   }, [geminiKey, geminiModel, geminiVoice, openAiKey, openAiMock, openAiModel, openAiVoice, providerChoice]);
 
+  const previewVoice = useCallback(async (provider: string, voice: string) => {
+    try {
+      const preview = await api.createVoicePreview({ provider, voice });
+      await new Audio(preview.audio_url).play();
+      setVoicePreviewCache((current) => {
+        const existing = current.cached[provider] ?? [];
+        return {
+          cached: {
+            ...current.cached,
+            [provider]: Array.from(new Set([...existing, voice])).sort(),
+          },
+        };
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Voice preview failed");
+      throw err;
+    }
+  }, []);
+
   return {
     status,
     config,
@@ -179,6 +218,7 @@ export function useAppData() {
     transcripts,
     toolCalls,
     appLogs,
+    voicePreviewCache,
     selectedSessionId,
     selectedSession,
     selectedSessionDetailId,
@@ -198,6 +238,7 @@ export function useAppData() {
     loadAll,
     runAction,
     saveSettings,
+    previewVoice,
     setTranscripts,
     setToolCalls,
     setAppLogs,

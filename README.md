@@ -24,6 +24,7 @@ What works today:
 - Gemini Live microphone-to-speaker Test Call.
 - Animated Runtime provider panels for selecting OpenAI Realtime or Gemini Live.
 - Provider-specific voice selection and local storage for OpenAI Realtime and Gemini Live.
+- On-demand voice previews for OpenAI and Gemini voices, cached locally after first playback.
 - Provider-specific mono PCM16 input: 24 kHz for OpenAI Realtime and 16 kHz for Gemini Live.
 - OpenAI Realtime and Gemini Live transcript capture and local tool calling.
 - Built-in tools for business info lookup, booking capture, transfer request
@@ -179,6 +180,7 @@ voiceAgent is designed to run locally first:
 
 - API keys are stored in local `.env`.
 - Session records are stored in local SQLite under `data/`.
+- Voice preview audio is cached locally under `data/voice_previews/`.
 - Business profile text and prompts stay local until sent to a selected AI
   provider during an active session.
 - No hosted voiceAgent backend is required for the current MVP.

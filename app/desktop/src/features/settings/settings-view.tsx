@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { CheckCircle2, KeyRound } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { BadgeCheck, CheckCircle2, KeyRound, Loader2, Play } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,9 @@ import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
 import { geminiLiveModelOptions } from "@/lib/models";
-import type { PublicConfig } from "@/lib/types";
+import type { PublicConfig, VoicePreviewCache } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { isSupportedVoice, voiceOptionsForProvider } from "@/lib/voices";
+import { isSupportedVoice, type VoiceOption, voiceOptionsForProvider } from "@/lib/voices";
 
 const OPENAI_API_KEYS_URL = "https://platform.openai.com/settings/organization/api-keys";
 const GEMINI_API_KEYS_URL = "https://aistudio.google.com/app/api-keys?project=stock-agent-f54f1";
@@ -28,6 +28,7 @@ export function SettingsView({
   openAiMock,
   openAiVoice,
   geminiVoice,
+  voicePreviewCache,
   onOpenAiKeyChange,
   onGeminiKeyChange,
   onProviderChoiceChange,
@@ -36,6 +37,7 @@ export function SettingsView({
   onOpenAiMockChange,
   onOpenAiVoiceChange,
   onGeminiVoiceChange,
+  onPreviewVoice,
   onSave,
 }: {
   config: PublicConfig;
@@ -47,6 +49,7 @@ export function SettingsView({
   openAiMock: string;
   openAiVoice: string;
   geminiVoice: string;
+  voicePreviewCache: VoicePreviewCache;
   onOpenAiKeyChange: (value: string) => void;
   onGeminiKeyChange: (value: string) => void;
   onProviderChoiceChange: (value: string) => void;
@@ -55,10 +58,27 @@ export function SettingsView({
   onOpenAiMockChange: (value: string) => void;
   onOpenAiVoiceChange: (value: string) => void;
   onGeminiVoiceChange: (value: string) => void;
+  onPreviewVoice: (provider: string, voice: string) => Promise<void>;
   onSave: () => void;
 }) {
+  const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
   const openAiVoiceOptions = voiceOptionsForProvider("openai");
   const geminiVoiceOptions = voiceOptionsForProvider("gemini");
+  const cachedOpenAiVoices = useMemo(() => new Set(voicePreviewCache.cached.openai ?? []), [voicePreviewCache.cached.openai]);
+  const cachedGeminiVoices = useMemo(() => new Set(voicePreviewCache.cached.gemini ?? []), [voicePreviewCache.cached.gemini]);
+
+  async function handlePreviewVoice(provider: string, voice: string) {
+    if (!voice) {
+      return;
+    }
+    const key = `${provider}:${voice}`;
+    setPreviewingVoice(key);
+    try {
+      await onPreviewVoice(provider, voice);
+    } finally {
+      setPreviewingVoice(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -112,25 +132,15 @@ export function SettingsView({
             <Input value={openAiModel} onChange={(event) => onOpenAiModelChange(event.target.value)} placeholder="gpt-realtime" />
           </Field>
           <Field label="Voice" action={<VoiceHelp />}>
-            <Select
-              value={openAiVoice || PROVIDER_DEFAULT_VOICE}
-              onValueChange={(value) => onOpenAiVoiceChange(value === PROVIDER_DEFAULT_VOICE ? "" : value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Provider default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
-                {openAiVoice.length > 0 && !isSupportedVoice("openai", openAiVoice) && (
-                  <SelectItem value={openAiVoice}>{openAiVoice} - saved custom value</SelectItem>
-                )}
-                {openAiVoiceOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <VoiceSelect
+              cachedVoices={cachedOpenAiVoices}
+              onPreview={() => handlePreviewVoice("openai", openAiVoice)}
+              onValueChange={onOpenAiVoiceChange}
+              options={openAiVoiceOptions}
+              previewing={previewingVoice === `openai:${openAiVoice}`}
+              provider="openai"
+              value={openAiVoice}
+            />
           </Field>
           <Field label="Mock Mode">
             <Select value={openAiMock} onValueChange={onOpenAiMockChange}>
@@ -166,25 +176,15 @@ export function SettingsView({
             </Select>
           </Field>
           <Field label="Voice" action={<VoiceHelp />}>
-            <Select
-              value={geminiVoice || PROVIDER_DEFAULT_VOICE}
-              onValueChange={(value) => onGeminiVoiceChange(value === PROVIDER_DEFAULT_VOICE ? "" : value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Provider default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
-                {geminiVoice.length > 0 && !isSupportedVoice("gemini", geminiVoice) && (
-                  <SelectItem value={geminiVoice}>{geminiVoice} - saved custom value</SelectItem>
-                )}
-                {geminiVoiceOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <VoiceSelect
+              cachedVoices={cachedGeminiVoices}
+              onPreview={() => handlePreviewVoice("gemini", geminiVoice)}
+              onValueChange={onGeminiVoiceChange}
+              options={geminiVoiceOptions}
+              previewing={previewingVoice === `gemini:${geminiVoice}`}
+              provider="gemini"
+              value={geminiVoice}
+            />
           </Field>
         </ProviderPanel>
       </div>
@@ -198,6 +198,51 @@ export function SettingsView({
           Save
         </Button>
       </div>
+    </div>
+  );
+}
+
+function VoiceSelect({
+  cachedVoices,
+  onPreview,
+  onValueChange,
+  options,
+  previewing,
+  provider,
+  value,
+}: {
+  cachedVoices: Set<string>;
+  onPreview: () => void;
+  onValueChange: (value: string) => void;
+  options: VoiceOption[];
+  previewing: boolean;
+  provider: string;
+  value: string;
+}) {
+  return (
+    <div className="flex gap-2">
+      <Select value={value || PROVIDER_DEFAULT_VOICE} onValueChange={(next) => onValueChange(next === PROVIDER_DEFAULT_VOICE ? "" : next)}>
+        <SelectTrigger className="min-w-0 flex-1">
+          <SelectValue placeholder="Provider default" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
+          {value.length > 0 && !isSupportedVoice(provider, value) && (
+            <SelectItem value={value}>{value} - saved custom value</SelectItem>
+          )}
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              <span className="flex items-center gap-2">
+                {cachedVoices.has(option.value) && <BadgeCheck className="h-3.5 w-3.5 text-muted-foreground" />}
+                <span>{option.label}</span>
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="button" variant="outline" size="icon" disabled={!value || previewing} onClick={onPreview} aria-label="Play voice preview">
+        {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+      </Button>
     </div>
   );
 }

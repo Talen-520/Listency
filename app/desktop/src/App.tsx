@@ -59,6 +59,7 @@ export function App() {
             openAiMock={data.openAiMock}
             openAiVoice={data.openAiVoice}
             geminiVoice={data.geminiVoice}
+            voicePreviewCache={data.voicePreviewCache}
             onOpenAiKeyChange={data.setOpenAiKey}
             onGeminiKeyChange={data.setGeminiKey}
             onProviderChoiceChange={data.setProviderChoice}
@@ -67,6 +68,7 @@ export function App() {
             onOpenAiMockChange={data.setOpenAiMock}
             onOpenAiVoiceChange={data.setOpenAiVoice}
             onGeminiVoiceChange={data.setGeminiVoice}
+            onPreviewVoice={data.previewVoice}
             onSave={() => void data.runAction(data.saveSettings, ".env saved")}
           />
         );

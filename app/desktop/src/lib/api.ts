@@ -9,12 +9,21 @@ import type {
   ToolCallRecord,
   ToolInfo,
   TranscriptRecord,
+  VoicePreviewCache,
+  VoicePreviewRecord,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8765";
 
 function websocketBase() {
   return API_BASE.replace(/^http/, "ws");
+}
+
+function assetUrl(path: string) {
+  if (/^https?:\/\//.test(path)) {
+    return path;
+  }
+  return `${API_BASE}${path}`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -53,6 +62,14 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   providers: () => request<{ providers: ProviderInfo[] }>("/providers"),
+  voicePreviewCache: () => request<VoicePreviewCache>("/voice-previews"),
+  createVoicePreview: async (payload: { provider: string; voice: string; text?: string }) => {
+    const preview = await request<VoicePreviewRecord>("/voice-preview", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return { ...preview, audio_url: assetUrl(preview.audio_url) };
+  },
   runtimeStatus: () => request<RuntimeStatus>("/runtime/status"),
   startRuntime: () => request<RuntimeStatus>("/runtime/start", { method: "POST" }),
   stopRuntime: () => request<RuntimeStatus>("/runtime/stop", { method: "POST" }),

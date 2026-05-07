@@ -98,3 +98,15 @@ export type AppLogRecord = {
   metadata_json: string | null;
   created_at: string;
 };
+
+export type VoicePreviewCache = {
+  cached: Record<string, string[]>;
+};
+
+export type VoicePreviewRecord = {
+  provider: string;
+  voice: string;
+  cached: boolean;
+  content_type: string;
+  audio_url: string;
+};

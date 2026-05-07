@@ -7,11 +7,13 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.session_manager import SessionManager
 from voice_agent.core.state import EndReason
+from voice_agent.core.voice_preview import DEFAULT_PREVIEW_TEXT, VoicePreviewService
 from voice_agent.providers import GeminiLiveAdapter, OpenAIRealtimeAdapter
 from voice_agent.providers.base import ProviderConfigError
 from voice_agent.storage.database import Database
@@ -53,6 +55,12 @@ class ToolCallRequest(BaseModel):
     session_id: str | None = None
 
 
+class VoicePreviewRequest(BaseModel):
+    provider: str = Field(pattern="^(openai|gemini)$")
+    voice: str = Field(min_length=1, max_length=80)
+    text: str = DEFAULT_PREVIEW_TEXT
+
+
 db = Database()
 env_store = EnvStore()
 tool_registry = build_default_registry()
@@ -83,6 +91,7 @@ session_manager = SessionManager(
         "gemini": GeminiLiveAdapter(),
     },
 )
+voice_preview_service = VoicePreviewService(env_store, session_manager.providers)
 
 app = FastAPI(title="voiceAgent Local Backend", version="0.1.0")
 app.add_middleware(
@@ -150,6 +159,30 @@ async def list_providers() -> dict[str, Any]:
             }
         )
     return {"providers": providers}
+
+
+@app.get("/voice-previews")
+async def list_voice_previews() -> dict[str, Any]:
+    return {"cached": voice_preview_service.cached_voices()}
+
+
+@app.post("/voice-preview")
+async def create_voice_preview(request: VoicePreviewRequest) -> dict[str, Any]:
+    try:
+        return await voice_preview_service.ensure_preview(request.provider, request.voice, request.text)
+    except ProviderConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/voice-previews/{provider}/{voice}")
+async def get_voice_preview(provider: str, voice: str) -> FileResponse:
+    try:
+        preview_file = voice_preview_service.preview_file(provider, voice)
+    except ProviderConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not preview_file.exists():
+        raise HTTPException(status_code=404, detail="Voice preview is not cached.")
+    return FileResponse(preview_file, media_type="audio/wav", filename=f"{voice}.wav")
 
 
 @app.get("/runtime/status")
