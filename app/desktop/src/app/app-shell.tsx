@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bot, Play, Square } from "lucide-react";
+import { Play, Square } from "lucide-react";
 
 import { ModeToggle } from "@/components/mode-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import type { NavItem, View } from "@/app/navigation";
+import appIconMask from "@/assets/app-icon.svg";
 import { formatRuntimeStatus, isRuntimeRunning } from "@/lib/runtime";
 import type { ActiveSession, RuntimeStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -42,9 +43,7 @@ export function AppShell({
       <div className="flex h-screen">
         <aside className="hidden w-72 shrink-0 border-r bg-sidebar text-sidebar-foreground md:flex md:flex-col">
           <div className="flex h-16 items-center gap-3 px-5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md border bg-background text-foreground">
-              <Bot className="h-5 w-5" />
-            </div>
+            <AppIcon />
             <div className="min-w-0">
               <div className="font-display text-base font-semibold">voiceAgent</div>
               <div className="text-xs text-muted-foreground">Local voice runtime</div>
@@ -85,9 +84,7 @@ export function AppShell({
             <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-6">
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md border bg-card md:hidden">
-                    <Bot className="h-5 w-5" />
-                  </div>
+                  <AppIcon className="md:hidden" />
                   <div>
                     <h1 className="font-display text-2xl font-semibold tracking-normal">{currentNav.label}</h1>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -136,6 +133,24 @@ export function AppShell({
         </section>
       </div>
     </main>
+  );
+}
+
+function AppIcon({ className }: { className?: string }) {
+  const mask = `url(${appIconMask}) center / contain no-repeat`;
+
+  return (
+    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden", className)}>
+      <span
+        aria-label="voiceAgent"
+        className="h-7 w-7 bg-foreground"
+        role="img"
+        style={{
+          WebkitMask: mask,
+          mask,
+        }}
+      />
+    </div>
   );
 }
 

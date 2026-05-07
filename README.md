@@ -25,6 +25,7 @@ What works today:
 - Animated Runtime provider panels for selecting OpenAI Realtime or Gemini Live.
 - Provider-specific voice selection and local storage for OpenAI Realtime and Gemini Live.
 - On-demand voice previews for OpenAI and Gemini voices, cached locally after first playback.
+- Shared brand icon for the desktop UI, browser favicon, and Tauri app bundles.
 - Provider-specific mono PCM16 input: 24 kHz for OpenAI Realtime and 16 kHz for Gemini Live.
 - OpenAI Realtime and Gemini Live transcript capture and local tool calling.
 - Built-in tools for business info lookup, booking capture, transfer request
@@ -157,14 +158,16 @@ app/backend/
     tools/        local tool registry and built-in tools
 
 app/desktop/
+  public/         browser favicon and static frontend assets
   src/app/        shell and navigation
+  src/assets/     UI brand icon source assets
   src/features/   page-level UI
   src/hooks/      app data, session detail, and realtime test side effects
   src/components/ shared UI components
   src/components/ui/
                   shadcn-style primitives
   src/lib/        API, types, audio, formatting, runtime helpers
-  src-tauri/      native Tauri shell
+  src-tauri/      native Tauri shell and generated bundle icons
 
 update_logs/      commit-by-commit development notes
 scripts/          local helper scripts
@@ -203,6 +206,12 @@ Desktop build check:
 ```bash
 cd app/desktop
 pnpm run build
+```
+
+Regenerate browser and Tauri bundle icons:
+
+```bash
+node scripts/generate_tauri_icon.mjs
 ```
 
 Backend WebSocket smoke test:
