@@ -26,6 +26,27 @@ calls, and provider events.
 > Status: early MVP / alpha. The current project is intended for local
 > development and testing, not production phone deployment.
 
+## Interface Preview
+
+Click a theme below to expand the preview. The image itself opens the full-size
+asset.
+
+<details open>
+  <summary><strong>Dark Theme</strong></summary>
+  <br />
+  <a href="assets/ui%20dark.png">
+    <img src="assets/ui%20dark.png" alt="Listency dark theme dashboard" width="100%" />
+  </a>
+</details>
+
+<details>
+  <summary><strong>Light Theme</strong></summary>
+  <br />
+  <a href="assets/ui%20light.png">
+    <img src="assets/ui%20light.png" alt="Listency light theme dashboard" width="100%" />
+  </a>
+</details>
+
 ## Current MVP
 
 What works today:
