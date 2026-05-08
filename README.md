@@ -113,7 +113,19 @@ corepack enable
 pnpm install
 ```
 
-Run the backend:
+Run the native desktop shell:
+
+```bash
+cd app/desktop
+pnpm run tauri:dev
+```
+
+The Tauri shell checks `127.0.0.1:8765` and starts the local FastAPI backend
+automatically when no backend is already running. In packaged builds, it first
+looks for a bundled `listency-backend` sidecar. During development, it falls
+back to `app/backend/.venv` when no sidecar is present.
+
+For browser-only frontend development, start the backend manually:
 
 ```bash
 cd app/backend
@@ -121,7 +133,7 @@ source .venv/bin/activate
 uvicorn voice_agent.main:app --host 127.0.0.1 --port 8765 --reload
 ```
 
-Run the desktop frontend during development:
+Then run the Vite frontend:
 
 ```bash
 cd app/desktop
@@ -134,19 +146,27 @@ The frontend dev server uses:
 http://127.0.0.1:5173/
 ```
 
-Run the native Tauri shell:
-
-```bash
-cd app/desktop
-pnpm run tauri:dev
-```
-
 Build the desktop app:
 
 ```bash
 cd app/desktop
 pnpm run tauri:build
 ```
+
+Build a packaged app with a bundled backend sidecar:
+
+```bash
+cd app/backend
+.venv/bin/python -m pip install pyinstaller
+
+cd ../desktop
+pnpm run tauri:build:sidecar
+```
+
+The sidecar build writes a target-triple-specific backend executable under
+`app/desktop/src-tauri/binaries/`, which is bundled into the Tauri app resources.
+When the app closes, the Tauri launcher shuts down the backend child process it
+started.
 
 ## Local Workflow
 

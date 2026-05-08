@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "backend:sidecar": "node ../../scripts/build_backend_sidecar.mjs",
+    "tauri:build": "tauri build",
+    "tauri:build:sidecar": "pnpm run backend:sidecar && tauri build"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

@@ -6,9 +6,11 @@ import { DEFAULT_GEMINI_LIVE_MODEL, isSupportedGeminiLiveModel } from "@/lib/mod
 import type {
   AgentProfile,
   AppLogRecord,
+  BackendHealth,
   BusinessProfile,
   ProviderInfo,
   PublicConfig,
+  ReadinessCheck,
   RuntimeStatus,
   SessionRecord,
   ToolCallRecord,
@@ -40,6 +42,13 @@ const emptyStatus: RuntimeStatus = {
   session_limit_seconds: 300,
 };
 
+const emptyBackendHealth: BackendHealth = {
+  available: false,
+  checking: true,
+  message: "Checking local backend...",
+  last_checked_at: null,
+};
+
 const emptyVoicePreviewCache: VoicePreviewCache = {
   cached: {},
 };
@@ -60,6 +69,7 @@ const defaultAgent: AgentProfile = {
 
 export function useAppData() {
   const [status, setStatus] = useState<RuntimeStatus>(emptyStatus);
+  const [backendHealth, setBackendHealth] = useState<BackendHealth>(emptyBackendHealth);
   const [config, setConfig] = useState<PublicConfig>(emptyConfig);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [tools, setTools] = useState<ToolInfo[]>([]);
@@ -91,12 +101,72 @@ export function useAppData() {
     [selectedSessionId, sessions],
   );
   const selectedSessionDetailId = selectedSession?.id ?? null;
-  const selectedProviderReady = providers.find((provider) => provider.name === providerChoice)?.ready ?? false;
+  const selectedProvider = providers.find((provider) => provider.name === providerChoice);
+  const selectedProviderReady = selectedProvider?.ready ?? false;
+  const readinessChecks: ReadinessCheck[] = useMemo(() => {
+    const enabledToolCount = tools.filter((tool) => tool.enabled).length;
+    const selectedProviderHasKey = providerChoice === "gemini" ? config.has_gemini_key : config.has_openai_key;
+    return [
+      {
+        id: "backend",
+        label: "Backend health",
+        detail: backendHealth.available ? "Local backend is responding on 127.0.0.1:8765." : backendHealth.message,
+        ready: backendHealth.available,
+      },
+      {
+        id: "runtime",
+        label: "Runtime",
+        detail: status.background_status === "standby" ? "Background runtime is running." : "Click Start to enter standby.",
+        ready: status.background_status === "standby",
+      },
+      {
+        id: "provider",
+        label: "Selected provider",
+        detail:
+          selectedProviderReady && selectedProviderHasKey
+            ? `${selectedProvider?.display_name ?? providerChoice} is ready.`
+            : `Add a ${providerChoice === "gemini" ? "Gemini" : "OpenAI"} API key in Settings.`,
+        ready: selectedProviderReady && selectedProviderHasKey,
+      },
+      {
+        id: "business",
+        label: "Business profile",
+        detail: business.content.trim() ? "Business information is saved locally." : "Add business details for the lookup tool.",
+        ready: Boolean(business.content.trim()),
+      },
+      {
+        id: "agent",
+        label: "Agent prompt",
+        detail: agent.system_prompt.trim() ? "System prompt is ready." : "Add a system prompt for new sessions.",
+        ready: Boolean(agent.system_prompt.trim()),
+      },
+      {
+        id: "tools",
+        label: "Tools",
+        detail:
+          enabledToolCount > 0
+            ? `${enabledToolCount} tool${enabledToolCount === 1 ? "" : "s"} enabled.`
+            : "Enable at least one tool.",
+        ready: enabledToolCount > 0,
+      },
+    ];
+  }, [
+    agent.system_prompt,
+    backendHealth,
+    business.content,
+    config.has_gemini_key,
+    config.has_openai_key,
+    providerChoice,
+    selectedProvider?.display_name,
+    selectedProviderReady,
+    status.background_status,
+    tools,
+  ]);
 
   const loadAll = useCallback(async () => {
     try {
       const [
-        runtime,
+        health,
         cfg,
         providerList,
         toolList,
@@ -108,7 +178,7 @@ export function useAppData() {
         agentProfile,
         previewCache,
       ] = await Promise.all([
-        api.runtimeStatus(),
+        api.health(),
         api.getConfig(),
         api.providers(),
         api.tools(),
@@ -120,7 +190,13 @@ export function useAppData() {
         api.agent(),
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
       ]);
-      setStatus(runtime);
+      setBackendHealth({
+        available: true,
+        checking: false,
+        message: "Local backend is healthy.",
+        last_checked_at: new Date().toISOString(),
+      });
+      setStatus(health.runtime);
       setConfig(cfg);
       setProviders(providerList.providers);
       setTools(toolList.tools);
@@ -146,7 +222,12 @@ export function useAppData() {
           (defaultProvider === "gemini" && isSupportedVoice("gemini", legacyVoice) ? legacyVoice : ""),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Backend unavailable");
+      setBackendHealth({
+        available: false,
+        checking: false,
+        message: err instanceof Error ? err.message : "Backend unavailable",
+        last_checked_at: new Date().toISOString(),
+      });
     }
   }, []);
 
@@ -154,9 +235,24 @@ export function useAppData() {
     void loadAll();
     const refresh = window.setInterval(() => {
       setNow(Date.now());
-      api.runtimeStatus()
-        .then((runtime) => setStatus(runtime))
-        .catch(() => undefined);
+      api.health()
+        .then((health) => {
+          setStatus(health.runtime);
+          setBackendHealth({
+            available: true,
+            checking: false,
+            message: "Local backend is healthy.",
+            last_checked_at: new Date().toISOString(),
+          });
+        })
+        .catch((err) => {
+          setBackendHealth({
+            available: false,
+            checking: false,
+            message: err instanceof Error ? err.message : "Backend unavailable",
+            last_checked_at: new Date().toISOString(),
+          });
+        });
     }, 1000);
     return () => window.clearInterval(refresh);
   }, [loadAll]);
@@ -211,6 +307,7 @@ export function useAppData() {
 
   return {
     status,
+    backendHealth,
     config,
     providers,
     tools,
@@ -235,6 +332,7 @@ export function useAppData() {
     activeSession,
     remainingSeconds,
     selectedProviderReady,
+    readinessChecks,
     loadAll,
     runAction,
     saveSettings,

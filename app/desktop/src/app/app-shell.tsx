@@ -12,7 +12,7 @@ import appIconMask from "@/assets/app-icon.svg";
 import appIconRunningDark from "@/assets/app-icon-running-dark.mp4";
 import appIconRunningLight from "@/assets/app-icon-running-light.mp4";
 import { formatRuntimeStatus, isRuntimeRunning } from "@/lib/runtime";
-import type { ActiveSession, RuntimeStatus } from "@/lib/types";
+import type { ActiveSession, BackendHealth, RuntimeStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function AppShell({
@@ -20,6 +20,7 @@ export function AppShell({
   navItems,
   currentNav,
   status,
+  backendHealth,
   activeSession,
   remainingSeconds,
   onViewChange,
@@ -31,6 +32,7 @@ export function AppShell({
   navItems: NavItem[];
   currentNav: NavItem;
   status: RuntimeStatus;
+  backendHealth: BackendHealth;
   activeSession?: ActiveSession;
   remainingSeconds: number | null;
   onViewChange: (view: View) => void;
@@ -40,6 +42,11 @@ export function AppShell({
 }) {
   const runtimeLabel = formatRuntimeStatus(status.background_status);
   const runtimeRunning = isRuntimeRunning(status.background_status);
+  const backendLabel = backendHealth.available
+    ? "backend online"
+    : backendHealth.checking
+      ? "checking backend"
+      : "backend offline";
 
   return (
     <main className="h-screen bg-background text-foreground overflow-hidden">
@@ -76,6 +83,7 @@ export function AppShell({
           </nav>
 
           <div className="space-y-3 border-t p-4">
+            <StatusRow label="Backend" value={backendHealth.available ? "online" : "offline"} />
             <StatusRow label="Runtime" value={runtimeLabel} />
             <StatusRow label="Session" value={activeSession ? activeSession.provider : "idle"} />
             {remainingSeconds !== null && <StatusRow label="Limit" value={`${remainingSeconds}s`} />}
@@ -95,6 +103,7 @@ export function AppShell({
                         {runtimeRunning && <Spinner />}
                         {runtimeLabel}
                       </Badge>
+                      <Badge tone={backendHealth.available ? "green" : "red"}>{backendLabel}</Badge>
                       <Badge tone={activeSession ? "cyan" : "neutral"}>{activeSession ? "session active" : "no active session"}</Badge>
                       {remainingSeconds !== null && <Badge tone={remainingSeconds < 30 ? "yellow" : "cyan"}>{remainingSeconds}s left</Badge>}
                     </div>
@@ -103,11 +112,11 @@ export function AppShell({
               </div>
               <div className="flex items-center gap-2">
                 <ModeToggle />
-                <Button variant="outline" onClick={onStartRuntime}>
+                <Button variant="outline" disabled={!backendHealth.available} onClick={onStartRuntime}>
                   <Play className="h-4 w-4" />
                   Start
                 </Button>
-                <Button variant="outline" onClick={onStopRuntime}>
+                <Button variant="outline" disabled={!backendHealth.available} onClick={onStopRuntime}>
                   <Square className="h-4 w-4" />
                   Stop
                 </Button>

@@ -42,9 +42,11 @@ export function App() {
         return (
           <DashboardView
             status={data.status}
+            backendHealth={data.backendHealth}
             activeSession={data.activeSession}
             providers={data.providers}
             sessions={data.sessions}
+            readinessChecks={data.readinessChecks}
           />
         );
       case "settings":
@@ -156,6 +158,7 @@ export function App() {
       navItems={navItems}
       currentNav={currentNav}
       status={data.status}
+      backendHealth={data.backendHealth}
       activeSession={data.activeSession}
       remainingSeconds={data.remainingSeconds}
       onViewChange={setView}

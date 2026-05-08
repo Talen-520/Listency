@@ -5,6 +5,20 @@ export type RuntimeStatus = {
   session_limit_seconds: number;
 };
 
+export type BackendHealth = {
+  available: boolean;
+  checking: boolean;
+  message: string;
+  last_checked_at: string | null;
+};
+
+export type ReadinessCheck = {
+  id: string;
+  label: string;
+  detail: string;
+  ready: boolean;
+};
+
 export type ActiveSession = {
   id: string;
   provider: string;
