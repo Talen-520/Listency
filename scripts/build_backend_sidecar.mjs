@@ -29,6 +29,7 @@ function run(command, args, options = {}) {
 function output(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? repoRoot,
+    env: options.env ?? process.env,
     encoding: "utf8",
   });
   if (result.error || result.status !== 0) {
@@ -64,6 +65,7 @@ function hostTriple() {
 const python = pythonCommand();
 const triple = hostTriple();
 const buildRoot = path.join(repoRoot, "build", "sidecar");
+const cacheDir = path.join(buildRoot, "cache");
 const distDir = path.join(buildRoot, "dist");
 const workDir = path.join(buildRoot, "work");
 const specDir = path.join(buildRoot, "spec");
@@ -73,8 +75,14 @@ const targetBinary = path.join(binariesDir, `${sidecarName}-${triple}${extension
 
 fs.mkdirSync(binariesDir, { recursive: true });
 fs.rmSync(buildRoot, { recursive: true, force: true });
+fs.mkdirSync(cacheDir, { recursive: true });
 
-const pyInstallerVersion = output(python, ["-m", "PyInstaller", "--version"], { cwd: backendDir });
+const buildEnv = {
+  ...process.env,
+  PYINSTALLER_CONFIG_DIR: cacheDir,
+};
+
+const pyInstallerVersion = output(python, ["-m", "PyInstaller", "--version"], { cwd: backendDir, env: buildEnv });
 if (!pyInstallerVersion) {
   console.error("PyInstaller is required to build the backend sidecar.");
   console.error("Install it in the backend environment with:");
@@ -100,7 +108,7 @@ run(
     specDir,
     sourceEntry,
   ],
-  { cwd: backendDir },
+  { cwd: backendDir, env: buildEnv },
 );
 
 if (!fs.existsSync(builtBinary)) {
