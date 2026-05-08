@@ -10,6 +10,9 @@
 
 <p align="center">
   <img alt="Tests" src="https://img.shields.io/badge/tests-unittest%20passing-brightgreen" />
+  <a href="https://github.com/Talen-520/Listency/actions/workflows/windows-packaged-smoke.yml">
+    <img alt="Windows packaged smoke" src="https://github.com/Talen-520/Listency/actions/workflows/windows-packaged-smoke.yml/badge.svg" />
+  </a>
   <img alt="Coverage" src="https://img.shields.io/badge/coverage-not%20configured-lightgrey" />
   <img alt="Python" src="https://img.shields.io/badge/python-%3E%3D3.11-blue" />
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
@@ -152,6 +155,11 @@ Build the desktop app:
 cd app/desktop
 pnpm run tauri:build
 ```
+
+Windows packaged smoke is also checked in GitHub Actions on pushes and pull
+requests to `main`. The workflow builds the Windows backend sidecar, runs the
+clean-data sidecar smoke test, builds the Tauri app, and uploads Windows build
+artifacts.
 
 Build a packaged app with a bundled backend sidecar:
 
