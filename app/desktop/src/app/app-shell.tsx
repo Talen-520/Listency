@@ -1,13 +1,16 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Play, Square } from "lucide-react";
 
 import { ModeToggle } from "@/components/mode-toggle";
+import { useTheme } from "@/components/theme-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import type { NavItem, View } from "@/app/navigation";
 import appIconMask from "@/assets/app-icon.svg";
+import appIconRunningDark from "@/assets/app-icon-running-dark.mp4";
+import appIconRunningLight from "@/assets/app-icon-running-light.mp4";
 import { formatRuntimeStatus, isRuntimeRunning } from "@/lib/runtime";
 import type { ActiveSession, RuntimeStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -42,11 +45,11 @@ export function AppShell({
     <main className="h-screen bg-background text-foreground overflow-hidden">
       <div className="flex h-screen">
         <aside className="hidden w-72 shrink-0 border-r bg-sidebar text-sidebar-foreground md:flex md:flex-col">
-          <div className="flex h-16 items-center gap-3 px-5">
-            <AppIcon />
+          <div className="flex h-20 items-center gap-4 px-5">
+            <AppIcon className="h-12 w-12" graphicClassName="h-10 w-10" running={runtimeRunning} />
             <div className="min-w-0">
-              <div className="font-display text-base font-semibold">Listency</div>
-              <div className="text-xs text-muted-foreground">Local voice runtime</div>
+              <div className="font-display text-xl font-semibold leading-tight tracking-normal">Listency</div>
+              <div className="mt-0.5 text-sm text-muted-foreground">Local voice runtime</div>
             </div>
           </div>
           <Separator />
@@ -84,7 +87,7 @@ export function AppShell({
             <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-6">
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
-                  <AppIcon className="md:hidden" />
+                  <AppIcon className="md:hidden" running={runtimeRunning} />
                   <div>
                     <h1 className="font-display text-2xl font-semibold tracking-normal">{currentNav.label}</h1>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -136,22 +139,63 @@ export function AppShell({
   );
 }
 
-function AppIcon({ className }: { className?: string }) {
+function AppIcon({
+  className,
+  graphicClassName,
+  running,
+}: {
+  className?: string;
+  graphicClassName?: string;
+  running: boolean;
+}) {
+  const { resolvedTheme } = useTheme();
+  const reduceMotion = useReducedMotion();
   const mask = `url(${appIconMask}) center / contain no-repeat`;
+  const showRunningIcon = running && !reduceMotion;
+  const runningIcon = resolvedTheme === "dark" ? appIconRunningDark : appIconRunningLight;
 
   return (
     <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden", className)}>
-      <span
-        aria-label="Listency"
-        className="h-7 w-7 bg-foreground"
-        role="img"
-        style={{
-          WebkitMask: mask,
-          mask,
-        }}
-      />
+      {showRunningIcon ? (
+        <video
+          key={runningIcon}
+          aria-label="Listency running"
+          autoPlay
+          className={cn("h-7 w-7 object-contain", graphicClassName)}
+          loop
+          muted
+          playsInline
+          preload="metadata"
+          src={runningIcon}
+        />
+      ) : (
+        <span
+          aria-label="Listency"
+          className={cn("h-7 w-7 bg-foreground", graphicClassName)}
+          role="img"
+          style={{
+            WebkitMask: mask,
+            mask,
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function useReducedMotion() {
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduceMotion(query.matches);
+
+    const handleChange = () => setReduceMotion(query.matches);
+    query.addEventListener("change", handleChange);
+    return () => query.removeEventListener("change", handleChange);
+  }, []);
+
+  return reduceMotion;
 }
 
 function StatusRow({ label, value }: { label: string; value: string }) {
