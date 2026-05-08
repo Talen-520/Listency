@@ -60,8 +60,20 @@ class EnvStore:
     def ensure_example(self) -> None:
         if self.example_path.exists():
             return
+        self.example_path.parent.mkdir(parents=True, exist_ok=True)
         lines = [f"{key}={value}" for key, value in ENV_DEFAULTS.items()]
         self.example_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def ensure_env(self) -> None:
+        if self.path.exists():
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lines = [f"{key}={value}" for key, value in ENV_DEFAULTS.items()]
+        self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def ensure_files(self) -> None:
+        self.ensure_env()
+        self.ensure_example()
 
     def read(self) -> dict[str, str]:
         values = dict(ENV_DEFAULTS)

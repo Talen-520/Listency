@@ -37,7 +37,7 @@ export function useRealtimeTest({
 }: {
   activeSession?: ActiveSession;
   providerChoice: string;
-  loadAll: () => Promise<void>;
+  loadAll: () => Promise<unknown>;
   setTranscripts: Dispatch<SetStateAction<TranscriptRecord[]>>;
   setToolCalls: Dispatch<SetStateAction<ToolCallRecord[]>>;
   setAppLogs: Dispatch<SetStateAction<AppLogRecord[]>>;

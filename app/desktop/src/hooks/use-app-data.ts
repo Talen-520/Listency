@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
@@ -90,6 +90,8 @@ export function useAppData() {
   const [openAiVoice, setOpenAiVoice] = useState("");
   const [geminiVoice, setGeminiVoice] = useState("");
   const [now, setNow] = useState(Date.now());
+  const hasLoadedAllRef = useRef(false);
+  const isLoadingAllRef = useRef(false);
 
   const activeSession = status.active_sessions[0];
   const remainingSeconds = useMemo(() => {
@@ -164,6 +166,11 @@ export function useAppData() {
   ]);
 
   const loadAll = useCallback(async () => {
+    if (isLoadingAllRef.current) {
+      return false;
+    }
+
+    isLoadingAllRef.current = true;
     try {
       const [
         health,
@@ -221,6 +228,8 @@ export function useAppData() {
         cfg.GEMINI_DEFAULT_VOICE ||
           (defaultProvider === "gemini" && isSupportedVoice("gemini", legacyVoice) ? legacyVoice : ""),
       );
+      hasLoadedAllRef.current = true;
+      return true;
     } catch (err) {
       setBackendHealth({
         available: false,
@@ -228,11 +237,26 @@ export function useAppData() {
         message: err instanceof Error ? err.message : "Backend unavailable",
         last_checked_at: new Date().toISOString(),
       });
+      return false;
+    } finally {
+      isLoadingAllRef.current = false;
     }
   }, []);
 
   useEffect(() => {
-    void loadAll();
+    let cancelled = false;
+    const retryBootstrap = async () => {
+      for (let attempt = 0; attempt < 20 && !cancelled && !hasLoadedAllRef.current; attempt += 1) {
+        const loaded = await loadAll();
+        if (loaded || cancelled) {
+          return;
+        }
+        const delayMs = Math.min(500 + attempt * 250, 2000);
+        await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+      }
+    };
+
+    void retryBootstrap();
     const refresh = window.setInterval(() => {
       setNow(Date.now());
       api.health()
@@ -244,6 +268,9 @@ export function useAppData() {
             message: "Local backend is healthy.",
             last_checked_at: new Date().toISOString(),
           });
+          if (!hasLoadedAllRef.current && !cancelled) {
+            void loadAll();
+          }
         })
         .catch((err) => {
           setBackendHealth({
@@ -254,7 +281,10 @@ export function useAppData() {
           });
         });
     }, 1000);
-    return () => window.clearInterval(refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refresh);
+    };
   }, [loadAll]);
 
   const runAction = useCallback(

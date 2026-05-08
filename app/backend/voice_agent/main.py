@@ -114,7 +114,7 @@ async def health() -> dict[str, Any]:
 
 @app.get("/config")
 async def get_config() -> dict[str, Any]:
-    env_store.ensure_example()
+    env_store.ensure_files()
     return env_store.read_public()
 
 

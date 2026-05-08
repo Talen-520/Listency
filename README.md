@@ -261,6 +261,12 @@ Build the backend sidecar for the current platform:
 node scripts/build_backend_sidecar.mjs
 ```
 
+Smoke test the packaged backend sidecar with a clean temporary data directory:
+
+```bash
+node scripts/smoke_packaged_backend.mjs
+```
+
 Backend WebSocket smoke test:
 
 ```bash

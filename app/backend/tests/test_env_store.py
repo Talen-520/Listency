@@ -8,6 +8,19 @@ from voice_agent.config.env_store import EnvStore
 
 
 class EnvStoreTest(unittest.TestCase):
+    def test_ensure_files_creates_default_env_and_example(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = EnvStore(root / ".env", root / ".env.example")
+
+            store.ensure_files()
+
+            self.assertTrue((root / ".env").is_file())
+            self.assertTrue((root / ".env.example").is_file())
+            values = store.read()
+            self.assertEqual(values["OPENAI_REALTIME_MODEL"], "gpt-realtime")
+            self.assertEqual(values["DEFAULT_REALTIME_PROVIDER"], "openai")
+
     def test_write_and_mask_public_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = EnvStore(Path(tmp) / ".env", Path(tmp) / ".env.example")
