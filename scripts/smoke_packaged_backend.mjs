@@ -105,9 +105,28 @@ async function waitForHealth(baseUrl, child, stderrBuffer) {
   throw new Error(`Backend did not become healthy in time: ${lastError?.message ?? "unknown error"}`);
 }
 
+function realPath(value) {
+  return fs.realpathSync.native?.(value) ?? fs.realpathSync(value);
+}
+
+function stripExtendedWindowsPrefix(value) {
+  return value.startsWith("\\\\?\\") ? value.slice(4) : value;
+}
+
 function comparablePath(value) {
-  const resolved = path.resolve(String(value));
-  return isWindows ? resolved.toLowerCase() : resolved;
+  const pathValue = String(value);
+  let resolved = path.resolve(pathValue);
+  try {
+    resolved = realPath(pathValue);
+  } catch {
+    try {
+      resolved = path.join(realPath(path.dirname(pathValue)), path.basename(pathValue));
+    } catch {
+      // Fall back to the resolved string for paths that do not exist yet.
+    }
+  }
+  const comparable = stripExtendedWindowsPrefix(resolved);
+  return isWindows ? comparable.replaceAll("/", "\\").toLowerCase() : comparable;
 }
 
 function samePath(left, right) {
@@ -145,7 +164,7 @@ async function removeSmokeRoot(rootPath) {
 
 const sidecar = findSidecar();
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "listency-packaged-smoke-"));
-const resolvedRoot = fs.realpathSync(root);
+const resolvedRoot = realPath(root);
 const port = await freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const child = spawn(sidecar, {
