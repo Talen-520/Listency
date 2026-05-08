@@ -1,7 +1,19 @@
-# Listency
+<p align="center">
+  <img src="assets/Listency.png" alt="Listency" width="520" />
+</p>
 
-Local-first, open-source desktop app for building and testing AI voice agents
-for small businesses.
+<h1 align="center">Listency</h1>
+
+<p align="center">
+  Local-first, open-source desktop app for building and testing AI voice agents for small businesses.
+</p>
+
+<p align="center">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-unittest%20passing-brightgreen" />
+  <img alt="Coverage" src="https://img.shields.io/badge/coverage-not%20configured-lightgrey" />
+  <img alt="Python" src="https://img.shields.io/badge/python-%3E%3D3.11-blue" />
+  <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
+</p>
 
 Listency runs a local desktop control panel and a thin local backend. Users
 can save provider API keys, enter business information, edit an agent prompt,
