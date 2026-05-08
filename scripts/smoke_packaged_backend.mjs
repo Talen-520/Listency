@@ -85,10 +85,16 @@ async function request(baseUrl, pathName, init) {
   return response.json();
 }
 
-async function waitForHealth(baseUrl) {
+async function waitForHealth(baseUrl, child, stderrBuffer) {
   const startedAt = Date.now();
   let lastError = null;
   while (Date.now() - startedAt < 15_000) {
+    if (child.exitCode !== null) {
+      const stderr = stderrBuffer().trim();
+      throw new Error(
+        `Backend sidecar exited before becoming healthy with code ${child.exitCode}.${stderr ? `\n${stderr}` : ""}`,
+      );
+    }
     try {
       return await request(baseUrl, "/health");
     } catch (error) {
@@ -97,6 +103,15 @@ async function waitForHealth(baseUrl) {
     }
   }
   throw new Error(`Backend did not become healthy in time: ${lastError?.message ?? "unknown error"}`);
+}
+
+function comparablePath(value) {
+  const resolved = path.resolve(String(value));
+  return isWindows ? resolved.toLowerCase() : resolved;
+}
+
+function samePath(left, right) {
+  return comparablePath(left) === comparablePath(right);
 }
 
 function assert(condition, message) {
@@ -136,12 +151,17 @@ child.stderr.on("data", (chunk) => {
   stderr += chunk.toString();
 });
 
+let passed = false;
 try {
-  const health = await waitForHealth(baseUrl);
+  const health = await waitForHealth(baseUrl, child, () => stderr);
   assert(health.ok === true, "Health endpoint did not return ok=true.");
 
   const config = await request(baseUrl, "/config");
-  assert(config.env_path === path.join(resolvedRoot, ".env"), "Config endpoint did not use the smoke VOICE_AGENT_ROOT.");
+  const expectedEnvPath = path.join(resolvedRoot, ".env");
+  assert(
+    samePath(config.env_path, expectedEnvPath),
+    `Config endpoint did not use the smoke VOICE_AGENT_ROOT. Expected ${expectedEnvPath}, got ${config.env_path}.`,
+  );
   assert(fs.existsSync(path.join(resolvedRoot, ".env")), "Backend did not create a default .env file.");
   assert(fs.existsSync(path.join(resolvedRoot, ".env.example")), "Backend did not create a default .env.example file.");
   assert(fs.existsSync(path.join(resolvedRoot, "data", "voice_agent.sqlite3")), "Backend did not create the SQLite database.");
@@ -160,13 +180,16 @@ try {
 
   console.log(`Packaged backend smoke passed using ${path.relative(repoRoot, sidecar)}`);
   console.log(`Smoke data root: ${resolvedRoot}`);
+  passed = true;
 } finally {
-  child.kill();
+  if (child.exitCode === null) {
+    child.kill();
+  }
   await waitForExit(child);
   if (!process.env.LISTENCY_KEEP_SMOKE_ROOT) {
     fs.rmSync(resolvedRoot, { recursive: true, force: true });
   }
-  if (child.exitCode !== 0 && stderr.trim()) {
+  if (!passed && stderr.trim()) {
     console.error(stderr.trim());
   }
 }
