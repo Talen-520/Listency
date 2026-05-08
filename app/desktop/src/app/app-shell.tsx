@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Play, Square } from "lucide-react";
 
 import { ModeToggle } from "@/components/mode-toggle";
@@ -11,6 +11,10 @@ import type { NavItem, View } from "@/app/navigation";
 import appIconMask from "@/assets/app-icon.svg";
 import appIconRunningDark from "@/assets/app-icon-running-dark.mp4";
 import appIconRunningLight from "@/assets/app-icon-running-light.mp4";
+import appIconStartingDark from "@/assets/app-icon-starting-dark.mp4";
+import appIconStartingLight from "@/assets/app-icon-starting-light.mp4";
+import appIconStoppingDark from "@/assets/app-icon-stopping-dark.mp4";
+import appIconStoppingLight from "@/assets/app-icon-stopping-light.mp4";
 import { formatRuntimeStatus, isRuntimeRunning } from "@/lib/runtime";
 import type { ActiveSession, BackendHealth, RuntimeStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -159,23 +163,54 @@ function AppIcon({
 }) {
   const { resolvedTheme } = useTheme();
   const reduceMotion = useReducedMotion();
+  const [phase, setPhase] = useState<"idle" | "starting" | "running" | "stopping">(
+    running ? "running" : "idle",
+  );
+  const previousRunningRef = useRef(running);
   const mask = `url(${appIconMask}) center / contain no-repeat`;
-  const showRunningIcon = running && !reduceMotion;
-  const runningIcon = resolvedTheme === "dark" ? appIconRunningDark : appIconRunningLight;
+  const themedIcon = {
+    running: resolvedTheme === "dark" ? appIconRunningDark : appIconRunningLight,
+    starting: resolvedTheme === "dark" ? appIconStartingDark : appIconStartingLight,
+    stopping: resolvedTheme === "dark" ? appIconStoppingDark : appIconStoppingLight,
+  };
+
+  useEffect(() => {
+    if (reduceMotion) {
+      previousRunningRef.current = running;
+      setPhase(running ? "running" : "idle");
+      return;
+    }
+
+    if (previousRunningRef.current === running) {
+      return;
+    }
+
+    previousRunningRef.current = running;
+    setPhase(running ? "starting" : "stopping");
+  }, [reduceMotion, running]);
+
+  const showVideo = !reduceMotion && phase !== "idle";
+  const videoSource =
+    phase === "starting"
+      ? themedIcon.starting
+      : phase === "stopping"
+        ? themedIcon.stopping
+        : themedIcon.running;
 
   return (
     <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden", className)}>
-      {showRunningIcon ? (
+      {showVideo ? (
         <video
-          key={runningIcon}
-          aria-label="Listency running"
+          key={`${resolvedTheme}-${phase}`}
+          aria-label={phase === "running" ? "Listency running" : "Listency changing runtime state"}
           autoPlay
           className={cn("h-7 w-7 object-contain", graphicClassName)}
-          loop
+          loop={phase === "running"}
           muted
+          onEnded={() => setPhase(phase === "starting" ? "running" : "idle")}
           playsInline
           preload="metadata"
-          src={runningIcon}
+          src={videoSource}
         />
       ) : (
         <span
