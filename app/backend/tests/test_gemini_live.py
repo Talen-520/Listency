@@ -31,20 +31,21 @@ class GeminiLiveAdapterTest(unittest.TestCase):
             },
         )
 
-        config = event["config"]
+        setup = event["setup"]
+        generation_config = setup["generationConfig"]
 
-        self.assertEqual(config["model"], "models/gemini-3.1-flash-live-preview")
-        self.assertEqual(config["responseModalities"], ["AUDIO"])
-        self.assertEqual(config["systemInstruction"], {"parts": [{"text": "Answer briefly."}]})
-        self.assertEqual(config["inputAudioTranscription"], {})
-        self.assertEqual(config["outputAudioTranscription"], {})
+        self.assertEqual(setup["model"], "models/gemini-3.1-flash-live-preview")
+        self.assertEqual(generation_config["responseModalities"], ["AUDIO"])
+        self.assertEqual(setup["systemInstruction"], {"parts": [{"text": "Answer briefly."}]})
+        self.assertEqual(setup["inputAudioTranscription"], {})
+        self.assertEqual(setup["outputAudioTranscription"], {})
         self.assertEqual(
-            config["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"],
+            generation_config["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"],
             {"voiceName": "Kore"},
         )
-        self.assertEqual(config["tools"][0]["functionDeclarations"][0]["name"], "business_info_lookup")
+        self.assertEqual(setup["tools"][0]["functionDeclarations"][0]["name"], "business_info_lookup")
         self.assertEqual(
-            config["tools"][0]["functionDeclarations"][0]["parameters"]["properties"]["query"]["type"],
+            setup["tools"][0]["functionDeclarations"][0]["parameters"]["properties"]["query"]["type"],
             "string",
         )
 

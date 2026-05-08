@@ -419,6 +419,9 @@ async def _handle_client_stream_message(websocket: WebSocket, session_id: str, m
             await websocket.send_json({"type": "session.ended", "session_id": session_id})
             await websocket.close(code=4000)
             return False
+        except Exception as exc:
+            await _handle_audio_stream_error(websocket, session_id, exc)
+            return False
         await websocket.send_json(event)
         return True
 
@@ -457,10 +460,29 @@ async def _handle_client_stream_message(websocket: WebSocket, session_id: str, m
             await websocket.send_json({"type": "session.ended", "session_id": session_id})
             await websocket.close(code=4000)
             return False
+        except Exception as exc:
+            await _handle_audio_stream_error(websocket, session_id, exc)
+            return False
         await websocket.send_json(event)
     else:
         await websocket.send_json({"type": "session.error", "message": f"Unsupported event: {event_type}"})
     return True
+
+
+async def _handle_audio_stream_error(websocket: WebSocket, session_id: str, exc: Exception) -> None:
+    message = str(exc) or "Audio stream delivery failed."
+    db.add_log("error", "audio_stream_failed", message, {"session_id": session_id})
+    await session_manager.stop_session(session_id, EndReason.PROVIDER_ERROR, message)
+    await websocket.send_json(
+        {
+            "type": "provider.error",
+            "session_id": session_id,
+            "provider": None,
+            "message": message,
+        }
+    )
+    await websocket.send_json({"type": "session.ended", "session_id": session_id, "ended_reason": EndReason.PROVIDER_ERROR})
+    await websocket.close(code=4000)
 
 
 @app.get("/business-profile")

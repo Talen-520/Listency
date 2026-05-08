@@ -56,6 +56,9 @@ class GeminiLiveAdapter:
     name = "gemini"
     display_name = "Gemini Live"
 
+    def __init__(self) -> None:
+        self._setup_events: dict[str, asyncio.Event] = {}
+
     def validate_config(self, env: dict[str, str]) -> None:
         if not env.get("GEMINI_API_KEY"):
             raise ProviderConfigError("GEMINI_API_KEY is missing in .env")
@@ -89,6 +92,8 @@ class GeminiLiveAdapter:
             },
             connection=connection,
         )
+        setup_event = asyncio.Event()
+        self._setup_events[handle.provider_session_id] = setup_event
         handle.listener_task = asyncio.create_task(self._listen(handle, event_callback))
         await connection.send(json.dumps(self._config_message(env, session_config)))
         return handle
@@ -96,6 +101,7 @@ class GeminiLiveAdapter:
     async def send_audio(self, handle: ProviderSessionHandle, pcm16_chunk: bytes) -> None:
         if handle.connection is None:
             return
+        await self._wait_for_setup(handle)
         await handle.connection.send(json.dumps(self._audio_chunk_message(pcm16_chunk)))
 
     async def send_tool_result(self, handle: ProviderSessionHandle, tool_call_id: str, output: dict[str, Any]) -> None:
@@ -128,22 +134,18 @@ class GeminiLiveAdapter:
             handle.listener_task.cancel()
         if handle.connection is not None:
             await handle.connection.close()
+        self._setup_events.pop(handle.provider_session_id, None)
 
     def _config_message(self, env: dict[str, str], session_config: dict[str, Any] | None) -> dict[str, Any]:
         model = env.get("GEMINI_LIVE_MODEL", DEFAULT_GEMINI_LIVE_MODEL).strip() or DEFAULT_GEMINI_LIVE_MODEL
         instructions = str((session_config or {}).get("instructions") or "").strip()
         voice = self._voice(env)
 
-        config: dict[str, Any] = {
-            "model": self._model_resource(model),
+        generation_config: dict[str, Any] = {
             "responseModalities": ["AUDIO"],
-            "inputAudioTranscription": {},
-            "outputAudioTranscription": {},
         }
-        if instructions:
-            config["systemInstruction"] = {"parts": [{"text": instructions}]}
         if voice and voice.lower() != "default":
-            config["speechConfig"] = {
+            generation_config["speechConfig"] = {
                 "voiceConfig": {
                     "prebuiltVoiceConfig": {
                         "voiceName": voice,
@@ -151,11 +153,29 @@ class GeminiLiveAdapter:
                 }
             }
 
+        setup: dict[str, Any] = {
+            "model": self._model_resource(model),
+            "generationConfig": generation_config,
+            "inputAudioTranscription": {},
+            "outputAudioTranscription": {},
+        }
+        if instructions:
+            setup["systemInstruction"] = {"parts": [{"text": instructions}]}
+
         tools = self._gemini_tools(list((session_config or {}).get("tools") or []))
         if tools:
-            config["tools"] = tools
+            setup["tools"] = tools
 
-        return {"config": config}
+        return {"setup": setup}
+
+    async def _wait_for_setup(self, handle: ProviderSessionHandle) -> None:
+        setup_event = self._setup_events.get(handle.provider_session_id)
+        if not setup_event or setup_event.is_set():
+            return
+        try:
+            await asyncio.wait_for(setup_event.wait(), timeout=10)
+        except TimeoutError as exc:
+            raise ProviderConfigError("Gemini Live setup did not complete before audio streaming.") from exc
 
     def _audio_chunk_message(self, pcm16_chunk: bytes) -> dict[str, Any]:
         return {
@@ -224,6 +244,10 @@ class GeminiLiveAdapter:
                     provider_event = json.loads(raw_message)
                 except (UnicodeDecodeError, json.JSONDecodeError):
                     provider_event = {"rawMessage": str(raw_message)}
+                if "setupComplete" in provider_event:
+                    setup_event = self._setup_events.get(handle.provider_session_id)
+                    if setup_event:
+                        setup_event.set()
                 events = self._normalize_events(handle, provider_event)
                 if event_callback:
                     for event in events:
@@ -231,6 +255,7 @@ class GeminiLiveAdapter:
         except asyncio.CancelledError:
             return
         except Exception as exc:
+            self._setup_events.pop(handle.provider_session_id, None)
             if event_callback:
                 await event_callback({"type": "provider.error", "provider": self.name, "message": str(exc)})
 
