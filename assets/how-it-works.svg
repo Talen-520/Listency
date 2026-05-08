@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">Listency architecture flow diagram</title>
+  <desc id="desc">A local desktop app captures audio, talks to a local FastAPI backend, calls realtime AI providers, executes local tools, and stores local configuration and logs.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#111111" />
+    </marker>
+    <marker id="arrow-muted" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#6f6f6f" />
+    </marker>
+    <style>
+      .bg { fill: #ffffff; }
+      .ink { fill: #111111; }
+      .muted { fill: #666666; }
+      .panel { fill: #fafafa; stroke: #d8d8d8; stroke-width: 2; }
+      .card { fill: #ffffff; stroke: #161616; stroke-width: 2; }
+      .soft { fill: #f3f3f3; stroke: #d4d4d4; stroke-width: 2; }
+      .title { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 24px; font-weight: 700; fill: #111111; }
+      .label { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 20px; font-weight: 650; fill: #111111; }
+      .small { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 16px; fill: #555555; }
+      .tiny { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; fill: #666666; }
+      .line { fill: none; stroke: #111111; stroke-width: 2.4; marker-end: url(#arrow); }
+      .line2 { fill: none; stroke: #111111; stroke-width: 2.4; marker-start: url(#arrow); marker-end: url(#arrow); }
+      .muted-line { fill: none; stroke: #6f6f6f; stroke-width: 2; stroke-dasharray: 7 7; marker-end: url(#arrow-muted); }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1280" height="760" rx="28" />
+  <text class="title" x="56" y="62">Listency Local Voice Runtime</text>
+  <text class="small" x="56" y="92">Packaged app starts a local backend sidecar, streams realtime audio, executes local tools, and saves logs locally.</text>
+
+  <rect class="soft" x="56" y="160" width="184" height="88" rx="18" />
+  <text class="label" x="86" y="196">User</text>
+  <text class="small" x="86" y="222">operator setup</text>
+
+  <rect class="soft" x="56" y="328" width="184" height="108" rx="18" />
+  <text class="label" x="86" y="366">Caller Audio</text>
+  <text class="small" x="86" y="392">mic today</text>
+  <text class="small" x="86" y="416">phone provider later</text>
+
+  <rect class="panel" x="300" y="128" width="292" height="420" rx="24" />
+  <text class="title" x="330" y="174">Desktop App</text>
+  <text class="tiny" x="330" y="199">Tauri + React</text>
+
+  <rect class="card" x="330" y="234" width="232" height="106" rx="18" />
+  <text class="label" x="356" y="274">Control Panel</text>
+  <text class="small" x="356" y="302">Settings, Runtime</text>
+  <text class="small" x="356" y="324">Test Call, Logs</text>
+
+  <rect class="card" x="330" y="382" width="232" height="106" rx="18" />
+  <text class="label" x="356" y="422">Audio I/O</text>
+  <text class="small" x="356" y="450">PCM16 capture</text>
+  <text class="small" x="356" y="472">speaker playback</text>
+
+  <rect class="panel" x="662" y="128" width="340" height="506" rx="24" />
+  <text class="title" x="692" y="174">Local Backend</text>
+  <text class="tiny" x="692" y="199">FastAPI on 127.0.0.1:8765</text>
+
+  <rect class="card" x="692" y="230" width="280" height="74" rx="16" />
+  <text class="label" x="718" y="268">Session Manager</text>
+  <text class="small" x="718" y="290">5 minute conversation limit</text>
+
+  <rect class="card" x="692" y="334" width="128" height="86" rx="16" />
+  <text class="label" x="718" y="370">Config</text>
+  <text class="small" x="718" y="394">local .env</text>
+
+  <rect class="card" x="844" y="334" width="128" height="86" rx="16" />
+  <text class="label" x="870" y="370">SQLite</text>
+  <text class="small" x="870" y="394">logs + calls</text>
+
+  <rect class="card" x="692" y="454" width="280" height="110" rx="16" />
+  <text class="label" x="718" y="492">Tool Registry</text>
+  <text class="small" x="718" y="520">business info, booking</text>
+  <text class="small" x="718" y="542">transfer, end_call</text>
+
+  <rect class="panel" x="1072" y="188" width="160" height="300" rx="24" />
+  <text class="title" x="1102" y="234">Providers</text>
+  <text class="tiny" x="1102" y="259">Realtime APIs</text>
+
+  <rect class="card" x="1102" y="292" width="100" height="58" rx="14" />
+  <text class="small" x="1123" y="327">OpenAI</text>
+
+  <rect class="card" x="1102" y="386" width="100" height="58" rx="14" />
+  <text class="small" x="1121" y="421">Gemini</text>
+
+  <path class="line" d="M240 204 H330" />
+  <path class="line2" d="M240 382 H330" />
+  <path class="line2" d="M562 287 H692" />
+  <path class="line2" d="M562 435 C610 435 620 267 692 267" />
+  <path class="muted-line" d="M562 254 C620 194 632 174 692 174" />
+  <path class="line" d="M832 304 V334" />
+  <path class="line" d="M794 304 C758 312 756 322 756 334" />
+  <path class="line" d="M870 304 C908 312 908 322 908 334" />
+  <path class="line2" d="M832 304 V454" />
+  <path class="line2" d="M972 267 C1030 267 1044 321 1102 321" />
+  <path class="line2" d="M972 267 C1030 267 1044 415 1102 415" />
+
+  <text class="tiny" x="274" y="188">setup</text>
+  <text class="tiny" x="256" y="366">audio</text>
+  <text class="tiny" x="588" y="276">HTTP</text>
+  <text class="tiny" x="576" y="404">WebSocket audio</text>
+  <text class="tiny" x="590" y="166">start / stop sidecar</text>
+  <text class="tiny" x="1016" y="300">audio</text>
+  <text class="tiny" x="1008" y="324">events</text>
+</svg>

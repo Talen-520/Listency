@@ -18,10 +18,11 @@
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
 </p>
 
-Listency runs a local desktop control panel and a thin local backend. Users
-can save provider API keys, enter business information, edit an agent prompt,
-enable local tools, run microphone test calls, and inspect transcripts, tool
-calls, and provider events.
+Listency runs a local desktop control panel and a thin local backend. In
+packaged builds, the desktop app starts a bundled backend sidecar automatically
+and stops it when the app closes. Users can save provider API keys, enter
+business information, edit an agent prompt, enable local tools, run microphone
+test calls, and inspect transcripts, tool calls, and provider events.
 
 > Status: early MVP / alpha. The current project is intended for local
 > development and testing, not production phone deployment.
@@ -53,7 +54,7 @@ What works today:
 
 - Tauri + React desktop UI with Tailwind CSS and shadcn-style components.
 - Black/white light and dark themes with Inter bundled locally.
-- Python + FastAPI backend on `127.0.0.1:8765`.
+- Auto-started local Python + FastAPI backend on `127.0.0.1:8765`.
 - Local `.env` provider key storage editable from Settings.
 - Local SQLite session, transcript, tool-call, and app-event storage.
 - OpenAI Realtime microphone-to-speaker Test Call.
@@ -78,37 +79,61 @@ Planned next:
 
 ## How It Works
 
-```text
-Mic / Speaker
-  <-> Tauri + React desktop app
-  <-> Local FastAPI backend
-  <-> Realtime provider adapter
-  <-> Local tool registry
-  <-> SQLite logs
-```
+<p align="center">
+  <a href="assets/how-it-works.svg">
+    <img src="assets/how-it-works.svg" alt="Listency architecture flow diagram" width="100%" />
+  </a>
+</p>
 
 The backend intentionally stays thin: session management, local config loading,
 tool callbacks, and log persistence. Provider calls happen only when a Test Call
 or future inbound phone call starts an AI session.
 
-## Requirements
+## One Click Start
+
+This is the intended path for general or non-technical users.
+
+1. Download a packaged Listency build.
+2. Open the Listency desktop app.
+3. Add OpenAI and/or Gemini API keys in Settings.
+4. Choose a provider, model, and voice.
+5. Fill in Business Info and Agent prompt.
+6. Enable the tools the agent should use.
+7. Start Runtime, then use Test Call to speak with the agent.
+8. Review transcripts, tool calls, and app events in Logs.
+
+Packaged builds include the backend sidecar, so users do not need Python, Node,
+pnpm, Rust, or a terminal. The app writes local configuration files for them
+and keeps provider keys in the local `.env`.
+
+> Release installers are still planned. Current alpha Windows build artifacts
+> are produced by GitHub Actions for testing.
+
+## Developer Requirements
 
 - Python 3.11+
-- Node.js with Corepack
+- Node.js with Corepack enabled
 - pnpm
 - Rust and Cargo for the Tauri shell
+- PyInstaller when building distributable sidecar bundles
 
-## Quick Start
+## Developer Quick Start
 
-Create a local environment file:
+Install backend dependencies:
+
+```bash
+cd app/backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+You can seed a local `.env` manually, or just enter keys in Settings after the
+app starts. The backend creates default env files when needed.
 
 ```bash
 cp .env.example .env
-```
 
-Set provider values as needed:
-
-```bash
 OPENAI_API_KEY=
 GEMINI_API_KEY=
 OPENAI_REALTIME_MODEL=gpt-realtime
@@ -118,15 +143,6 @@ DEFAULT_REALTIME_PROVIDER=openai
 OPENAI_DEFAULT_VOICE=
 GEMINI_DEFAULT_VOICE=
 DEFAULT_VOICE=
-```
-
-Install backend dependencies:
-
-```bash
-cd app/backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
 ```
 
 Install desktop dependencies:
@@ -144,10 +160,10 @@ cd app/desktop
 pnpm run tauri:dev
 ```
 
-The Tauri shell checks `127.0.0.1:8765` and starts the local FastAPI backend
-automatically when no backend is already running. In packaged builds, it first
-looks for a bundled `listency-backend` sidecar. During development, it falls
-back to `app/backend/.venv` when no sidecar is present.
+The Tauri shell checks `127.0.0.1:8765` and starts a local backend automatically
+when no backend is already running. During development, it falls back to
+`app/backend/.venv` when no bundled sidecar is present. In packaged builds, it
+prefers the bundled `listency-backend` sidecar.
 
 For browser-only frontend development, start the backend manually:
 
@@ -170,19 +186,7 @@ The frontend dev server uses:
 http://127.0.0.1:5173/
 ```
 
-Build the desktop app:
-
-```bash
-cd app/desktop
-pnpm run tauri:build
-```
-
-Windows packaged smoke is also checked in GitHub Actions on pushes and pull
-requests to `main`. The workflow builds the Windows backend sidecar, runs the
-clean-data sidecar smoke test, builds the Tauri app, and uploads Windows build
-artifacts.
-
-Build a packaged app with a bundled backend sidecar:
+Build a distributable local app with a bundled backend sidecar:
 
 ```bash
 cd app/backend
@@ -192,24 +196,34 @@ cd ../desktop
 pnpm run tauri:build:sidecar
 ```
 
-Use `tauri:build:sidecar` for distributable local apps. It creates a desktop
-bundle where the user opens only Listency and does not need Python, Node, pnpm,
-or Rust installed.
+Use `tauri:build:sidecar` for local app bundles that a user can open without
+installing Python, Node, pnpm, or Rust. The sidecar build writes a
+target-triple-specific backend executable under
+`app/desktop/src-tauri/binaries/`, which is bundled into the Tauri app
+resources. When the app closes, the Tauri launcher shuts down the backend child
+process it started.
 
-The sidecar build writes a target-triple-specific backend executable under
-`app/desktop/src-tauri/binaries/`, which is bundled into the Tauri app resources.
-When the app closes, the Tauri launcher shuts down the backend child process it
-started.
+Build only the Tauri shell without rebuilding the sidecar:
+
+```bash
+cd app/desktop
+pnpm run tauri:build
+```
+
+Windows packaged smoke is checked in GitHub Actions on pushes and pull requests
+to `main`. The workflow builds the Windows backend sidecar, runs the clean-data
+sidecar smoke test, builds the Tauri app, and uploads Windows build artifacts.
 
 ## Local Workflow
 
-1. Start the backend.
-2. Start the desktop app.
+1. Open Listency, or run `pnpm run tauri:dev` during development.
+2. Let the desktop shell start or reuse the local backend.
 3. Add provider API keys in Settings.
 4. Fill in Business Profile and Agent prompt.
 5. Enable the tools needed for the session.
-6. Start a Test Call and speak through the microphone.
-7. Review transcripts, tool calls, and app events in Logs.
+6. Start Runtime.
+7. Start a Test Call and speak through the microphone.
+8. Review transcripts, tool calls, and app events in Logs.
 
 ## Project Structure
 
