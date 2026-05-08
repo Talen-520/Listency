@@ -16,7 +16,7 @@ export function MetricCard({
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <p className="text-2xl font-bold tracking-tight">{value}</p>
+      <p className="font-display text-lg font-semibold leading-none tracking-normal">{value}</p>
     </div>
   );
 }
