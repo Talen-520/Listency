@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,8 +32,17 @@ class Database:
         connection.row_factory = sqlite3.Row
         return connection
 
+    @contextmanager
+    def open_connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self.connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def init(self) -> None:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS settings (
@@ -117,7 +127,7 @@ class Database:
 
     def set_setting(self, key: str, value: str) -> None:
         now = utc_now()
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO settings (key, value, updated_at)
@@ -128,13 +138,13 @@ class Database:
             )
 
     def get_setting(self, key: str, default: str = "") -> str:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             row = connection.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return str(row["value"]) if row else default
 
     def upsert_business_profile(self, content: str, name: str = "Default Business") -> dict[str, Any]:
         now = utc_now()
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO business_profiles (id, name, content, updated_at)
@@ -146,7 +156,7 @@ class Database:
         return self.get_business_profile()
 
     def get_business_profile(self) -> dict[str, Any]:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             row = connection.execute(
                 "SELECT id, name, content, updated_at FROM business_profiles WHERE id = 'default'"
             ).fetchone()
@@ -156,7 +166,7 @@ class Database:
 
     def upsert_default_agent(self, system_prompt: str, name: str = "Default Agent") -> dict[str, Any]:
         now = utc_now()
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO agents (id, name, system_prompt, updated_at)
@@ -168,7 +178,7 @@ class Database:
         return self.get_default_agent()
 
     def get_default_agent(self) -> dict[str, Any]:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             row = connection.execute(
                 "SELECT id, name, system_prompt, updated_at FROM agents WHERE id = 'default'"
             ).fetchone()
@@ -182,7 +192,7 @@ class Database:
         return dict(row)
 
     def create_session(self, session_id: str, provider: str, mode: str, status: str, timeout_at: str) -> None:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO sessions (id, provider, mode, started_at, status, timeout_at)
@@ -198,7 +208,7 @@ class Database:
         ended_reason: str,
         error_message: str | None = None,
     ) -> None:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 UPDATE sessions
@@ -209,7 +219,7 @@ class Database:
             )
 
     def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             rows = connection.execute(
                 """
                 SELECT id, provider, mode, started_at, ended_at, status, ended_reason, error_message, timeout_at
@@ -222,7 +232,7 @@ class Database:
         return [dict(row) for row in rows]
 
     def add_transcript(self, session_id: str, speaker: str, content: str, is_final: bool = True) -> None:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO transcripts (session_id, speaker, content, is_final, created_at)
@@ -240,12 +250,12 @@ class Database:
         else:
             params = ()
         query += " ORDER BY created_at DESC LIMIT ?"
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()
         return [dict(row) for row in rows]
 
     def add_message(self, session_id: str, role: str, content: str) -> None:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO messages (session_id, role, content, created_at)
@@ -264,7 +274,7 @@ class Database:
         error_message: str | None = None,
     ) -> None:
         now = utc_now()
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO tool_calls (
@@ -296,12 +306,12 @@ class Database:
         else:
             params = ()
         query += " ORDER BY started_at DESC LIMIT ?"
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()
         return [dict(row) for row in rows]
 
     def create_booking(self, customer_name: str, booking_time: str, notes: str = "") -> dict[str, Any]:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO bookings (customer_name, booking_time, notes, created_at)
@@ -318,7 +328,7 @@ class Database:
         }
 
     def add_log(self, level: str, event: str, message: str, metadata: dict[str, Any] | None = None) -> None:
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO app_logs (level, event, message, metadata_json, created_at)
@@ -345,6 +355,6 @@ class Database:
         else:
             params = ()
         query += " ORDER BY created_at DESC LIMIT ?"
-        with self.connect() as connection:
+        with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()
         return [dict(row) for row in rows]
