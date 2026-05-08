@@ -129,6 +129,20 @@ async function waitForExit(child) {
   });
 }
 
+async function removeSmokeRoot(rootPath) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      fs.rmSync(rootPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+      if (attempt === 4) {
+        console.warn(`Could not remove smoke data root ${rootPath}: ${error.message}`);
+      }
+    }
+  }
+}
+
 const sidecar = findSidecar();
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "listency-packaged-smoke-"));
 const resolvedRoot = fs.realpathSync(root);
@@ -187,7 +201,7 @@ try {
   }
   await waitForExit(child);
   if (!process.env.LISTENCY_KEEP_SMOKE_ROOT) {
-    fs.rmSync(resolvedRoot, { recursive: true, force: true });
+    await removeSmokeRoot(resolvedRoot);
   }
   if (!passed && stderr.trim()) {
     console.error(stderr.trim());
