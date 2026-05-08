@@ -1,9 +1,9 @@
-# voiceAgent
+# Listency
 
 Local-first, open-source desktop app for building and testing AI voice agents
 for small businesses.
 
-voiceAgent runs a local desktop control panel and a thin local backend. Users
+Listency runs a local desktop control panel and a thin local backend. Users
 can save provider API keys, enter business information, edit an agent prompt,
 enable local tools, run microphone test calls, and inspect transcripts, tool
 calls, and provider events.
@@ -179,14 +179,14 @@ are not part of the public repository.
 
 ## Local Data And Privacy
 
-voiceAgent is designed to run locally first:
+Listency is designed to run locally first:
 
 - API keys are stored in local `.env`.
 - Session records are stored in local SQLite under `data/`.
 - Voice preview audio is cached locally under `data/voice_previews/`.
 - Business profile text and prompts stay local until sent to a selected AI
   provider during an active session.
-- No hosted voiceAgent backend is required for the current MVP.
+- No hosted Listency backend is required for the current MVP.
 
 Provider APIs may still receive audio, text, prompts, and tool results during
 active sessions. Review each provider's data policy before using real customer

@@ -45,7 +45,7 @@ export function AppShell({
           <div className="flex h-16 items-center gap-3 px-5">
             <AppIcon />
             <div className="min-w-0">
-              <div className="font-display text-base font-semibold">voiceAgent</div>
+              <div className="font-display text-base font-semibold">Listency</div>
               <div className="text-xs text-muted-foreground">Local voice runtime</div>
             </div>
           </div>
@@ -142,7 +142,7 @@ function AppIcon({ className }: { className?: string }) {
   return (
     <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden", className)}>
       <span
-        aria-label="voiceAgent"
+        aria-label="Listency"
         className="h-7 w-7 bg-foreground"
         role="img"
         style={{

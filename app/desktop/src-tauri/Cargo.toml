@@ -1,12 +1,12 @@
 [package]
-name = "voice-agent-desktop"
+name = "listency-desktop"
 version = "0.1.0"
-description = "Local voiceAgent desktop app"
-authors = ["voiceAgent contributors"]
+description = "Local Listency desktop app"
+authors = ["Listency contributors"]
 edition = "2021"
 
 [lib]
-name = "voice_agent_desktop_lib"
+name = "listency_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

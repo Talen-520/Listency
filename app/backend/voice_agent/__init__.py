@@ -1,4 +1,4 @@
-"""Local backend package for voiceAgent."""
+"""Local backend package for Listency."""
 
 __all__ = ["__version__"]
 

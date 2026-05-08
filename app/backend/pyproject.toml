@@ -1,7 +1,7 @@
 [project]
-name = "voice-agent-backend"
+name = "listency-backend"
 version = "0.1.0"
-description = "Local backend for the voiceAgent desktop app."
+description = "Local backend for the Listency desktop app."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.0",

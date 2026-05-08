@@ -93,7 +93,7 @@ session_manager = SessionManager(
 )
 voice_preview_service = VoicePreviewService(env_store, session_manager.providers)
 
-app = FastAPI(title="voiceAgent Local Backend", version="0.1.0")
+app = FastAPI(title="Listency Local Backend", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
