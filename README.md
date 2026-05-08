@@ -163,6 +163,10 @@ cd ../desktop
 pnpm run tauri:build:sidecar
 ```
 
+Use `tauri:build:sidecar` for distributable local apps. It creates a desktop
+bundle where the user opens only Listency and does not need Python, Node, pnpm,
+or Rust installed.
+
 The sidecar build writes a target-triple-specific backend executable under
 `app/desktop/src-tauri/binaries/`, which is bundled into the Tauri app resources.
 When the app closes, the Tauri launcher shuts down the backend child process it
@@ -200,6 +204,8 @@ app/desktop/
                   shadcn-style primitives
   src/lib/        API, types, audio, formatting, runtime helpers
   src-tauri/      native Tauri shell and generated bundle icons
+  src-tauri/binaries/
+                  generated backend sidecar target
 
 update_logs/      commit-by-commit development notes
 scripts/          local helper scripts
@@ -213,9 +219,12 @@ are not part of the public repository.
 
 Listency is designed to run locally first:
 
-- API keys are stored in local `.env`.
-- Session records are stored in local SQLite under `data/`.
-- Voice preview audio is cached locally under `data/voice_previews/`.
+- API keys are stored in a local `.env`.
+- Session records are stored in local SQLite.
+- Voice preview audio is cached locally.
+- Source/development mode stores local data under the repository `data/` directory.
+- Packaged sidecar mode stores `.env`, SQLite, and preview cache under the
+  operating system's app local data directory through `VOICE_AGENT_ROOT`.
 - Business profile text and prompts stay local until sent to a selected AI
   provider during an active session.
 - No hosted Listency backend is required for the current MVP.
@@ -244,6 +253,12 @@ Regenerate browser and Tauri bundle icons:
 
 ```bash
 node scripts/generate_tauri_icon.mjs
+```
+
+Build the backend sidecar for the current platform:
+
+```bash
+node scripts/build_backend_sidecar.mjs
 ```
 
 Backend WebSocket smoke test:
