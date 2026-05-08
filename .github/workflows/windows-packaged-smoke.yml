@@ -7,6 +7,10 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+concurrency:
+  group: windows-packaged-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   packaged-smoke:
     name: Build and smoke packaged Windows app
@@ -64,6 +68,7 @@ jobs:
 
       - name: Smoke test packaged backend sidecar
         working-directory: app/desktop
+        timeout-minutes: 3
         run: |
           pnpm run backend:sidecar:smoke *> smoke.log
           $exitCode = $LASTEXITCODE

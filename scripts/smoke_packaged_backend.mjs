@@ -10,6 +10,9 @@ const repoRoot = path.resolve(scriptDir, "..");
 const binariesDir = path.join(repoRoot, "app", "desktop", "src-tauri", "binaries");
 const isWindows = process.platform === "win32";
 const extension = isWindows ? ".exe" : "";
+const requestTimeoutMs = 5_000;
+const healthTimeoutMs = 45_000;
+const smokeTimeoutMs = 90_000;
 
 function output(command, args) {
   const result = spawnSync(command, args, {
@@ -72,23 +75,35 @@ async function freePort() {
 }
 
 async function request(baseUrl, pathName, init) {
-  const response = await fetch(`${baseUrl}${pathName}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`${pathName} failed with HTTP ${response.status}: ${await response.text()}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  try {
+    const response = await fetch(`${baseUrl}${pathName}`, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`${pathName} failed with HTTP ${response.status}: ${await response.text()}`);
+    }
+    return response.json();
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`${pathName} timed out after ${requestTimeoutMs}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  return response.json();
 }
 
 async function waitForHealth(baseUrl, child, stderrBuffer) {
   const startedAt = Date.now();
   let lastError = null;
-  while (Date.now() - startedAt < 15_000) {
+  while (Date.now() - startedAt < healthTimeoutMs) {
     if (child.exitCode !== null) {
       const stderr = stderrBuffer().trim();
       throw new Error(
@@ -102,7 +117,7 @@ async function waitForHealth(baseUrl, child, stderrBuffer) {
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
   }
-  throw new Error(`Backend did not become healthy in time: ${lastError?.message ?? "unknown error"}`);
+  throw new Error(`Backend did not become healthy in ${healthTimeoutMs}ms: ${lastError?.message ?? "unknown error"}`);
 }
 
 function realPath(value) {
@@ -139,13 +154,56 @@ function assert(condition, message) {
   }
 }
 
-async function waitForExit(child) {
+function terminateChild(child) {
+  if (child.exitCode !== null) {
+    return;
+  }
+  if (isWindows && child.pid) {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
+    return;
+  }
+  child.kill();
+}
+
+function forceKillChild(child) {
+  if (child.exitCode !== null) {
+    return;
+  }
+  if (isWindows && child.pid) {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
+    return;
+  }
+  child.kill("SIGKILL");
+}
+
+async function waitForExit(child, timeoutMs = 5_000) {
   if (child.exitCode !== null) {
     return child.exitCode;
   }
   return await new Promise((resolve) => {
-    child.once("exit", (code) => resolve(code));
+    const timeout = setTimeout(() => resolve(null), timeoutMs);
+    child.once("exit", (code) => {
+      clearTimeout(timeout);
+      resolve(code);
+    });
   });
+}
+
+async function stopChild(child) {
+  if (child.exitCode !== null) {
+    return child.exitCode;
+  }
+  terminateChild(child);
+  const exitCode = await waitForExit(child);
+  if (exitCode !== null) {
+    return exitCode;
+  }
+  forceKillChild(child);
+  const forcedExitCode = await waitForExit(child, 2_000);
+  if (forcedExitCode === null) {
+    console.warn("Backend sidecar did not exit within the smoke cleanup timeout.");
+  }
+  return forcedExitCode;
 }
 
 async function removeSmokeRoot(rootPath) {
@@ -180,9 +238,25 @@ const child = spawn(sidecar, {
 });
 
 let stderr = "";
+let stdout = "";
 child.stderr.on("data", (chunk) => {
   stderr += chunk.toString();
 });
+child.stdout.on("data", (chunk) => {
+  stdout += chunk.toString();
+});
+
+const smokeTimeout = setTimeout(() => {
+  console.error(`Packaged backend smoke timed out after ${smokeTimeoutMs}ms.`);
+  if (stdout.trim()) {
+    console.error(stdout.trim());
+  }
+  if (stderr.trim()) {
+    console.error(stderr.trim());
+  }
+  terminateChild(child);
+  process.exit(1);
+}, smokeTimeoutMs);
 
 let passed = false;
 try {
@@ -215,14 +289,19 @@ try {
   console.log(`Smoke data root: ${resolvedRoot}`);
   passed = true;
 } finally {
+  clearTimeout(smokeTimeout);
   if (child.exitCode === null) {
-    child.kill();
+    await stopChild(child);
   }
-  await waitForExit(child);
   if (!process.env.LISTENCY_KEEP_SMOKE_ROOT) {
     await removeSmokeRoot(resolvedRoot);
   }
-  if (!passed && stderr.trim()) {
-    console.error(stderr.trim());
+  if (!passed) {
+    if (stdout.trim()) {
+      console.error(stdout.trim());
+    }
+    if (stderr.trim()) {
+      console.error(stderr.trim());
+    }
   }
 }
