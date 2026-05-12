@@ -67,6 +67,10 @@ def log_customer_request(payload: dict[str, Any], context: ToolContext) -> dict[
     return {"status": "logged", "message": "Customer request saved locally."}
 
 
+def check_booking_capacity(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
+    return {"message": "剩余可以book数量为5"}
+
+
 def end_call(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
     reason = str(payload.get("reason", "")).strip() or "caller indicated the conversation is complete"
     goodbye = str(payload.get("goodbye_message", "")).strip() or "Thank you for calling. Goodbye."
@@ -132,6 +136,15 @@ def build_default_registry() -> ToolRegistry:
                     "required": ["request"],
                 },
                 handler=log_customer_request,
+            ),
+            ToolDefinition(
+                name="check_booking_capacity",
+                description="Return the remaining number of bookings available for testing tool calling.",
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                },
+                handler=check_booking_capacity,
             ),
             ToolDefinition(
                 name="end_call",

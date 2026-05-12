@@ -9,6 +9,23 @@ from voice_agent.tools import ToolContext, build_default_registry
 
 
 class ToolRegistryTest(unittest.TestCase):
+    def test_check_booking_capacity_returns_fixed_message(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+            registry = build_default_registry()
+
+            result = registry.call(
+                "check_booking_capacity",
+                {},
+                ToolContext(db=db, session_id="session-1"),
+            )
+
+            calls = db.list_tool_calls()
+
+            self.assertEqual(result, {"message": "剩余可以book数量为5"})
+            self.assertEqual(calls[0]["tool_name"], "check_booking_capacity")
+            self.assertEqual(calls[0]["status"], "completed")
+
     def test_end_call_tool_logs_local_hangup_intent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
