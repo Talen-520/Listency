@@ -16,6 +16,19 @@ def utc_now() -> str:
     return datetime.now(tz=UTC).isoformat()
 
 
+def normalize_timestamp_filter(value: str | None) -> str | None:
+    if not value:
+        return value
+    normalized = f"{value[:-1]}+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return normalized
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).isoformat()
+
+
 @dataclass(slots=True)
 class Database:
     path: Path | None = None
@@ -218,17 +231,21 @@ class Database:
                 (status, utc_now(), ended_reason, error_message, session_id),
             )
 
-    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
-        with self.open_connection() as connection:
-            rows = connection.execute(
-                """
+    def list_sessions(self, limit: int = 50, since: str | None = None) -> list[dict[str, Any]]:
+        since = normalize_timestamp_filter(since)
+        query = """
                 SELECT id, provider, mode, started_at, ended_at, status, ended_reason, error_message, timeout_at
                 FROM sessions
-                ORDER BY started_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+                """
+        params: Iterable[Any]
+        if since:
+            query += " WHERE started_at >= ?"
+            params = (since,)
+        else:
+            params = ()
+        query += " ORDER BY started_at DESC LIMIT ?"
+        with self.open_connection() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
         return [dict(row) for row in rows]
 
     def add_transcript(self, session_id: str, speaker: str, content: str, is_final: bool = True) -> None:
@@ -241,14 +258,19 @@ class Database:
                 (session_id, speaker, content, int(is_final), utc_now()),
             )
 
-    def list_transcripts(self, session_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def list_transcripts(self, session_id: str | None = None, limit: int = 100, since: str | None = None) -> list[dict[str, Any]]:
+        since = normalize_timestamp_filter(since)
         query = "SELECT session_id, speaker, content, is_final, created_at FROM transcripts"
-        params: Iterable[Any]
+        conditions = []
+        params: list[Any] = []
         if session_id:
-            query += " WHERE session_id = ?"
-            params = (session_id,)
-        else:
-            params = ()
+            conditions.append("session_id = ?")
+            params.append(session_id)
+        if since:
+            conditions.append("created_at >= ?")
+            params.append(since)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY created_at DESC LIMIT ?"
         with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()
@@ -294,17 +316,22 @@ class Database:
                 ),
             )
 
-    def list_tool_calls(self, limit: int = 100, session_id: str | None = None) -> list[dict[str, Any]]:
+    def list_tool_calls(self, limit: int = 100, session_id: str | None = None, since: str | None = None) -> list[dict[str, Any]]:
+        since = normalize_timestamp_filter(since)
         query = """
                 SELECT id, session_id, tool_name, input_json, output_json, status, started_at, ended_at, error_message
                 FROM tool_calls
                 """
-        params: Iterable[Any]
+        conditions = []
+        params: list[Any] = []
         if session_id:
-            query += " WHERE session_id = ?"
-            params = (session_id,)
-        else:
-            params = ()
+            conditions.append("session_id = ?")
+            params.append(session_id)
+        if since:
+            conditions.append("started_at >= ?")
+            params.append(since)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY started_at DESC LIMIT ?"
         with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()
@@ -343,17 +370,22 @@ class Database:
                 ),
             )
 
-    def list_logs(self, limit: int = 100, session_id: str | None = None) -> list[dict[str, Any]]:
+    def list_logs(self, limit: int = 100, session_id: str | None = None, since: str | None = None) -> list[dict[str, Any]]:
+        since = normalize_timestamp_filter(since)
         query = """
                 SELECT id, level, event, message, metadata_json, created_at
                 FROM app_logs
                 """
-        params: Iterable[Any]
+        conditions = []
+        params: list[Any] = []
         if session_id:
-            query += " WHERE metadata_json LIKE ?"
-            params = (f'%"session_id": "{session_id}"%',)
-        else:
-            params = ()
+            conditions.append("metadata_json LIKE ?")
+            params.append(f'%"session_id": "{session_id}"%')
+        if since:
+            conditions.append("created_at >= ?")
+            params.append(since)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY created_at DESC LIMIT ?"
         with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()

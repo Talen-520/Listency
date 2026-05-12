@@ -135,9 +135,10 @@ export function App() {
         return (
           <LogsView
             sessions={data.sessions}
-            selectedSession={data.selectedSession}
             selectedSessionId={data.selectedSessionDetailId}
             onSelectSession={data.setSelectedSessionId}
+            logWindow={data.logWindow}
+            onLogWindowChange={data.setLogWindow}
             sessionTranscripts={sessionDetail.transcripts}
             sessionToolCalls={sessionDetail.toolCalls}
             sessionAppLogs={sessionDetail.appLogs}

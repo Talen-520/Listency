@@ -214,13 +214,13 @@ async def stop_session(session_id: str) -> dict[str, Any]:
 
 
 @app.get("/sessions")
-async def list_sessions(limit: int = 50) -> dict[str, Any]:
-    return {"sessions": db.list_sessions(limit)}
+async def list_sessions(limit: int = 50, since: str | None = None) -> dict[str, Any]:
+    return {"sessions": db.list_sessions(limit, since)}
 
 
 @app.get("/transcripts")
-async def list_transcripts(session_id: str | None = None, limit: int = 100) -> dict[str, Any]:
-    return {"transcripts": db.list_transcripts(session_id, limit)}
+async def list_transcripts(session_id: str | None = None, limit: int = 100, since: str | None = None) -> dict[str, Any]:
+    return {"transcripts": db.list_transcripts(session_id, limit, since)}
 
 
 @app.websocket("/sessions/{session_id}/stream")
@@ -533,10 +533,10 @@ async def call_tool(tool_name: str, request: ToolCallRequest) -> dict[str, Any]:
 
 
 @app.get("/tool-calls")
-async def list_tool_calls(limit: int = 100, session_id: str | None = None) -> dict[str, Any]:
-    return {"tool_calls": db.list_tool_calls(limit, session_id)}
+async def list_tool_calls(limit: int = 100, session_id: str | None = None, since: str | None = None) -> dict[str, Any]:
+    return {"tool_calls": db.list_tool_calls(limit, session_id, since)}
 
 
 @app.get("/app-logs")
-async def list_app_logs(limit: int = 100, session_id: str | None = None) -> dict[str, Any]:
-    return {"logs": db.list_logs(limit, session_id)}
+async def list_app_logs(limit: int = 100, session_id: str | None = None, since: str | None = None) -> dict[str, Any]:
+    return {"logs": db.list_logs(limit, session_id, since)}

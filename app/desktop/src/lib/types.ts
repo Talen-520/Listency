@@ -124,3 +124,5 @@ export type VoicePreviewRecord = {
   content_type: string;
   audio_url: string;
 };
+
+export type LogTimeWindow = "24h" | "7d" | "30d";

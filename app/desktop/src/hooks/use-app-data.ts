@@ -8,6 +8,7 @@ import type {
   AppLogRecord,
   BackendHealth,
   BusinessProfile,
+  LogTimeWindow,
   ProviderInfo,
   PublicConfig,
   ReadinessCheck,
@@ -67,6 +68,11 @@ const defaultAgent: AgentProfile = {
   updated_at: null,
 };
 
+function logWindowSince(window: LogTimeWindow) {
+  const hours = window === "24h" ? 24 : window === "7d" ? 24 * 7 : 24 * 30;
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
 export function useAppData() {
   const [status, setStatus] = useState<RuntimeStatus>(emptyStatus);
   const [backendHealth, setBackendHealth] = useState<BackendHealth>(emptyBackendHealth);
@@ -77,6 +83,7 @@ export function useAppData() {
   const [transcripts, setTranscripts] = useState<TranscriptRecord[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCallRecord[]>([]);
   const [appLogs, setAppLogs] = useState<AppLogRecord[]>([]);
+  const [logWindow, setLogWindow] = useState<LogTimeWindow>("24h");
   const [voicePreviewCache, setVoicePreviewCache] = useState<VoicePreviewCache>(emptyVoicePreviewCache);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessProfile>(defaultBusiness);
@@ -165,6 +172,20 @@ export function useAppData() {
     tools,
   ]);
 
+  const loadLogData = useCallback(async () => {
+    const since = logWindowSince(logWindow);
+    const [sessionList, transcriptList, toolCallList, appLogList] = await Promise.all([
+      api.sessions(since, 200),
+      api.transcripts(undefined, 300, since),
+      api.toolCalls(undefined, 300, since),
+      api.appLogs(undefined, 300, since),
+    ]);
+    setSessions(sessionList.sessions);
+    setTranscripts(transcriptList.transcripts);
+    setToolCalls(toolCallList.tool_calls);
+    setAppLogs(appLogList.logs);
+  }, [logWindow]);
+
   const loadAll = useCallback(async () => {
     if (isLoadingAllRef.current) {
       return false;
@@ -172,6 +193,7 @@ export function useAppData() {
 
     isLoadingAllRef.current = true;
     try {
+      const since = logWindowSince(logWindow);
       const [
         health,
         cfg,
@@ -189,10 +211,10 @@ export function useAppData() {
         api.getConfig(),
         api.providers(),
         api.tools(),
-        api.sessions(),
-        api.transcripts(),
-        api.toolCalls(),
-        api.appLogs(),
+        api.sessions(since, 200),
+        api.transcripts(undefined, 300, since),
+        api.toolCalls(undefined, 300, since),
+        api.appLogs(undefined, 300, since),
         api.businessProfile(),
         api.agent(),
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
@@ -241,7 +263,7 @@ export function useAppData() {
     } finally {
       isLoadingAllRef.current = false;
     }
-  }, []);
+  }, [logWindow]);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,6 +308,15 @@ export function useAppData() {
       window.clearInterval(refresh);
     };
   }, [loadAll]);
+
+  useEffect(() => {
+    if (!hasLoadedAllRef.current) {
+      return;
+    }
+    loadLogData().catch((err) => {
+      toast.error(err instanceof Error ? err.message : "Logs unavailable");
+    });
+  }, [loadLogData]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, message: string) => {
@@ -345,6 +376,7 @@ export function useAppData() {
     transcripts,
     toolCalls,
     appLogs,
+    logWindow,
     voicePreviewCache,
     selectedSessionId,
     selectedSession,
@@ -370,6 +402,7 @@ export function useAppData() {
     setTranscripts,
     setToolCalls,
     setAppLogs,
+    setLogWindow,
     setSelectedSessionId,
     setBusiness,
     setAgent,

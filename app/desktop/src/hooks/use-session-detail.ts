@@ -19,6 +19,9 @@ export function useSessionDetail(sessionId: string | null) {
     }
 
     let isCurrent = true;
+    setTranscripts([]);
+    setToolCalls([]);
+    setAppLogs([]);
     setLoading(true);
     Promise.all([api.transcripts(sessionId, 500), api.toolCalls(sessionId, 200), api.appLogs(sessionId, 300)])
       .then(([transcriptList, toolCallList, appLogList]) => {

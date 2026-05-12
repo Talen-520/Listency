@@ -80,20 +80,27 @@ export const api = {
     }),
   stopSession: (id: string) => request(`/sessions/${id}/stop`, { method: "POST" }),
   sessionStreamUrl: (id: string) => `${websocketBase()}/sessions/${id}/stream`,
-  sessions: () => request<{ sessions: SessionRecord[] }>("/sessions"),
-  transcripts: (sessionId?: string, limit = 100) => {
+  sessions: (since?: string, limit = 100) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (since) params.set("since", since);
+    return request<{ sessions: SessionRecord[] }>(`/sessions?${params.toString()}`);
+  },
+  transcripts: (sessionId?: string, limit = 100, since?: string) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (sessionId) params.set("session_id", sessionId);
+    if (since) params.set("since", since);
     return request<{ transcripts: TranscriptRecord[] }>(`/transcripts?${params.toString()}`);
   },
-  toolCalls: (sessionId?: string, limit = 100) => {
+  toolCalls: (sessionId?: string, limit = 100, since?: string) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (sessionId) params.set("session_id", sessionId);
+    if (since) params.set("since", since);
     return request<{ tool_calls: ToolCallRecord[] }>(`/tool-calls?${params.toString()}`);
   },
-  appLogs: (sessionId?: string, limit = 100) => {
+  appLogs: (sessionId?: string, limit = 100, since?: string) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (sessionId) params.set("session_id", sessionId);
+    if (since) params.set("since", since);
     return request<{ logs: AppLogRecord[] }>(`/app-logs?${params.toString()}`);
   },
   tools: () => request<{ tools: ToolInfo[] }>("/tools"),

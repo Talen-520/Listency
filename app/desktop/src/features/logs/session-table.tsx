@@ -7,10 +7,12 @@ export function SessionTable({
   sessions,
   selectedSessionId,
   onSelect,
+  onInspect,
 }: {
   sessions: SessionRecord[];
   selectedSessionId?: string | null;
   onSelect?: (sessionId: string) => void;
+  onInspect?: (session: SessionRecord) => void;
 }) {
   if (sessions.length === 0) {
     return <div className="rounded-md border bg-muted/30 p-6 text-sm text-muted-foreground">No sessions yet.</div>;
@@ -31,8 +33,11 @@ export function SessionTable({
         {sessions.map((session) => (
           <TableRow
             key={session.id}
-            className={cn(onSelect && "cursor-pointer", selectedSessionId === session.id && "bg-muted")}
-            onClick={() => onSelect?.(session.id)}
+            className={cn((onSelect || onInspect) && "cursor-pointer", selectedSessionId === session.id && "bg-muted")}
+            onClick={() => {
+              onSelect?.(session.id);
+              onInspect?.(session);
+            }}
           >
             <TableCell className="font-medium">{session.provider}</TableCell>
             <TableCell>{session.status}</TableCell>
