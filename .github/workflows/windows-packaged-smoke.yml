@@ -83,6 +83,17 @@ jobs:
         working-directory: app/desktop
         run: pnpm run tauri:build
 
+      - name: Stage sidecar next to desktop exe
+        shell: pwsh
+        run: |
+          $sidecar = Get-Item "app/desktop/src-tauri/binaries/listency-backend-*.exe" | Select-Object -First 1
+          if ($sidecar) {
+            Copy-Item $sidecar.FullName "app/desktop/src-tauri/target/release/$($sidecar.Name)"
+            Write-Output "Staged sidecar: $($sidecar.Name)"
+          } else {
+            Write-Warning "No sidecar exe found in binaries/"
+          }
+
       - name: Upload Windows artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -92,5 +103,7 @@ jobs:
           path: |
             app/desktop/smoke.log
             app/desktop/src-tauri/binaries/listency-backend-*.exe
-            app/desktop/src-tauri/target/release/*.exe
-            app/desktop/src-tauri/target/release/bundle/**
+            app/desktop/src-tauri/target/release/listency-desktop.exe
+            app/desktop/src-tauri/target/release/listency-backend-*.exe
+            app/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            app/desktop/src-tauri/target/release/bundle/msi/*.msi
