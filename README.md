@@ -67,7 +67,7 @@ What works today:
 - OpenAI Realtime and Gemini Live transcript capture and local tool calling.
 - Built-in tools for business info lookup, booking capture, transfer request
   logging, customer request logging, and AI-ended calls.
-- Logs view with per-session transcript, tool call, and event drill-down.
+- Logs view with 24h / 7 days / 30 days filtering and per-session transcript, tool call, and event detail overlays.
 - Five-minute maximum duration for each active AI conversation.
 
 Planned next:
