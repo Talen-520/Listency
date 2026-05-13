@@ -73,6 +73,20 @@ async function waitForHealth(child) {
   );
 }
 
+async function assertTauriCors() {
+  for (const origin of ["http://tauri.localhost", "https://tauri.localhost"]) {
+    const response = await fetch(backendUrl, {
+      headers: {
+        Origin: origin,
+      },
+    });
+    assert(
+      response.headers.get("access-control-allow-origin") === origin,
+      `Desktop backend health response does not allow the packaged Tauri origin ${origin}.`,
+    );
+  }
+}
+
 function taskkill(pid) {
   if (!pid) {
     return;
@@ -150,6 +164,7 @@ const child = spawn(appExe, {
 
 try {
   await waitForHealth(child);
+  await assertTauriCors();
   console.log(`Windows desktop launcher smoke passed with ${path.relative(repoRoot, appExe)}`);
   console.log(`Portable sidecar: ${path.relative(repoRoot, sidecar)}`);
 } catch (error) {

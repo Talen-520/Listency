@@ -120,6 +120,34 @@ async function waitForHealth(baseUrl, child, stderrBuffer) {
   throw new Error(`Backend did not become healthy in ${healthTimeoutMs}ms: ${lastError?.message ?? "unknown error"}`);
 }
 
+async function assertTauriCors(baseUrl) {
+  for (const origin of ["http://tauri.localhost", "https://tauri.localhost"]) {
+    const healthResponse = await fetch(`${baseUrl}/health`, {
+      headers: {
+        Origin: origin,
+      },
+    });
+    assert(
+      healthResponse.headers.get("access-control-allow-origin") === origin,
+      `Health response does not allow the packaged Tauri origin ${origin}.`,
+    );
+
+    const preflightResponse = await fetch(`${baseUrl}/config`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: origin,
+        "Access-Control-Request-Method": "PUT",
+        "Access-Control-Request-Headers": "content-type",
+      },
+    });
+    assert(preflightResponse.ok, `Tauri CORS preflight failed with HTTP ${preflightResponse.status}.`);
+    assert(
+      preflightResponse.headers.get("access-control-allow-origin") === origin,
+      `Tauri CORS preflight does not allow the packaged Tauri origin ${origin}.`,
+    );
+  }
+}
+
 function realPath(value) {
   return fs.realpathSync.native?.(value) ?? fs.realpathSync(value);
 }
@@ -262,6 +290,7 @@ let passed = false;
 try {
   const health = await waitForHealth(baseUrl, child, () => stderr);
   assert(health.ok === true, "Health endpoint did not return ok=true.");
+  await assertTauriCors(baseUrl);
 
   const config = await request(baseUrl, "/config");
   const expectedEnvPath = path.join(resolvedRoot, ".env");
