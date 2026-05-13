@@ -18,20 +18,31 @@ struct BackendProcess {
     child: Mutex<Option<Child>>,
 }
 
-impl Drop for BackendProcess {
-    fn drop(&mut self) {
+impl BackendProcess {
+    fn terminate(&self) {
         if let Ok(mut child) = self.child.lock() {
-            if let Some(process) = child.as_mut() {
-                let _ = process.kill();
+            if let Some(mut process) = child.take() {
+                terminate_process_tree(&mut process);
                 let _ = process.wait();
             }
         }
     }
 }
 
+impl Drop for BackendProcess {
+    fn drop(&mut self) {
+        self.terminate();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                window.state::<BackendProcess>().terminate();
+            }
+        })
         .setup(|app| {
             let child = match ensure_backend_started(app) {
                 Ok(child) => child,
@@ -212,6 +223,32 @@ fn hide_windows_console(command: &mut Command) {
     #[cfg(not(target_os = "windows"))]
     {
         let _ = command;
+    }
+}
+
+fn terminate_process_tree(process: &mut Child) {
+    #[cfg(target_os = "windows")]
+    {
+        let pid = process.id().to_string();
+        let mut command = Command::new("taskkill");
+        command
+            .args(["/pid", &pid, "/t", "/f"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        hide_windows_console(&mut command);
+
+        match command.status() {
+            Ok(status) if status.success() => {}
+            _ => {
+                let _ = process.kill();
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = process.kill();
     }
 }
 

@@ -94,6 +94,53 @@ function taskkill(pid) {
   spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore" });
 }
 
+function closeMainWindow(pid) {
+  assert(pid, "Cannot close Listency.exe because the launcher pid is missing.");
+  const result = spawnSync(
+    "powershell",
+    [
+      "-NoProfile",
+      "-Command",
+      `$process = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if ($process) { $process.CloseMainWindow() | Out-Null }`,
+    ],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  assert(result.status === 0, `CloseMainWindow failed: ${result.stderr || result.stdout}`);
+}
+
+async function waitForExit(child, timeoutMs = 15_000) {
+  if (child.exitCode !== null) {
+    return child.exitCode;
+  }
+
+  return await new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(null), timeoutMs);
+    child.once("exit", (code) => {
+      clearTimeout(timeout);
+      resolve(code);
+    });
+  });
+}
+
+async function waitForBackendOffline(timeoutMs = 15_000) {
+  const startedAt = Date.now();
+  let lastHealth = null;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      lastHealth = await fetchHealth();
+    } catch {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Backend still responds after Listency.exe closed: ${JSON.stringify(lastHealth)}`);
+}
+
 function collectLogFiles() {
   const localAppData = process.env.LOCALAPPDATA;
   if (!localAppData) {
@@ -165,11 +212,18 @@ const child = spawn(appExe, {
 try {
   await waitForHealth(child);
   await assertTauriCors();
+  closeMainWindow(child.pid);
+  const exitCode = await waitForExit(child);
+  assert(exitCode !== null, "Listency.exe did not exit after CloseMainWindow.");
+  await waitForBackendOffline();
   console.log(`Windows desktop launcher smoke passed with ${path.relative(repoRoot, appExe)}`);
   console.log(`Portable sidecar: ${path.relative(repoRoot, sidecar)}`);
+  console.log("Windows desktop launcher shutdown cleanup passed.");
 } catch (error) {
   printDiagnostics(error);
   process.exitCode = 1;
 } finally {
-  taskkill(child.pid);
+  if (child.exitCode === null) {
+    taskkill(child.pid);
+  }
 }
