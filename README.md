@@ -214,6 +214,11 @@ Windows packaged smoke is checked in GitHub Actions on pushes and pull requests
 to `main`. The workflow builds the Windows backend sidecar, runs the clean-data
 sidecar smoke test, builds the Tauri app, and uploads Windows build artifacts.
 
+For Windows artifact testing, use either the NSIS installer under
+`bundle/nsis/` or the generated `portable/Listency.exe`. Do not run the raw
+`target/release/*.exe` by itself; it does not carry the backend sidecar next to
+the executable and will show the backend as offline on a clean machine.
+
 ## Local Workflow
 
 1. Open Listency, or run `pnpm run tauri:dev` during development.

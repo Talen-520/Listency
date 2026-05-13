@@ -26,6 +26,7 @@
   "bundle": {
     "active": true,
     "targets": ["app"],
+    "externalBin": ["binaries/listency-backend"],
     "resources": ["binaries/"],
     "icon": [
       "icons/32x32.png",

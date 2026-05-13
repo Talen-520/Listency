@@ -1,5 +1,6 @@
 use std::{
     env,
+    fs::{File, OpenOptions},
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
@@ -36,6 +37,7 @@ pub fn run() {
                 Ok(child) => child,
                 Err(error) => {
                     eprintln!("Listency backend bootstrap failed: {error}");
+                    append_bootstrap_log(app, &format!("Backend bootstrap failed: {error}"));
                     None
                 }
             };
@@ -50,13 +52,19 @@ pub fn run() {
 
 fn ensure_backend_started(app: &tauri::App) -> Result<Option<Child>, String> {
     if is_backend_healthy() {
+        append_bootstrap_log(app, "Backend already healthy; reusing existing process.");
         return Ok(None);
     }
 
     if let Some(sidecar) = find_bundled_sidecar(app) {
+        append_bootstrap_log(
+            app,
+            &format!("Starting bundled backend sidecar: {}", sidecar.display()),
+        );
         return spawn_sidecar_backend(app, &sidecar).map(Some);
     }
 
+    append_bootstrap_log(app, "No bundled backend sidecar found; falling back to development backend.");
     spawn_dev_backend().map(Some)
 }
 
@@ -72,14 +80,27 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, Stri
         )
     })?;
 
+    let stdout = File::create(app_data_dir.join("backend-sidecar.stdout.log")).map_err(|error| {
+        format!(
+            "Could not create backend stdout log in `{}`: {error}",
+            app_data_dir.display()
+        )
+    })?;
+    let stderr = File::create(app_data_dir.join("backend-sidecar.stderr.log")).map_err(|error| {
+        format!(
+            "Could not create backend stderr log in `{}`: {error}",
+            app_data_dir.display()
+        )
+    })?;
+
     let mut command = Command::new(sidecar);
     command
         .current_dir(&app_data_dir)
         .env("VOICE_AGENT_ROOT", &app_data_dir)
         .env("LISTENCY_BACKEND_MODE", "sidecar")
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr));
     hide_windows_console(&mut command);
 
     command.spawn().map_err(|error| {
@@ -88,6 +109,20 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, Stri
             sidecar.display()
         )
     })
+}
+
+fn append_bootstrap_log(app: &tauri::App, message: &str) {
+    let Ok(app_data_dir) = app.path().app_local_data_dir() else {
+        return;
+    };
+    if std::fs::create_dir_all(&app_data_dir).is_err() {
+        return;
+    }
+    let path = app_data_dir.join("backend-bootstrap.log");
+    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
+        return;
+    };
+    let _ = writeln!(file, "{message}");
 }
 
 fn spawn_dev_backend() -> Result<Child, String> {

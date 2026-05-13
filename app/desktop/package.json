@@ -12,6 +12,7 @@
     "tauri:dev": "tauri dev",
     "backend:sidecar": "node ../../scripts/build_backend_sidecar.mjs",
     "backend:sidecar:smoke": "node ../../scripts/smoke_packaged_backend.mjs",
+    "windows:portable": "node ../../scripts/package_windows_portable.mjs",
     "tauri:build": "tauri build",
     "tauri:build:sidecar": "pnpm run backend:sidecar && tauri build"
   },
