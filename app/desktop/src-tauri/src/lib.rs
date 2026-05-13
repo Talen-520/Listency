@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use tauri::Manager;
@@ -61,10 +61,34 @@ fn ensure_backend_started(app: &tauri::App) -> Result<Option<Child>, String> {
             app,
             &format!("Starting bundled backend sidecar: {}", sidecar.display()),
         );
-        return spawn_sidecar_backend(app, &sidecar).map(Some);
+        let mut child = spawn_sidecar_backend(app, &sidecar)?;
+        match wait_for_backend_start(&mut child, Duration::from_secs(20)) {
+            BackendStartStatus::Healthy => {
+                append_bootstrap_log(app, "Bundled backend sidecar is healthy.");
+            }
+            BackendStartStatus::Exited(code) => {
+                let message = format!(
+                    "Bundled backend sidecar exited before becoming healthy with code {:?}. {}",
+                    code,
+                    backend_log_hint(app)
+                );
+                append_bootstrap_log(app, &message);
+                return Err(message);
+            }
+            BackendStartStatus::Timeout => {
+                append_bootstrap_log(
+                    app,
+                    "Bundled backend sidecar did not become healthy within 20s; keeping it running while the UI continues polling.",
+                );
+            }
+        }
+        return Ok(Some(child));
     }
 
-    append_bootstrap_log(app, "No bundled backend sidecar found; falling back to development backend.");
+    append_bootstrap_log(
+        app,
+        "No bundled backend sidecar found; falling back to development backend.",
+    );
     spawn_dev_backend().map(Some)
 }
 
@@ -80,35 +104,48 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, Stri
         )
     })?;
 
-    let stdout = File::create(app_data_dir.join("backend-sidecar.stdout.log")).map_err(|error| {
-        format!(
-            "Could not create backend stdout log in `{}`: {error}",
-            app_data_dir.display()
-        )
-    })?;
-    let stderr = File::create(app_data_dir.join("backend-sidecar.stderr.log")).map_err(|error| {
-        format!(
-            "Could not create backend stderr log in `{}`: {error}",
-            app_data_dir.display()
-        )
-    })?;
+    let stdout =
+        File::create(app_data_dir.join("backend-sidecar.stdout.log")).map_err(|error| {
+            format!(
+                "Could not create backend stdout log in `{}`: {error}",
+                app_data_dir.display()
+            )
+        })?;
+    let stderr =
+        File::create(app_data_dir.join("backend-sidecar.stderr.log")).map_err(|error| {
+            format!(
+                "Could not create backend stderr log in `{}`: {error}",
+                app_data_dir.display()
+            )
+        })?;
 
     let mut command = Command::new(sidecar);
     command
         .current_dir(&app_data_dir)
         .env("VOICE_AGENT_ROOT", &app_data_dir)
         .env("LISTENCY_BACKEND_MODE", "sidecar")
+        .env("LISTENCY_BACKEND_HOST", "127.0.0.1")
+        .env("LISTENCY_BACKEND_PORT", BACKEND_PORT.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
     hide_windows_console(&mut command);
 
-    command.spawn().map_err(|error| {
+    let child = command.spawn().map_err(|error| {
         format!(
             "Could not start bundled backend sidecar `{}`: {error}",
             sidecar.display()
         )
-    })
+    })?;
+    append_bootstrap_log(
+        app,
+        &format!(
+            "Bundled backend sidecar spawned with pid {} and data root {}.",
+            child.id(),
+            app_data_dir.display()
+        ),
+    );
+    Ok(child)
 }
 
 fn append_bootstrap_log(app: &tauri::App, message: &str) {
@@ -123,6 +160,18 @@ fn append_bootstrap_log(app: &tauri::App, message: &str) {
         return;
     };
     let _ = writeln!(file, "{message}");
+}
+
+fn backend_log_hint(app: &tauri::App) -> String {
+    match app.path().app_local_data_dir() {
+        Ok(app_data_dir) => format!(
+            "See {}, {}, and {}.",
+            app_data_dir.join("backend-bootstrap.log").display(),
+            app_data_dir.join("backend-sidecar.stdout.log").display(),
+            app_data_dir.join("backend-sidecar.stderr.log").display()
+        ),
+        Err(_) => "Backend log directory could not be resolved.".to_string(),
+    }
 }
 
 fn spawn_dev_backend() -> Result<Child, String> {
@@ -194,40 +243,90 @@ fn is_backend_healthy() -> bool {
 }
 
 fn find_bundled_sidecar(app: &tauri::App) -> Option<PathBuf> {
+    let roots = sidecar_search_roots(app);
+
+    for root in &roots {
+        if let Some(sidecar) = find_sidecar_in_root(root) {
+            return Some(sidecar);
+        }
+    }
+
+    append_bootstrap_log(
+        app,
+        &format!(
+            "No bundled backend sidecar found. Searched: {}",
+            roots
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join("; ")
+        ),
+    );
+    None
+}
+
+fn sidecar_search_roots(app: &tauri::App) -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
     if let Ok(resource_dir) = app.path().resource_dir() {
         roots.push(resource_dir.clone());
         roots.push(resource_dir.join("binaries"));
     }
-
     if let Ok(current_exe) = env::current_exe() {
         if let Some(exe_dir) = current_exe.parent() {
             roots.push(exe_dir.to_path_buf());
             roots.push(exe_dir.join("binaries"));
+            roots.push(exe_dir.join("resources"));
+            roots.push(exe_dir.join("resources/binaries"));
+            roots.push(exe_dir.join("Resources"));
+            roots.push(exe_dir.join("Resources/binaries"));
+            roots.push(exe_dir.join("../resources"));
+            roots.push(exe_dir.join("../resources/binaries"));
             roots.push(exe_dir.join("../Resources"));
             roots.push(exe_dir.join("../Resources/binaries"));
         }
     }
 
-    let binary_name = sidecar_binary_name();
-    for root in roots {
-        let exact = root.join(&binary_name);
-        if exact.is_file() {
-            return Some(exact);
-        }
+    roots
+}
 
-        if let Ok(entries) = std::fs::read_dir(root) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if is_sidecar_candidate(&path) {
-                    return Some(path);
-                }
+fn find_sidecar_in_root(root: &Path) -> Option<PathBuf> {
+    let binary_name = sidecar_binary_name();
+    let exact = root.join(&binary_name);
+    if exact.is_file() {
+        return Some(exact);
+    }
+
+    if let Ok(entries) = std::fs::read_dir(root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if is_sidecar_candidate(&path) {
+                return Some(path);
             }
         }
     }
 
     None
+}
+
+enum BackendStartStatus {
+    Healthy,
+    Exited(Option<i32>),
+    Timeout,
+}
+
+fn wait_for_backend_start(child: &mut Child, timeout: Duration) -> BackendStartStatus {
+    let started_at = Instant::now();
+    while started_at.elapsed() < timeout {
+        if is_backend_healthy() {
+            return BackendStartStatus::Healthy;
+        }
+        if let Ok(Some(status)) = child.try_wait() {
+            return BackendStartStatus::Exited(status.code());
+        }
+        std::thread::sleep(Duration::from_millis(300));
+    }
+    BackendStartStatus::Timeout
 }
 
 fn sidecar_binary_name() -> String {

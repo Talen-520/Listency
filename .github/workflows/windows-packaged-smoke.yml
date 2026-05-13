@@ -87,6 +87,11 @@ jobs:
         working-directory: app/desktop
         run: pnpm run windows:portable
 
+      - name: Smoke test Windows desktop launcher
+        working-directory: app/desktop
+        timeout-minutes: 3
+        run: pnpm run windows:launcher:smoke
+
       - name: Stage sidecar next to desktop exe
         shell: pwsh
         run: |
