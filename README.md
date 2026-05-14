@@ -62,7 +62,7 @@ What works today:
   access, and backend shutdown when the app closes.
 - Local `.env` provider key storage editable from Settings.
 - Local SQLite session, transcript, tool-call, and app-event storage.
-- OpenAI Realtime microphone-to-speaker Test Call.
+- OpenAI Realtime microphone-to-speaker Test Call using `gpt-realtime-2` by default.
 - Gemini Live microphone-to-speaker Test Call.
 - Animated Runtime provider panels for selecting OpenAI Realtime or Gemini Live.
 - Provider-specific voice selection and local storage for OpenAI Realtime and Gemini Live.
@@ -70,6 +70,7 @@ What works today:
 - Shared brand icon for the desktop UI, browser favicon, and Tauri app bundles.
 - Provider-specific mono PCM16 input: 24 kHz for OpenAI Realtime and 16 kHz for Gemini Live.
 - OpenAI Realtime and Gemini Live transcript capture and local tool calling.
+- OpenAI Realtime sessions use low-effort reasoning by default for voice latency.
 - Built-in tools for business info lookup, booking capture, transfer request
   logging, customer request logging, and AI-ended calls.
 - Logs view with 24h / 7 days / 30 days filtering, JSON export, and per-session transcript, tool call, and event detail overlays.
@@ -143,7 +144,7 @@ cp .env.example .env
 
 OPENAI_API_KEY=
 GEMINI_API_KEY=
-OPENAI_REALTIME_MODEL=gpt-realtime
+OPENAI_REALTIME_MODEL=gpt-realtime-2
 GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
 OPENAI_REALTIME_MOCK=false
 DEFAULT_REALTIME_PROVIDER=openai

@@ -109,8 +109,9 @@ class SessionManager:
         instructions = (
             f"{instructions}\n\n"
             "Call control:\n"
-            "- If the caller says goodbye, says they are done, or asks to end the call, call the end_call tool.\n"
-            "- After the end_call tool returns, say one brief goodbye sentence and do not ask another question."
+            "- If the caller says goodbye, says they are done, or asks to end the call, call the end_call tool before closing.\n"
+            "- After the end_call tool returns, say exactly one brief goodbye sentence and do not ask another question.\n"
+            "- If a request requires staff judgment, urgent help, or information outside the saved business profile, use transfer_call or log_customer_request instead of guessing."
         ).strip()
 
         async def queue_provider_event(event: dict[str, Any]) -> None:

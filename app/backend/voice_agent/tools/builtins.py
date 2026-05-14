@@ -93,23 +93,44 @@ def build_default_registry() -> ToolRegistry:
         [
             ToolDefinition(
                 name="business_info_lookup",
-                description="Look up answers from the saved business profile text.",
+                description=(
+                    "Look up answers from the saved business profile text. Use this before answering questions about hours, "
+                    "location, services, prices, policies, amenities, availability details, or any business-specific fact. "
+                    "If the result is missing or uncertain, do not invent an answer; ask a focused follow-up, log the request, or offer transfer."
+                ),
                 input_schema={
                     "type": "object",
-                    "properties": {"query": {"type": "string"}},
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Short search phrase containing the exact business detail the caller asked about.",
+                        }
+                    },
                     "required": ["query"],
                 },
                 handler=business_info_lookup,
             ),
             ToolDefinition(
                 name="create_booking",
-                description="Create a local booking record.",
+                description=(
+                    "Create a local booking record only after confirming the customer's name and requested date/time. "
+                    "Use notes for party size, room type, phone number, special requests, or uncertainty. If required details are missing, ask one concise follow-up before calling."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "customer_name": {"type": "string"},
-                        "booking_time": {"type": "string"},
-                        "notes": {"type": "string"},
+                        "customer_name": {
+                            "type": "string",
+                            "description": "Confirmed customer name for the booking.",
+                        },
+                        "booking_time": {
+                            "type": "string",
+                            "description": "Confirmed requested date and time in the caller's words when exact timezone/calendar handling is unavailable.",
+                        },
+                        "notes": {
+                            "type": "string",
+                            "description": "Optional booking details, constraints, or unresolved uncertainty.",
+                        },
                     },
                     "required": ["customer_name", "booking_time"],
                 },
@@ -117,22 +138,39 @@ def build_default_registry() -> ToolRegistry:
             ),
             ToolDefinition(
                 name="transfer_call",
-                description="Log a transfer-call intent for later phone provider integration.",
+                description=(
+                    "Log a transfer-call intent. Use when the caller asks for a human, manager, front desk, emergency help, complaint escalation, "
+                    "billing dispute, or a task outside the agent's tools. Tell the caller that real phone transfer requires configured phone provider support."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "target": {"type": "string"},
-                        "reason": {"type": "string"},
+                        "target": {
+                            "type": "string",
+                            "description": "Who the caller should be transferred to, such as front desk, manager, billing, or business staff.",
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Brief reason transfer is needed and any relevant caller context.",
+                        },
                     },
                 },
                 handler=transfer_call,
             ),
             ToolDefinition(
                 name="log_customer_request",
-                description="Save a customer request or unresolved question.",
+                description=(
+                    "Save a customer request, callback need, or unresolved question when the agent cannot confidently complete it. "
+                    "Use after one reasonable clarification attempt or when business staff should review the request later."
+                ),
                 input_schema={
                     "type": "object",
-                    "properties": {"request": {"type": "string"}},
+                    "properties": {
+                        "request": {
+                            "type": "string",
+                            "description": "Concise summary of the customer's request, including any contact details or uncertainty mentioned.",
+                        }
+                    },
                     "required": ["request"],
                 },
                 handler=log_customer_request,
@@ -149,14 +187,20 @@ def build_default_registry() -> ToolRegistry:
             ToolDefinition(
                 name="end_call",
                 description=(
-                    "End the current call after a brief goodbye. Use this when the caller says goodbye, says they are done, "
-                    "asks to end the call, or the conversation is clearly complete."
+                    "End the current call after a brief goodbye. Use when the caller says goodbye, says they are done, asks to end the call, "
+                    "or the conversation is clearly complete. After this tool returns, say exactly one short goodbye and do not ask another question."
                 ),
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "reason": {"type": "string"},
-                        "goodbye_message": {"type": "string"},
+                        "reason": {
+                            "type": "string",
+                            "description": "Why the call should end, such as caller said goodbye or task completed.",
+                        },
+                        "goodbye_message": {
+                            "type": "string",
+                            "description": "One brief goodbye sentence to speak before the local session closes.",
+                        },
                     },
                 },
                 handler=end_call,

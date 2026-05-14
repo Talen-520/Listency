@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
-import { geminiLiveModelOptions } from "@/lib/models";
+import { DEFAULT_OPENAI_REALTIME_MODEL, geminiLiveModelOptions } from "@/lib/models";
 import type { PublicConfig, VoicePreviewCache } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isSupportedVoice, type VoiceOption, voiceOptionsForProvider } from "@/lib/voices";
@@ -144,7 +144,7 @@ export function SettingsView({
           onSelect={() => onProviderChoiceChange("openai")}
         >
           <Field label="Model">
-            <Input value={openAiModel} onChange={(event) => onOpenAiModelChange(event.target.value)} placeholder="gpt-realtime" />
+            <Input value={openAiModel} onChange={(event) => onOpenAiModelChange(event.target.value)} placeholder={DEFAULT_OPENAI_REALTIME_MODEL} />
           </Field>
           <Field label="Voice" action={<VoiceHelp />}>
             <VoiceSelect

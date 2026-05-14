@@ -35,6 +35,7 @@ class OpenAIRealtimeAdapterTest(unittest.TestCase):
         self.assertEqual(session["audio"]["output"]["voice"], "marin")
         self.assertEqual(session["audio"]["input"]["turn_detection"]["type"], "server_vad")
         self.assertTrue(session["audio"]["input"]["turn_detection"]["create_response"])
+        self.assertEqual(session["reasoning"], {"effort": "low"})
         self.assertEqual(session["tool_choice"], "auto")
         self.assertEqual(session["tools"][0]["name"], "business_info_lookup")
 

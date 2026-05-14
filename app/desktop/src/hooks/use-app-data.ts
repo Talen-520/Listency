@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
-import { DEFAULT_GEMINI_LIVE_MODEL, isSupportedGeminiLiveModel } from "@/lib/models";
+import { DEFAULT_GEMINI_LIVE_MODEL, DEFAULT_OPENAI_REALTIME_MODEL, isSupportedGeminiLiveModel } from "@/lib/models";
 import type {
   AgentProfile,
   AppLogRecord,
@@ -24,7 +24,7 @@ import { isSupportedVoice } from "@/lib/voices";
 const emptyConfig: PublicConfig = {
   OPENAI_API_KEY: "",
   GEMINI_API_KEY: "",
-  OPENAI_REALTIME_MODEL: "gpt-realtime",
+  OPENAI_REALTIME_MODEL: DEFAULT_OPENAI_REALTIME_MODEL,
   GEMINI_LIVE_MODEL: DEFAULT_GEMINI_LIVE_MODEL,
   OPENAI_REALTIME_MOCK: "false",
   DEFAULT_REALTIME_PROVIDER: "openai",
@@ -64,7 +64,34 @@ const defaultBusiness: BusinessProfile = {
 const defaultAgent: AgentProfile = {
   id: "default",
   name: "Default Agent",
-  system_prompt: "You are a helpful local business voice agent. Keep responses concise and natural.",
+  system_prompt: [
+    "Role",
+    "You are Listency, a realtime voice agent for a local business. Help callers with concise, natural speech.",
+    "",
+    "Tone",
+    "Sound calm, warm, and professional. Keep most replies to one or two short spoken sentences.",
+    "",
+    "Reasoning",
+    "Think before answering, but do not narrate your reasoning. Use the saved business profile and tools before guessing.",
+    "",
+    "Preambles",
+    'If a tool call may take a moment, say a short preamble such as "Let me check that for you." Do not use a preamble for simple greetings, confirmations, or goodbyes.',
+    "",
+    "Business Information",
+    "Use business_info_lookup for specific questions about hours, location, services, policies, prices, availability details, or anything that should come from the saved business profile. If the lookup is missing or unclear, say what you can verify and offer to take a message or transfer.",
+    "",
+    "Bookings",
+    "Before create_booking, confirm the customer's name, requested date/time, and any important notes. If the time or customer name is missing, ask one focused follow-up question. After saving, summarize the booking clearly.",
+    "",
+    "Transfers And Escalation",
+    "Use transfer_call when the caller asks for a person, manager, front desk, emergency help, billing dispute, complaint escalation, or anything outside the saved information. Explain that a real phone transfer depends on the configured phone provider.",
+    "",
+    "Unclear Audio",
+    "If audio is unclear, ask the caller to repeat once. If still unclear, ask a narrower clarifying question.",
+    "",
+    "Call Ending",
+    "If the caller says goodbye, says they are done, or asks to end the call, use end_call. After end_call returns, say exactly one brief goodbye and do not ask another question.",
+  ].join("\n"),
   updated_at: null,
 };
 
@@ -103,7 +130,7 @@ export function useAppData() {
   const [openAiKey, setOpenAiKey] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
   const [providerChoice, setProviderChoice] = useState("openai");
-  const [openAiModel, setOpenAiModel] = useState("gpt-realtime");
+  const [openAiModel, setOpenAiModel] = useState(DEFAULT_OPENAI_REALTIME_MODEL);
   const [geminiModel, setGeminiModel] = useState(DEFAULT_GEMINI_LIVE_MODEL);
   const [openAiMock, setOpenAiMock] = useState("false");
   const [openAiVoice, setOpenAiVoice] = useState("");
@@ -249,7 +276,7 @@ export function useAppData() {
       setBusiness(businessProfile);
       setAgent(agentProfile);
       setProviderChoice(cfg.DEFAULT_REALTIME_PROVIDER || "openai");
-      setOpenAiModel(cfg.OPENAI_REALTIME_MODEL || "gpt-realtime");
+      setOpenAiModel(cfg.OPENAI_REALTIME_MODEL || DEFAULT_OPENAI_REALTIME_MODEL);
       setGeminiModel(isSupportedGeminiLiveModel(cfg.GEMINI_LIVE_MODEL) ? cfg.GEMINI_LIVE_MODEL : DEFAULT_GEMINI_LIVE_MODEL);
       setOpenAiMock(cfg.OPENAI_REALTIME_MOCK || "false");
       const legacyVoice = cfg.DEFAULT_VOICE || "";
