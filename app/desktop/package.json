@@ -12,6 +12,7 @@
     "tauri:dev": "tauri dev",
     "backend:sidecar": "node ../../scripts/build_backend_sidecar.mjs",
     "backend:sidecar:smoke": "node ../../scripts/smoke_packaged_backend.mjs",
+    "macos:launcher:smoke": "node ../../scripts/smoke_macos_desktop_launcher.mjs",
     "windows:launcher:smoke": "node ../../scripts/smoke_windows_desktop_launcher.mjs",
     "windows:portable": "node ../../scripts/package_windows_portable.mjs",
     "tauri:build": "tauri build",

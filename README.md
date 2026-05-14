@@ -13,6 +13,9 @@
   <a href="https://github.com/Talen-520/Listency/actions/workflows/windows-packaged-smoke.yml">
     <img alt="Windows packaged smoke" src="https://github.com/Talen-520/Listency/actions/workflows/windows-packaged-smoke.yml/badge.svg" />
   </a>
+  <a href="https://github.com/Talen-520/Listency/actions/workflows/macos-packaged-smoke.yml">
+    <img alt="macOS packaged smoke" src="https://github.com/Talen-520/Listency/actions/workflows/macos-packaged-smoke.yml/badge.svg" />
+  </a>
   <img alt="Coverage" src="https://img.shields.io/badge/coverage-not%20configured-lightgrey" />
   <img alt="Python" src="https://img.shields.io/badge/python-%3E%3D3.11-blue" />
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
@@ -55,6 +58,8 @@ What works today:
 - Tauri + React desktop UI with Tailwind CSS and shadcn-style components.
 - Black/white light and dark themes with Inter bundled locally.
 - Auto-started local Python + FastAPI backend on `127.0.0.1:8765`.
+- macOS and Windows packaged app smoke tests for backend startup, local API
+  access, and backend shutdown when the app closes.
 - Local `.env` provider key storage editable from Settings.
 - Local SQLite session, transcript, tool-call, and app-event storage.
 - OpenAI Realtime microphone-to-speaker Test Call.
@@ -106,8 +111,8 @@ Packaged builds include the backend sidecar, so users do not need Python, Node,
 pnpm, Rust, or a terminal. The app writes local configuration files for them
 and keeps provider keys in the local `.env`.
 
-> Release installers are still planned. Current alpha Windows build artifacts
-> are produced by GitHub Actions for testing.
+> Release installers are still planned. Current alpha macOS and Windows build
+> artifacts are produced by GitHub Actions for testing.
 
 ## Developer Requirements
 
@@ -210,9 +215,14 @@ cd app/desktop
 pnpm run tauri:build
 ```
 
-Windows packaged smoke is checked in GitHub Actions on pushes and pull requests
-to `main`. The workflow builds the Windows backend sidecar, runs the clean-data
-sidecar smoke test, builds the Tauri app, and uploads Windows build artifacts.
+macOS and Windows packaged smoke are checked in GitHub Actions on pushes and
+pull requests to `main`. The workflows build the backend sidecar, run the
+clean-data sidecar smoke test, build the Tauri app, launch the packaged desktop
+app, verify backend health/CORS, close the app, and verify the backend shuts
+down.
+
+For macOS artifact testing, use `Listency-macos.zip` from the
+`listency-macos-*` workflow artifact, extract it, and open `Listency.app`.
 
 For Windows artifact testing, use either the NSIS installer under
 `bundle/nsis/` or the generated `portable/Listency.exe`. Do not run the raw

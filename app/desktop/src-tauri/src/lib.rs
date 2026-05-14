@@ -23,7 +23,6 @@ impl BackendProcess {
         if let Ok(mut child) = self.child.lock() {
             if let Some(mut process) = child.take() {
                 terminate_process_tree(&mut process);
-                let _ = process.wait();
             }
         }
     }
@@ -37,7 +36,7 @@ impl Drop for BackendProcess {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 window.state::<BackendProcess>().terminate();
@@ -57,8 +56,15 @@ pub fn run() {
             });
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running Listency desktop app");
+
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+            app_handle.state::<BackendProcess>().terminate();
+        }
+        _ => {}
+    });
 }
 
 fn ensure_backend_started(app: &tauri::App) -> Result<Option<Child>, String> {
@@ -141,6 +147,7 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, Stri
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
     hide_windows_console(&mut command);
+    isolate_unix_process_group(&mut command);
 
     let child = command.spawn().map_err(|error| {
         format!(
@@ -204,6 +211,7 @@ fn spawn_dev_backend() -> Result<Child, String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     hide_windows_console(&mut command);
+    isolate_unix_process_group(&mut command);
 
     command.spawn().map_err(|error| {
         format!(
@@ -221,6 +229,19 @@ fn hide_windows_console(command: &mut Command) {
     }
 
     #[cfg(not(target_os = "windows"))]
+    {
+        let _ = command;
+    }
+}
+
+fn isolate_unix_process_group(command: &mut Command) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+
+    #[cfg(not(unix))]
     {
         let _ = command;
     }
@@ -244,12 +265,48 @@ fn terminate_process_tree(process: &mut Child) {
                 let _ = process.kill();
             }
         }
+        let _ = wait_for_child_exit(process, Duration::from_secs(5));
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(all(unix, not(target_os = "windows")))]
+    {
+        let pid = process.id();
+        terminate_unix_process_group(pid, "TERM");
+        if !wait_for_child_exit(process, Duration::from_secs(3)) {
+            terminate_unix_process_group(pid, "KILL");
+            let _ = process.kill();
+            let _ = wait_for_child_exit(process, Duration::from_secs(3));
+        }
+    }
+
+    #[cfg(not(any(unix, target_os = "windows")))]
     {
         let _ = process.kill();
+        let _ = wait_for_child_exit(process, Duration::from_secs(5));
     }
+}
+
+#[cfg(all(unix, not(target_os = "windows")))]
+fn terminate_unix_process_group(pid: u32, signal: &str) {
+    let group = format!("-{pid}");
+    let _ = Command::new("kill")
+        .args([format!("-{signal}"), group])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+fn wait_for_child_exit(process: &mut Child, timeout: Duration) -> bool {
+    let started_at = Instant::now();
+    while started_at.elapsed() < timeout {
+        match process.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+            Err(_) => return true,
+        }
+    }
+    false
 }
 
 fn is_backend_healthy() -> bool {

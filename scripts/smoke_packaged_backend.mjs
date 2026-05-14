@@ -190,6 +190,10 @@ function terminateChild(child) {
     spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
     return;
   }
+  if (!isWindows && child.pid) {
+    spawnSync("kill", ["-TERM", `-${child.pid}`], { stdio: "ignore" });
+    return;
+  }
   child.kill();
 }
 
@@ -199,6 +203,10 @@ function forceKillChild(child) {
   }
   if (isWindows && child.pid) {
     spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
+    return;
+  }
+  if (!isWindows && child.pid) {
+    spawnSync("kill", ["-KILL", `-${child.pid}`], { stdio: "ignore" });
     return;
   }
   child.kill("SIGKILL");
@@ -217,6 +225,20 @@ async function waitForExit(child, timeoutMs = 5_000) {
   });
 }
 
+function isChildProcessAlive(child) {
+  if (child.exitCode !== null || !child.pid) {
+    return false;
+  }
+  if (isWindows) {
+    const result = spawnSync("tasklist", ["/fi", `PID eq ${child.pid}`, "/fo", "csv", "/nh"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return result.status === 0 && result.stdout.includes(String(child.pid));
+  }
+  return spawnSync("kill", ["-0", String(child.pid)], { stdio: "ignore" }).status === 0;
+}
+
 async function stopChild(child) {
   if (child.exitCode !== null) {
     return child.exitCode;
@@ -227,8 +249,8 @@ async function stopChild(child) {
     return exitCode;
   }
   forceKillChild(child);
-  const forcedExitCode = await waitForExit(child, 2_000);
-  if (forcedExitCode === null) {
+  const forcedExitCode = await waitForExit(child, 8_000);
+  if (forcedExitCode === null && isChildProcessAlive(child)) {
     console.warn("Backend sidecar did not exit within the smoke cleanup timeout.");
   }
   return forcedExitCode;
@@ -255,6 +277,7 @@ const port = await freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const child = spawn(sidecar, {
   cwd: resolvedRoot,
+  detached: !isWindows,
   env: {
     ...process.env,
     LISTENCY_BACKEND_LOG_LEVEL: "warning",
