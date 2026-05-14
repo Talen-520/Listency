@@ -16,7 +16,7 @@ from voice_agent.core.state import EndReason
 from voice_agent.core.voice_preview import DEFAULT_PREVIEW_TEXT, VoicePreviewService
 from voice_agent.providers import GeminiLiveAdapter, OpenAIRealtimeAdapter
 from voice_agent.providers.base import ProviderConfigError
-from voice_agent.storage.database import Database
+from voice_agent.storage.database import Database, normalize_timestamp_filter, utc_now
 from voice_agent.tools import ToolContext, build_default_registry
 
 
@@ -59,6 +59,10 @@ class VoicePreviewRequest(BaseModel):
     provider: str = Field(pattern="^(openai|gemini)$")
     voice: str = Field(min_length=1, max_length=80)
     text: str = DEFAULT_PREVIEW_TEXT
+
+
+class LogPruneRequest(BaseModel):
+    retention_days: int = Field(default=30, ge=1, le=3650)
 
 
 db = Database()
@@ -542,3 +546,29 @@ async def list_tool_calls(limit: int = 100, session_id: str | None = None, since
 @app.get("/app-logs")
 async def list_app_logs(limit: int = 100, session_id: str | None = None, since: str | None = None) -> dict[str, Any]:
     return {"logs": db.list_logs(limit, session_id, since)}
+
+
+@app.get("/logs/export")
+async def export_logs(since: str | None = None, session_id: str | None = None) -> dict[str, Any]:
+    return {
+        "generated_at": utc_now(),
+        "since": normalize_timestamp_filter(since),
+        "session_id": session_id,
+        **db.export_log_data(since=since, session_id=session_id),
+    }
+
+
+@app.post("/logs/prune")
+async def prune_logs(request: LogPruneRequest) -> dict[str, Any]:
+    protected_session_ids = list(session_manager.active_sessions.keys())
+    result = db.prune_log_data(request.retention_days, protected_session_ids)
+    db.add_log("info", "logs_pruned", "Old log records were pruned.", result)
+    return result
+
+
+@app.post("/logs/clear")
+async def clear_logs() -> dict[str, Any]:
+    if session_manager.active_sessions:
+        raise HTTPException(status_code=409, detail="Stop active sessions before clearing logs.")
+    result = {"deleted": db.clear_log_data()}
+    return result

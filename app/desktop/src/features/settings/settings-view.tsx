@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, CheckCircle2, KeyRound, Loader2, Play } from "lucide-react";
+import { BadgeCheck, CheckCircle2, KeyRound, Loader2, Play, RotateCcw, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,9 @@ export function SettingsView({
   onGeminiVoiceChange,
   onPreviewVoice,
   onSave,
+  onPruneLogs,
+  onClearLogs,
+  hasActiveSession,
 }: {
   config: PublicConfig;
   openAiKey: string;
@@ -60,6 +63,9 @@ export function SettingsView({
   onGeminiVoiceChange: (value: string) => void;
   onPreviewVoice: (provider: string, voice: string) => Promise<void>;
   onSave: () => void;
+  onPruneLogs: () => void;
+  onClearLogs: () => void;
+  hasActiveSession: boolean;
 }) {
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
   const openAiVoiceOptions = voiceOptionsForProvider("openai");
@@ -77,6 +83,15 @@ export function SettingsView({
       await onPreviewVoice(provider, voice);
     } finally {
       setPreviewingVoice(null);
+    }
+  }
+
+  function handleClearLogs() {
+    if (hasActiveSession) {
+      return;
+    }
+    if (window.confirm("Clear all local sessions, transcripts, tool calls, and app logs? This cannot be undone.")) {
+      onClearLogs();
     }
   }
 
@@ -187,6 +202,37 @@ export function SettingsView({
             />
           </Field>
         </ProviderPanel>
+      </div>
+
+      {/* Data Section */}
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">Data</h2>
+        <p className="text-sm text-muted-foreground">Manage local session history and log storage.</p>
+      </div>
+      <Separator />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="space-y-3 rounded-lg p-5">
+          <div>
+            <h3 className="text-base font-semibold">Retention Cleanup</h3>
+            <p className="text-sm text-muted-foreground">Delete sessions, transcripts, tool calls, and app logs older than 30 days.</p>
+          </div>
+          <Button type="button" variant="outline" onClick={onPruneLogs}>
+            <RotateCcw className="h-4 w-4" />
+            Clean 30+ Days
+          </Button>
+        </Card>
+        <Card className="space-y-3 rounded-lg p-5">
+          <div>
+            <h3 className="text-base font-semibold">Clear Logs</h3>
+            <p className="text-sm text-muted-foreground">
+              Remove all local sessions, transcripts, tool calls, and app logs. Active calls must be stopped first.
+            </p>
+          </div>
+          <Button type="button" variant="destructive" disabled={hasActiveSession} onClick={handleClearLogs}>
+            <Trash2 className="h-4 w-4" />
+            Clear Logs
+          </Button>
+        </Card>
       </div>
 
       {/* Save Section */}

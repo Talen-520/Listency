@@ -126,3 +126,31 @@ export type VoicePreviewRecord = {
 };
 
 export type LogTimeWindow = "24h" | "7d" | "30d";
+
+export type LogExport = {
+  generated_at: string;
+  since: string | null;
+  session_id: string | null;
+  sessions: SessionRecord[];
+  transcripts: TranscriptRecord[];
+  tool_calls: ToolCallRecord[];
+  app_logs: AppLogRecord[];
+};
+
+export type LogDeleteCounts = {
+  sessions: number;
+  messages: number;
+  transcripts: number;
+  tool_calls: number;
+  app_logs: number;
+};
+
+export type LogPruneResult = {
+  retention_days: number;
+  cutoff: string;
+  deleted: LogDeleteCounts;
+};
+
+export type LogClearResult = {
+  deleted: LogDeleteCounts;
+};

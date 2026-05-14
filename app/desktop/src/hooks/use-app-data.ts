@@ -73,6 +73,18 @@ function logWindowSince(window: LogTimeWindow) {
   return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }
 
+function downloadJson(filename: string, payload: unknown) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function useAppData() {
   const [status, setStatus] = useState<RuntimeStatus>(emptyStatus);
   const [backendHealth, setBackendHealth] = useState<BackendHealth>(emptyBackendHealth);
@@ -366,6 +378,21 @@ export function useAppData() {
     }
   }, []);
 
+  const downloadLogs = useCallback(async () => {
+    const since = logWindowSince(logWindow);
+    const payload = await api.exportLogs(since);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadJson(`listency-logs-${logWindow}-${stamp}.json`, payload);
+  }, [logWindow]);
+
+  const pruneOldLogs = useCallback(async () => {
+    await api.pruneLogs(30);
+  }, []);
+
+  const clearLogs = useCallback(async () => {
+    await api.clearLogs();
+  }, []);
+
   return {
     status,
     backendHealth,
@@ -399,6 +426,9 @@ export function useAppData() {
     runAction,
     saveSettings,
     previewVoice,
+    downloadLogs,
+    pruneOldLogs,
+    clearLogs,
     setTranscripts,
     setToolCalls,
     setAppLogs,

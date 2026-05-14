@@ -5,7 +5,7 @@ import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -390,3 +390,193 @@ class Database:
         with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()
         return [dict(row) for row in rows]
+
+    def export_log_data(self, since: str | None = None, session_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
+        since = normalize_timestamp_filter(since)
+        return {
+            "sessions": self._list_export_rows(
+                """
+                SELECT id, provider, mode, started_at, ended_at, status, ended_reason, error_message, timeout_at
+                FROM sessions
+                """,
+                timestamp_column="started_at",
+                since=since,
+                session_id=session_id,
+                session_column="id",
+                order_column="started_at",
+            ),
+            "transcripts": self._list_export_rows(
+                "SELECT session_id, speaker, content, is_final, created_at FROM transcripts",
+                timestamp_column="created_at",
+                since=since,
+                session_id=session_id,
+                session_column="session_id",
+                order_column="created_at",
+            ),
+            "tool_calls": self._list_export_rows(
+                """
+                SELECT id, session_id, tool_name, input_json, output_json, status, started_at, ended_at, error_message
+                FROM tool_calls
+                """,
+                timestamp_column="started_at",
+                since=since,
+                session_id=session_id,
+                session_column="session_id",
+                order_column="started_at",
+            ),
+            "app_logs": self._list_export_rows(
+                "SELECT id, level, event, message, metadata_json, created_at FROM app_logs",
+                timestamp_column="created_at",
+                since=since,
+                session_id=session_id,
+                session_column=None,
+                order_column="created_at",
+            ),
+        }
+
+    def prune_log_data(self, retention_days: int = 30, protected_session_ids: Iterable[str] = ()) -> dict[str, Any]:
+        cutoff = (datetime.now(tz=UTC) - timedelta(days=retention_days)).isoformat()
+        deleted = self.delete_log_data_before(cutoff, protected_session_ids)
+        return {"retention_days": retention_days, "cutoff": cutoff, "deleted": deleted}
+
+    def delete_log_data_before(self, cutoff: str, protected_session_ids: Iterable[str] = ()) -> dict[str, int]:
+        cutoff = normalize_timestamp_filter(cutoff) or cutoff
+        protected = tuple(protected_session_ids)
+        with self.open_connection() as connection:
+            old_session_query = "SELECT id FROM sessions WHERE started_at < ?"
+            old_session_params: list[Any] = [cutoff]
+            if protected:
+                old_session_query += f" AND id NOT IN ({','.join('?' for _ in protected)})"
+                old_session_params.extend(protected)
+            old_session_ids = [str(row["id"]) for row in connection.execute(old_session_query, old_session_params).fetchall()]
+
+            deleted = {
+                "sessions": 0,
+                "messages": 0,
+                "transcripts": 0,
+                "tool_calls": 0,
+                "app_logs": 0,
+            }
+
+            for table, timestamp_column in (("messages", "created_at"), ("transcripts", "created_at")):
+                deleted[table] += self._delete_by_session_ids(connection, table, old_session_ids)
+                deleted[table] += self._delete_older_than(connection, table, timestamp_column, cutoff, protected)
+
+            deleted["tool_calls"] += self._delete_by_session_ids(connection, "tool_calls", old_session_ids)
+            deleted["tool_calls"] += self._delete_older_than(connection, "tool_calls", "started_at", cutoff, protected)
+
+            app_log_query = "DELETE FROM app_logs WHERE created_at < ?"
+            app_log_params: list[Any] = [cutoff]
+            app_log_guard = self._protected_app_log_condition(protected)
+            if app_log_guard:
+                app_log_query += f" AND {app_log_guard[0]}"
+                app_log_params.extend(app_log_guard[1])
+            deleted["app_logs"] += connection.execute(app_log_query, app_log_params).rowcount
+
+            deleted["sessions"] += self._delete_sessions_by_ids(connection, old_session_ids)
+        return deleted
+
+    def clear_log_data(self, protected_session_ids: Iterable[str] = ()) -> dict[str, int]:
+        protected = tuple(protected_session_ids)
+        deleted = {
+            "sessions": 0,
+            "messages": 0,
+            "transcripts": 0,
+            "tool_calls": 0,
+            "app_logs": 0,
+        }
+        with self.open_connection() as connection:
+            if not protected:
+                for table in ("messages", "transcripts", "tool_calls", "app_logs", "sessions"):
+                    deleted[table] = connection.execute(f"DELETE FROM {table}").rowcount
+                return deleted
+
+            placeholders = ",".join("?" for _ in protected)
+            for table in ("messages", "transcripts"):
+                deleted[table] = connection.execute(
+                    f"DELETE FROM {table} WHERE session_id NOT IN ({placeholders})",
+                    protected,
+                ).rowcount
+            deleted["tool_calls"] = connection.execute(
+                f"DELETE FROM tool_calls WHERE session_id IS NULL OR session_id NOT IN ({placeholders})",
+                protected,
+            ).rowcount
+
+            app_log_guard = self._protected_app_log_condition(protected)
+            app_log_query = "DELETE FROM app_logs"
+            app_log_params: list[Any] = []
+            if app_log_guard:
+                app_log_query += f" WHERE {app_log_guard[0]}"
+                app_log_params.extend(app_log_guard[1])
+            deleted["app_logs"] = connection.execute(app_log_query, app_log_params).rowcount
+
+            deleted["sessions"] = connection.execute(
+                f"DELETE FROM sessions WHERE id NOT IN ({placeholders})",
+                protected,
+            ).rowcount
+        return deleted
+
+    def _list_export_rows(
+        self,
+        select_sql: str,
+        *,
+        timestamp_column: str,
+        since: str | None,
+        session_id: str | None,
+        session_column: str | None,
+        order_column: str,
+    ) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[Any] = []
+        if session_id:
+            if session_column:
+                conditions.append(f"{session_column} = ?")
+                params.append(session_id)
+            else:
+                conditions.append("metadata_json LIKE ?")
+                params.append(f'%"session_id"%"{session_id}"%')
+        if since:
+            conditions.append(f"{timestamp_column} >= ?")
+            params.append(since)
+        query = select_sql
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += f" ORDER BY {order_column} DESC"
+        with self.open_connection() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def _delete_by_session_ids(self, connection: sqlite3.Connection, table: str, session_ids: list[str]) -> int:
+        if not session_ids:
+            return 0
+        placeholders = ",".join("?" for _ in session_ids)
+        return connection.execute(f"DELETE FROM {table} WHERE session_id IN ({placeholders})", session_ids).rowcount
+
+    def _delete_sessions_by_ids(self, connection: sqlite3.Connection, session_ids: list[str]) -> int:
+        if not session_ids:
+            return 0
+        placeholders = ",".join("?" for _ in session_ids)
+        return connection.execute(f"DELETE FROM sessions WHERE id IN ({placeholders})", session_ids).rowcount
+
+    def _delete_older_than(
+        self,
+        connection: sqlite3.Connection,
+        table: str,
+        timestamp_column: str,
+        cutoff: str,
+        protected_session_ids: tuple[str, ...],
+    ) -> int:
+        query = f"DELETE FROM {table} WHERE {timestamp_column} < ?"
+        params: list[Any] = [cutoff]
+        if protected_session_ids:
+            placeholders = ",".join("?" for _ in protected_session_ids)
+            query += f" AND (session_id IS NULL OR session_id NOT IN ({placeholders}))"
+            params.extend(protected_session_ids)
+        return connection.execute(query, params).rowcount
+
+    def _protected_app_log_condition(self, protected_session_ids: tuple[str, ...]) -> tuple[str, list[str]] | None:
+        if not protected_session_ids:
+            return None
+        checks = " OR ".join("metadata_json LIKE ?" for _ in protected_session_ids)
+        params = [f'%"session_id"%"{session_id}"%' for session_id in protected_session_ids]
+        return f"(metadata_json IS NULL OR NOT ({checks}))", params

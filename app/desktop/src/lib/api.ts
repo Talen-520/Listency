@@ -2,6 +2,9 @@ import type {
   AgentProfile,
   AppLogRecord,
   BusinessProfile,
+  LogClearResult,
+  LogExport,
+  LogPruneResult,
   ProviderInfo,
   PublicConfig,
   RuntimeStatus,
@@ -103,6 +106,19 @@ export const api = {
     if (since) params.set("since", since);
     return request<{ logs: AppLogRecord[] }>(`/app-logs?${params.toString()}`);
   },
+  exportLogs: (since?: string, sessionId?: string) => {
+    const params = new URLSearchParams();
+    if (since) params.set("since", since);
+    if (sessionId) params.set("session_id", sessionId);
+    const query = params.toString();
+    return request<LogExport>(`/logs/export${query ? `?${query}` : ""}`);
+  },
+  pruneLogs: (retentionDays = 30) =>
+    request<LogPruneResult>("/logs/prune", {
+      method: "POST",
+      body: JSON.stringify({ retention_days: retentionDays }),
+    }),
+  clearLogs: () => request<LogClearResult>("/logs/clear", { method: "POST" }),
   tools: () => request<{ tools: ToolInfo[] }>("/tools"),
   setToolEnabled: (name: string, enabled: boolean) =>
     request<ToolInfo>(`/tools/${name}/enabled`, {

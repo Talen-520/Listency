@@ -72,6 +72,9 @@ export function App() {
             onGeminiVoiceChange={data.setGeminiVoice}
             onPreviewVoice={data.previewVoice}
             onSave={() => void data.runAction(data.saveSettings, ".env saved")}
+            onPruneLogs={() => void data.runAction(data.pruneOldLogs, "Old logs cleaned")}
+            onClearLogs={() => void data.runAction(data.clearLogs, "Logs cleared")}
+            hasActiveSession={Boolean(data.activeSession)}
           />
         );
       case "agent":
@@ -146,6 +149,7 @@ export function App() {
             transcripts={data.transcripts}
             toolCalls={data.toolCalls}
             appLogs={data.appLogs}
+            onDownloadLogs={() => void data.runAction(data.downloadLogs, "Logs downloaded")}
           />
         );
       default:

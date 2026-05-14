@@ -72,7 +72,8 @@ What works today:
 - OpenAI Realtime and Gemini Live transcript capture and local tool calling.
 - Built-in tools for business info lookup, booking capture, transfer request
   logging, customer request logging, and AI-ended calls.
-- Logs view with 24h / 7 days / 30 days filtering and per-session transcript, tool call, and event detail overlays.
+- Logs view with 24h / 7 days / 30 days filtering, JSON export, and per-session transcript, tool call, and event detail overlays.
+- Settings data controls for pruning records older than 30 days or clearing local logs.
 - Five-minute maximum duration for each active AI conversation.
 
 Planned next:
@@ -106,6 +107,7 @@ This is the intended path for general or non-technical users.
 6. Enable the tools the agent should use.
 7. Start Runtime, then use Test Call to speak with the agent.
 8. Review transcripts, tool calls, and app events in Logs.
+9. Export Logs as JSON or use Settings to prune/clear local log data.
 
 Packaged builds include the backend sidecar, so users do not need Python, Node,
 pnpm, Rust, or a terminal. The app writes local configuration files for them
@@ -239,6 +241,7 @@ the executable and will show the backend as offline on a clean machine.
 6. Start Runtime.
 7. Start a Test Call and speak through the microphone.
 8. Review transcripts, tool calls, and app events in Logs.
+9. Download JSON log exports from Logs or clean old records from Settings.
 
 ## Project Structure
 
@@ -279,6 +282,7 @@ Listency is designed to run locally first:
 
 - API keys are stored in a local `.env`.
 - Session records are stored in local SQLite.
+- Log data can be exported as JSON from Logs and pruned or cleared from Settings.
 - Voice preview audio is cached locally.
 - Source/development mode stores local data under the repository `data/` directory.
 - Packaged sidecar mode stores `.env`, SQLite, and preview cache under the

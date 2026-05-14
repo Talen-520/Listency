@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
+import { Download } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -103,6 +105,7 @@ export function LogsView({
   transcripts,
   toolCalls,
   appLogs,
+  onDownloadLogs,
 }: {
   sessions: SessionRecord[];
   selectedSessionId: string | null;
@@ -116,15 +119,22 @@ export function LogsView({
   transcripts: TranscriptRecord[];
   toolCalls: ToolCallRecord[];
   appLogs: AppLogRecord[];
+  onDownloadLogs: () => void;
 }) {
   const [detail, setDetail] = useState<LogDetailRecord | null>(null);
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>Logs</CardTitle>
-          <CardDescription>Filter local sessions, transcripts, tool calls, and app logs by time range.</CardDescription>
+        <CardHeader className="flex flex-col gap-4 space-y-0 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>Logs</CardTitle>
+            <CardDescription>Filter local sessions, transcripts, tool calls, and app logs by time range.</CardDescription>
+          </div>
+          <Button type="button" variant="outline" onClick={onDownloadLogs}>
+            <Download className="h-4 w-4" />
+            Download JSON
+          </Button>
         </CardHeader>
         <CardContent className="grid gap-5 xl:grid-cols-[minmax(18rem,0.8fr)_1fr]">
           <div className="space-y-2">
