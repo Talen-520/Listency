@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { BadgeCheck, CheckCircle2, KeyRound, Loader2, Play, RotateCcw, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
+import { ProviderBrandIcon } from "@/components/provider-brand-icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -140,6 +141,7 @@ export function SettingsView({
         <ProviderPanel
           active={providerChoice === "openai"}
           description="Realtime speech with OpenAI."
+          provider="openai"
           title="OpenAI Realtime"
           onSelect={() => onProviderChoiceChange("openai")}
         >
@@ -173,6 +175,7 @@ export function SettingsView({
         <ProviderPanel
           active={providerChoice === "gemini"}
           description="Native audio dialogue with Gemini Live."
+          provider="gemini"
           title="Gemini Live"
           onSelect={() => onProviderChoiceChange("gemini")}
         >
@@ -298,12 +301,14 @@ function ProviderPanel({
   children,
   description,
   onSelect,
+  provider,
   title,
 }: {
   active: boolean;
   children: ReactNode;
   description: string;
   onSelect: () => void;
+  provider: string;
   title: string;
 }) {
   return (
@@ -330,9 +335,19 @@ function ProviderPanel({
       )}
     >
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h3 className={cn("text-base font-semibold transition-colors duration-300", active ? "text-foreground" : "text-muted-foreground")}>{title}</h3>
-          <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-300",
+              active ? "bg-background text-foreground" : "bg-background/70 text-muted-foreground",
+            )}
+          >
+            <ProviderBrandIcon provider={provider} className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <h3 className={cn("text-base font-semibold transition-colors duration-300", active ? "text-foreground" : "text-muted-foreground")}>{title}</h3>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
         </div>
         <div
           className={cn(

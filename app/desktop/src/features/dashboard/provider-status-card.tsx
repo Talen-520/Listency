@@ -1,16 +1,13 @@
-import { Bot, Plug } from "lucide-react";
-
+import { ProviderBrandIcon } from "@/components/provider-brand-icon";
 import { Badge } from "@/components/ui/badge";
 import type { ProviderInfo } from "@/lib/types";
 
 export function ProviderStatusCard({ provider }: { provider: ProviderInfo }) {
-  const Icon = provider.name === "openai" ? Bot : Plug;
-
   return (
     <div className="group flex items-center justify-between gap-4 rounded-lg bg-muted/40 p-4 transition-colors">
       <div className="flex min-w-0 items-center gap-4">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground transition-colors group-hover:bg-muted group-hover:text-foreground">
-          <Icon className="h-5 w-5" />
+          <ProviderBrandIcon provider={provider.name} />
         </div>
         <div className="min-w-0">
           <div className="truncate font-display text-base font-semibold">{provider.display_name}</div>

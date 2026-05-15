@@ -108,3 +108,38 @@ textarea {
   background: hsl(var(--border));
   border-radius: 999px;
 }
+
+@keyframes text-shimmer {
+  0% {
+    background-position: 180% 0;
+  }
+
+  100% {
+    background-position: -180% 0;
+  }
+}
+
+@layer utilities {
+  .shimmer-text {
+    animation: text-shimmer 1.7s linear infinite;
+    background-image: linear-gradient(
+      110deg,
+      hsl(var(--muted-foreground)) 0%,
+      hsl(var(--muted-foreground)) 36%,
+      hsl(0 0% 100%) 50%,
+      hsl(var(--muted-foreground)) 64%,
+      hsl(var(--muted-foreground)) 100%
+    );
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text {
+    animation: none;
+    color: hsl(var(--muted-foreground));
+  }
+}

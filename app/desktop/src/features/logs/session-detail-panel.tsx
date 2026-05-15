@@ -1,6 +1,6 @@
-import { Activity, CircleDollarSign, Clock, Hash, Plug, Timer } from "lucide-react";
+import { Activity, CircleDollarSign, Clock, Hash, Timer } from "lucide-react";
 
-import { MetricCard } from "@/components/metric-card";
+import { ProviderBrandIcon } from "@/components/provider-brand-icon";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,13 +63,57 @@ export function SessionDetailContent({
       ) : (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <MetricCard label="Provider" value={session.provider} icon={Plug} />
-            <MetricCard label="Duration" value={formatDuration(session.started_at, session.ended_at)} icon={Timer} />
-            <MetricCard label="Est. text tokens" value={estimatedTextTokens ? `~${estimatedTextTokens.toLocaleString()}` : "-"} icon={Hash} />
-            <MetricCard label="Token cost" value="Not tracked" icon={CircleDollarSign} />
-            <MetricCard label="Reason" value={session.ended_reason ?? "-"} icon={Activity} />
-            <MetricCard label="Started" value={formatDate(session.started_at)} icon={Clock} />
-            <MetricCard label="Ended" value={formatDate(session.ended_at)} icon={Clock} />
+            <div className="rounded-lg bg-muted/30 p-4">
+              <div className="flex items-center justify-between pb-2">
+                <p className="text-sm font-medium text-muted-foreground">Provider</p>
+                <ProviderBrandIcon provider={session.provider} className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{session.provider}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-4">
+              <div className="flex items-center justify-between pb-2">
+                <p className="text-sm font-medium text-muted-foreground">Duration</p>
+                <Timer className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatDuration(session.started_at, session.ended_at)}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-4">
+              <div className="flex items-center justify-between pb-2">
+                <p className="text-sm font-medium text-muted-foreground">Est. text tokens</p>
+                <Hash className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">
+                {estimatedTextTokens ? `~${estimatedTextTokens.toLocaleString()}` : "-"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-4">
+              <div className="flex items-center justify-between pb-2">
+                <p className="text-sm font-medium text-muted-foreground">Token cost</p>
+                <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">Not tracked</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-4">
+              <div className="flex items-center justify-between pb-2">
+                <p className="text-sm font-medium text-muted-foreground">Reason</p>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{session.ended_reason ?? "-"}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-4">
+              <div className="flex items-center justify-between pb-2">
+                <p className="text-sm font-medium text-muted-foreground">Started</p>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatDate(session.started_at)}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-4">
+              <div className="flex items-center justify-between pb-2">
+                <p className="text-sm font-medium text-muted-foreground">Ended</p>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatDate(session.ended_at)}</p>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
             Estimated text tokens are based on transcript length. Provider token cost requires usage metadata and is not tracked for this session yet.
