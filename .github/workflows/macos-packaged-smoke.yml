@@ -97,4 +97,3 @@ jobs:
           path: |
             app/desktop/smoke.log
             app/desktop/src-tauri/target/release/bundle/macos/Listency-macos.zip
-            app/desktop/src-tauri/target/release/bundle/macos/Listency.app/**

@@ -125,6 +125,23 @@ writes local configuration files for them and keeps provider keys in the local
 > Release installers are still planned. Current alpha macOS and Windows build
 > artifacts are produced by GitHub Actions for testing.
 
+### macOS Alpha Artifact
+
+The macOS GitHub Actions artifact is not signed or notarized yet. For alpha
+testing, download the `listency-macos-*` artifact, open the artifact folder, then
+extract `Listency-macos.zip` and open the extracted `Listency.app`.
+
+If macOS shows `"Listency" is damaged and can't be opened`, it is Gatekeeper
+blocking an unsigned downloaded app. For local alpha testing only, remove the
+download quarantine flag:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/Listency.app
+```
+
+This should be replaced by Developer ID signing and Apple notarization before
+publishing builds for non-technical users.
+
 ## Developer Requirements
 
 - Python 3.11+
