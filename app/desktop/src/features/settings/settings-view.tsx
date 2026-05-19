@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, CheckCircle2, KeyRound, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
+import { BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, KeyRound, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
@@ -18,6 +18,45 @@ import { isSupportedVoice, type VoiceOption, voiceOptionsForProvider } from "@/l
 const OPENAI_API_KEYS_URL = "https://platform.openai.com/settings/organization/api-keys";
 const GEMINI_API_KEYS_URL = "https://aistudio.google.com/app/api-keys?project=stock-agent-f54f1";
 const PROVIDER_DEFAULT_VOICE = "__provider_default__";
+const PHONE_PROVIDER_LABELS: Record<string, string> = {
+  none: "Off",
+  telnyx: "Telnyx",
+  twilio: "Twilio",
+};
+const PHONE_CONNECTION_LABELS: Record<string, string> = {
+  missing_connector: "Missing Connector",
+  not_configured: "Needs Public URL",
+  running: "Running",
+  starting: "Starting",
+  stopped: "Stopped",
+};
+
+function titleCaseStatus(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function providerLabel(value: string) {
+  return PHONE_PROVIDER_LABELS[value] ?? titleCaseStatus(value || "none");
+}
+
+function connectionLabel(value: string) {
+  return PHONE_CONNECTION_LABELS[value] ?? titleCaseStatus(value || "stopped");
+}
+
+function connectionTone(value: string): StatusTone {
+  if (value === "running") {
+    return "ok";
+  }
+  if (value === "missing_connector" || value === "not_configured") {
+    return "warning";
+  }
+  return "neutral";
+}
 
 export function SettingsView({
   config,
@@ -157,6 +196,10 @@ export function SettingsView({
       onClearLogs();
     }
   }
+
+  const phoneConnectionStatus = phoneStatus.connection.status || "stopped";
+  const canStopPhoneConnection = phoneConnectionStatus === "running" || phoneConnectionStatus === "starting";
+  const selectedPhoneProviderConfigured = phoneStatus.configured && phoneStatus.provider === phoneProvider;
 
   return (
     <div className="space-y-6">
@@ -311,7 +354,7 @@ export function SettingsView({
                   <PlugZap className="h-4 w-4" />
                   Connect Phone
                 </Button>
-                <Button type="button" variant="outline" onClick={onStopPhoneConnection}>
+                <Button type="button" variant="outline" disabled={!canStopPhoneConnection} onClick={onStopPhoneConnection}>
                   <Square className="h-4 w-4 fill-current stroke-current" />
                   Stop Connection
                 </Button>
@@ -319,9 +362,9 @@ export function SettingsView({
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <StatusTile label="Provider" value={phoneStatus.provider === "none" ? "Off" : phoneStatus.provider} />
-              <StatusTile label="Connection" value={phoneStatus.connection.status || "Stopped"} />
-              <StatusTile label="Inbound Calls" value={phoneStatus.configured ? "Ready" : "Not Connected"} />
+              <StatusTile label="Provider" value={providerLabel(phoneProvider)} tone={phoneProvider === "none" ? "neutral" : "ok"} />
+              <StatusTile label="Connection" value={connectionLabel(phoneConnectionStatus)} tone={connectionTone(phoneConnectionStatus)} />
+              <StatusTile label="Inbound Calls" value={selectedPhoneProviderConfigured ? "Ready" : "Not Connected"} tone={selectedPhoneProviderConfigured ? "ok" : "warning"} />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -394,8 +437,9 @@ export function SettingsView({
                 <Field label="Custom Public URL">
                   <Input placeholder="https://voice.example.com" value={phonePublicBaseUrl} onChange={(event) => onPhonePublicBaseUrlChange(event.target.value)} />
                 </Field>
-                <Field label="cloudflared Binary">
-                  <Input placeholder="Bundled automatically in packaged builds" value={cloudflaredBin} onChange={(event) => onCloudflaredBinChange(event.target.value)} />
+                <Field label="Connector Path">
+                  <Input placeholder="Bundled automatically" value={cloudflaredBin} onChange={(event) => onCloudflaredBinChange(event.target.value)} />
+                  <p className="text-xs text-muted-foreground">Packaged builds provide this automatically. Use a custom path only for development.</p>
                 </Field>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">{phoneStatus.connection.message}</p>
@@ -600,13 +644,16 @@ function PhoneProviderCard({
   );
 }
 
-function StatusTile({ label, value }: { label: string; value: string }) {
+type StatusTone = "neutral" | "ok" | "warning";
+
+function StatusTile({ label, tone = "neutral", value }: { label: string; tone?: StatusTone; value: string }) {
+  const Icon = tone === "ok" ? CheckCircle2 : tone === "warning" ? CircleAlert : CircleDashed;
   return (
     <div className="flex items-start gap-3 rounded-lg bg-muted/40 p-4">
-      <CheckCircle2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
+      <Icon className={cn("mt-0.5 h-4 w-4", tone === "warning" ? "text-destructive" : "text-muted-foreground")} />
       <div className="space-y-1">
         <p className="text-sm font-medium">{label}</p>
-        <p className="text-sm capitalize text-muted-foreground">{value.replace(/_/g, " ")}</p>
+        <p className="text-sm text-muted-foreground">{value}</p>
       </div>
     </div>
   );
