@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SessionDetailContent } from "@/features/logs/session-detail-panel";
 import { formatDate } from "@/lib/format";
-import type { AppLogRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
+import { formatLifecycleLabel } from "@/lib/lifecycle";
+import type { AppLogRecord, PhoneCallRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
 export type LogDetailRecord =
   | { kind: "session"; record: SessionRecord }
@@ -40,10 +41,10 @@ function detailRows(detail: LogDetailRecord): { title: string; description: stri
       rows: [
         { label: "Provider", value: record.provider },
         { label: "Mode", value: record.mode },
-        { label: "Status", value: record.status },
+        { label: "Status", value: formatLifecycleLabel(record.status) },
         { label: "Started", value: formatDate(record.started_at) },
         { label: "Ended", value: formatDate(record.ended_at) },
-        { label: "End reason", value: record.ended_reason ?? "-" },
+        { label: "End reason", value: formatLifecycleLabel(record.ended_reason) },
         { label: "Timeout", value: formatDate(record.timeout_at) },
         { label: "Error", value: record.error_message ?? "-" },
       ],
@@ -105,6 +106,7 @@ export function LogRecordDialog({
   sessionTranscripts,
   sessionToolCalls,
   sessionAppLogs,
+  sessionPhoneCalls,
   sessionDetailLoading,
   onClose,
 }: {
@@ -112,6 +114,7 @@ export function LogRecordDialog({
   sessionTranscripts: TranscriptRecord[];
   sessionToolCalls: ToolCallRecord[];
   sessionAppLogs: AppLogRecord[];
+  sessionPhoneCalls: PhoneCallRecord[];
   sessionDetailLoading: boolean;
   onClose: () => void;
 }) {
@@ -166,6 +169,7 @@ export function LogRecordDialog({
                   transcripts={sessionTranscripts}
                   toolCalls={sessionToolCalls}
                   appLogs={sessionAppLogs}
+                  phoneCalls={sessionPhoneCalls}
                   loading={sessionDetailLoading}
                 />
               </div>

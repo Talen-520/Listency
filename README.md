@@ -76,6 +76,8 @@ What works today:
 - Built-in tools for business info lookup, booking capture, transfer request
   logging, customer request logging, and AI-ended calls.
 - Logs view with 24h / 7 days / 30 days filtering, JSON export, and per-session transcript, tool call, and event detail overlays.
+- Phone call records are linked into session detail so caller hangup, AI hangup,
+  and provider failure outcomes are visible in Logs.
 - Settings data controls for pruning records older than 30 days or clearing local logs.
 - Five-minute maximum duration for each active AI conversation.
 - Phone setup preview with Twilio/Telnyx configuration, automatic public

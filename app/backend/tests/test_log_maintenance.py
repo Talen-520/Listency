@@ -88,6 +88,18 @@ class LogMaintenanceTest(unittest.TestCase):
             self.assertEqual([item["session_id"] for item in exported["tool_calls"]], ["new-session"])
             self.assertEqual([item["event"] for item in exported["app_logs"]], ["new_event"])
 
+    def test_list_phone_calls_filters_by_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+            first_call_id = db.create_phone_call("twilio", "CA111", "+15550000001", "+15550000002")
+            second_call_id = db.create_phone_call("twilio", "CA222", "+15550000003", "+15550000004")
+            db.attach_phone_session(first_call_id, "first-session")
+            db.attach_phone_session(second_call_id, "second-session")
+
+            phone_calls = db.list_phone_calls(session_id="second-session")
+
+            self.assertEqual([item["provider_call_id"] for item in phone_calls], ["CA222"])
+
 
 if __name__ == "__main__":
     unittest.main()

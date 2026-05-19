@@ -1,5 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
+import { formatLifecycleLabel } from "@/lib/lifecycle";
 import type { SessionRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -40,10 +41,10 @@ export function SessionTable({
             }}
           >
             <TableCell className="font-medium">{session.provider}</TableCell>
-            <TableCell>{session.status}</TableCell>
+            <TableCell>{formatLifecycleLabel(session.status)}</TableCell>
             <TableCell>{formatDate(session.started_at)}</TableCell>
             <TableCell>{formatDate(session.ended_at)}</TableCell>
-            <TableCell>{session.ended_reason ?? "-"}</TableCell>
+            <TableCell>{formatLifecycleLabel(session.ended_reason)}</TableCell>
           </TableRow>
         ))}
       </TableBody>

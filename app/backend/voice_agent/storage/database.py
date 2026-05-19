@@ -327,19 +327,28 @@ class Database:
             ).fetchone()
         return dict(row) if row else None
 
-    def list_phone_calls(self, limit: int = 100, since: str | None = None) -> list[dict[str, Any]]:
+    def list_phone_calls(
+        self,
+        limit: int = 100,
+        since: str | None = None,
+        session_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         since = normalize_timestamp_filter(since)
         query = """
                 SELECT id, provider, provider_call_id, provider_stream_id, session_id, from_number, to_number,
                        status, started_at, answered_at, ended_at, ended_reason, error_message
                 FROM phone_calls
                 """
-        params: Iterable[Any]
+        filters = []
+        params: list[Any] = []
         if since:
-            query += " WHERE started_at >= ?"
-            params = (since,)
-        else:
-            params = ()
+            filters.append("started_at >= ?")
+            params.append(since)
+        if session_id:
+            filters.append("session_id = ?")
+            params.append(session_id)
+        if filters:
+            query += f" WHERE {' AND '.join(filters)}"
         query += " ORDER BY started_at DESC LIMIT ?"
         with self.open_connection() as connection:
             rows = connection.execute(query, (*params, limit)).fetchall()

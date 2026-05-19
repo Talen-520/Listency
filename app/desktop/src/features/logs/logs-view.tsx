@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogRecordDialog, type LogDetailRecord } from "@/features/logs/log-record-dialog";
 import { SessionTable } from "@/features/logs/session-table";
 import { formatDate } from "@/lib/format";
-import type { AppLogRecord, LogTimeWindow, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
+import type { AppLogRecord, LogTimeWindow, PhoneCallRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
 const logWindowLabels: Record<LogTimeWindow, string> = {
   "24h": "Last 24 hours",
@@ -101,6 +101,7 @@ export function LogsView({
   sessionTranscripts,
   sessionToolCalls,
   sessionAppLogs,
+  sessionPhoneCalls,
   sessionDetailLoading,
   transcripts,
   toolCalls,
@@ -115,6 +116,7 @@ export function LogsView({
   sessionTranscripts: TranscriptRecord[];
   sessionToolCalls: ToolCallRecord[];
   sessionAppLogs: AppLogRecord[];
+  sessionPhoneCalls: PhoneCallRecord[];
   sessionDetailLoading: boolean;
   transcripts: TranscriptRecord[];
   toolCalls: ToolCallRecord[];
@@ -288,6 +290,7 @@ export function LogsView({
         sessionTranscripts={sessionTranscripts}
         sessionToolCalls={sessionToolCalls}
         sessionAppLogs={sessionAppLogs}
+        sessionPhoneCalls={sessionPhoneCalls}
         sessionDetailLoading={sessionDetailLoading}
         onClose={() => setDetail(null)}
       />

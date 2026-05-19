@@ -180,6 +180,7 @@ export function App() {
             sessionTranscripts={sessionDetail.transcripts}
             sessionToolCalls={sessionDetail.toolCalls}
             sessionAppLogs={sessionDetail.appLogs}
+            sessionPhoneCalls={sessionDetail.phoneCalls}
             sessionDetailLoading={sessionDetail.loading}
             transcripts={data.transcripts}
             toolCalls={data.toolCalls}

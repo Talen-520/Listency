@@ -1,4 +1,4 @@
-import { Activity, CircleDollarSign, Clock, Hash, Timer } from "lucide-react";
+import { Activity, CircleDollarSign, Clock, Hash, Phone, Timer } from "lucide-react";
 
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TranscriptBubble } from "@/features/logs/transcript-bubble";
 import { compareCreatedAt, formatDate } from "@/lib/format";
-import type { AppLogRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
+import { formatLifecycleLabel } from "@/lib/lifecycle";
+import type { AppLogRecord, PhoneCallRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
 function formatJsonPreview(value: string | null) {
   if (!value) return "-";
@@ -43,17 +44,20 @@ export function SessionDetailContent({
   transcripts,
   toolCalls,
   appLogs,
+  phoneCalls,
   loading,
 }: {
   session: SessionRecord | null;
   transcripts: TranscriptRecord[];
   toolCalls: ToolCallRecord[];
   appLogs: AppLogRecord[];
+  phoneCalls: PhoneCallRecord[];
   loading: boolean;
 }) {
   const orderedTranscripts = [...transcripts].sort(compareCreatedAt);
   const orderedLogs = [...appLogs].sort(compareCreatedAt);
   const orderedToolCalls = [...toolCalls].sort((left, right) => new Date(left.started_at).getTime() - new Date(right.started_at).getTime());
+  const phoneCall = phoneCalls[0] ?? null;
   const estimatedTextTokens = estimateTextTokens(orderedTranscripts);
 
   return (
@@ -98,8 +102,30 @@ export function SessionDetailContent({
                 <p className="text-sm font-medium text-muted-foreground">Reason</p>
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{session.ended_reason ?? "-"}</p>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatLifecycleLabel(session.ended_reason)}</p>
             </div>
+            {phoneCall && (
+              <div className="rounded-lg bg-muted/30 p-4">
+                <div className="flex items-center justify-between pb-2">
+                  <p className="text-sm font-medium text-muted-foreground">Phone end</p>
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">
+                  {formatLifecycleLabel(phoneCall.ended_reason ?? phoneCall.status)}
+                </p>
+              </div>
+            )}
+            {phoneCall && (
+              <div className="rounded-lg bg-muted/30 p-4">
+                <div className="flex items-center justify-between pb-2">
+                  <p className="text-sm font-medium text-muted-foreground">Call route</p>
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="break-words font-display text-sm font-semibold leading-snug tracking-normal">
+                  {(phoneCall.from_number || "-")}{" -> "}{(phoneCall.to_number || "-")}
+                </p>
+              </div>
+            )}
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
                 <p className="text-sm font-medium text-muted-foreground">Started</p>
@@ -240,6 +266,7 @@ export function SessionDetailPanel(props: {
   transcripts: TranscriptRecord[];
   toolCalls: ToolCallRecord[];
   appLogs: AppLogRecord[];
+  phoneCalls: PhoneCallRecord[];
   loading: boolean;
 }) {
   return (
@@ -252,7 +279,7 @@ export function SessionDetailPanel(props: {
           </div>
           {props.session && (
             <Badge tone={props.session.status === "error" ? "red" : props.session.status === "stopped" ? "neutral" : "cyan"}>
-              {props.session.status}
+              {formatLifecycleLabel(props.session.status)}
             </Badge>
           )}
         </div>

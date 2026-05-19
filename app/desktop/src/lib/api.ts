@@ -6,6 +6,7 @@ import type {
   LogExport,
   LogPruneResult,
   ProviderInfo,
+  PhoneCallRecord,
   PhoneStatus,
   PublicConfig,
   RuntimeStatus,
@@ -127,6 +128,12 @@ export const api = {
     if (sessionId) params.set("session_id", sessionId);
     if (since) params.set("since", since);
     return request<{ logs: AppLogRecord[] }>(`/app-logs?${params.toString()}`);
+  },
+  phoneCalls: (sessionId?: string, limit = 100, since?: string) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (sessionId) params.set("session_id", sessionId);
+    if (since) params.set("since", since);
+    return request<{ phone_calls: PhoneCallRecord[] }>(`/phone-calls?${params.toString()}`);
   },
   exportLogs: (since?: string, sessionId?: string) => {
     const params = new URLSearchParams();

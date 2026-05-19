@@ -713,6 +713,11 @@ async def list_app_logs(limit: int = 100, session_id: str | None = None, since: 
     return {"logs": db.list_logs(limit, session_id, since)}
 
 
+@app.get("/phone-calls")
+async def list_phone_calls(limit: int = 100, session_id: str | None = None, since: str | None = None) -> dict[str, Any]:
+    return {"phone_calls": db.list_phone_calls(limit, since, session_id)}
+
+
 @app.get("/logs/export")
 async def export_logs(since: str | None = None, session_id: str | None = None) -> dict[str, Any]:
     return {
