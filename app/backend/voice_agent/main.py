@@ -248,6 +248,14 @@ async def stop_phone_connection() -> dict[str, Any]:
     return await phone_manager.stop_connection()
 
 
+@app.post("/phone/connect")
+async def connect_phone() -> dict[str, Any]:
+    try:
+        return await phone_manager.connect()
+    except PhoneConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/phone/provision")
 async def provision_phone() -> dict[str, Any]:
     try:

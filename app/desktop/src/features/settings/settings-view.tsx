@@ -231,6 +231,15 @@ function phoneNotice({
     };
   }
 
+  if (phoneStatus.provider === phoneProvider && phoneStatus.reprovision_required) {
+    return {
+      blocking: false,
+      detail: phoneStatus.reprovision_reason || "The public tunnel URL changed. Click Connect Phone to update provider webhooks.",
+      title: "Webhook update needed",
+      tone: "warning",
+    };
+  }
+
   if (selectedPhoneProviderConfigured) {
     return {
       blocking: false,
@@ -549,7 +558,13 @@ export function SettingsView({
   });
   const canConnectPhone = !phoneActionBusy && !notice?.blocking;
   const connectPhoneLabel =
-    phoneAction === "connecting" ? "Connecting..." : phoneAction === "provisioning" ? "Configuring Webhooks..." : "Connect Phone";
+    phoneAction === "connecting"
+      ? "Connecting..."
+      : phoneAction === "provisioning"
+        ? "Configuring Webhooks..."
+        : phoneStatus.provider === phoneProvider && phoneStatus.reprovision_required
+          ? "Update Webhooks"
+          : "Connect Phone";
   const twilioTestChecklist = twilioChecklist({
     config,
     phoneConnectionMode,

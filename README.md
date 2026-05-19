@@ -81,6 +81,8 @@ What works today:
 - Phone setup preview with Twilio/Telnyx configuration, automatic public
   connection controls, Advanced custom URL mode, and Twilio inbound media stream
   bridge scaffolding.
+- Connect Phone starts the public tunnel and configures provider webhooks as one
+  backend action, including webhook updates when the tunnel URL changes.
 - Twilio Debugger panel for recent webhook/API alerts during inbound call testing.
 - Bundled cloudflared connector for packaged macOS and Windows automatic phone
   setup.

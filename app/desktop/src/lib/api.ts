@@ -84,6 +84,7 @@ export const api = {
   phoneStatus: () => request<PhoneStatus>("/phone/status"),
   startPhoneConnection: () => request<{ connection: PhoneStatus["connection"]; phone: PhoneStatus }>("/phone/connection/start", { method: "POST" }),
   stopPhoneConnection: () => request<{ connection: PhoneStatus["connection"]; phone: PhoneStatus }>("/phone/connection/stop", { method: "POST" }),
+  connectPhone: () => request<{ connection: PhoneStatus["connection"]; result: Record<string, string>; phone: PhoneStatus }>("/phone/connect", { method: "POST" }),
   provisionPhone: () => request<{ result: Record<string, string>; phone: PhoneStatus }>("/phone/provision", { method: "POST" }),
   twilioDebugger: (limit = 10, hours = 24) => request<{ alerts: TwilioDebuggerAlert[] }>(`/phone/twilio/debugger?limit=${limit}&hours=${hours}`),
   voicePreviewCache: () => request<VoicePreviewCache>("/voice-previews"),

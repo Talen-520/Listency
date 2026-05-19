@@ -89,6 +89,8 @@ const emptyPhoneStatus: PhoneStatus = {
   configured: false,
   last_provisioned_url: "",
   last_provisioned_at: "",
+  reprovision_required: false,
+  reprovision_reason: "",
   transfer_target_ready: false,
 };
 
@@ -515,9 +517,8 @@ export function useAppData() {
 
   const connectPhone = useCallback(async () => {
     await saveSettings();
-    await api.startPhoneConnection();
-    const provisioned = await api.provisionPhone();
-    setPhoneStatus(provisioned.phone);
+    const connected = await api.connectPhone();
+    setPhoneStatus(connected.phone);
   }, [saveSettings]);
 
   const stopPhoneConnection = useCallback(async () => {

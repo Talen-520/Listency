@@ -22,6 +22,8 @@ export type PhoneStatus = {
   configured: boolean;
   last_provisioned_url: string;
   last_provisioned_at: string;
+  reprovision_required: boolean;
+  reprovision_reason: string;
   transfer_target_ready: boolean;
 };
 

@@ -5,11 +5,11 @@ from typing import Any
 
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.session_manager import SessionManager
-from voice_agent.phone.base import PhoneConfigError, PhoneProviderAdapter
+from voice_agent.phone.base import PhoneConfigError, PhoneProviderAdapter, PhoneProvisionResult
 from voice_agent.phone.telnyx import TelnyxPhoneAdapter
 from voice_agent.phone.twilio import TwilioPhoneAdapter
 from voice_agent.storage.database import Database
-from voice_agent.tunnel import PublicTunnelManager
+from voice_agent.tunnel import PublicTunnelManager, TunnelStatus
 
 
 class PhoneManager:
@@ -41,6 +41,14 @@ class PhoneManager:
                 provider_ready = True
             except Exception as exc:
                 provider_error = str(exc)
+        last_provisioned_url = env.get("PHONE_LAST_PROVISIONED_URL", "")
+        reprovision_required = bool(
+            provider_ready
+            and tunnel.status == "running"
+            and last_provisioned_url
+            and tunnel.public_base_url
+            and last_provisioned_url != tunnel.public_base_url
+        )
         return {
             "provider": provider_key,
             "provider_ready": provider_ready,
@@ -49,11 +57,13 @@ class PhoneManager:
             "configured": bool(
                 provider_ready
                 and tunnel.status == "running"
-                and env.get("PHONE_LAST_PROVISIONED_URL")
-                and env.get("PHONE_LAST_PROVISIONED_URL") == tunnel.public_base_url
+                and last_provisioned_url
+                and last_provisioned_url == tunnel.public_base_url
             ),
-            "last_provisioned_url": env.get("PHONE_LAST_PROVISIONED_URL", ""),
+            "last_provisioned_url": last_provisioned_url,
             "last_provisioned_at": env.get("PHONE_LAST_PROVISIONED_AT", ""),
+            "reprovision_required": reprovision_required,
+            "reprovision_reason": "Tunnel URL changed. Connect Phone will update provider webhooks." if reprovision_required else "",
             "transfer_target_ready": bool(env.get("PHONE_TRANSFER_TARGET", "").strip()),
         }
 
@@ -66,6 +76,17 @@ class PhoneManager:
         tunnel = await self.tunnel_manager.stop()
         return {"connection": tunnel.public_dict(), "phone": self.status()}
 
+    async def connect(self) -> dict[str, Any]:
+        env = self.env_store.read()
+        provider_key = self._provider_key(env)
+        if provider_key == "none":
+            raise PhoneConfigError("Choose Twilio or Telnyx before connecting phone calls.")
+        tunnel = await self.tunnel_manager.start(env)
+        if tunnel.status != "running":
+            raise PhoneConfigError(tunnel.message or "Phone connection is not ready.")
+        result = await self._provision_with_tunnel(env, provider_key, tunnel)
+        return {"connection": tunnel.public_dict(), "result": result.public_dict(), "phone": self.status()}
+
     async def provision(self) -> dict[str, Any]:
         env = self.env_store.read()
         provider_key = self._provider_key(env)
@@ -76,6 +97,15 @@ class PhoneManager:
             tunnel = await self.tunnel_manager.start(env)
         if tunnel.status != "running":
             raise PhoneConfigError(tunnel.message or "Phone connection is not ready.")
+        result = await self._provision_with_tunnel(env, provider_key, tunnel)
+        return {"result": result.public_dict(), "phone": self.status()}
+
+    async def _provision_with_tunnel(
+        self,
+        env: dict[str, str],
+        provider_key: str,
+        tunnel: TunnelStatus,
+    ) -> PhoneProvisionResult:
         result = await self._provider(provider_key).provision(env, tunnel)
         self.env_store.write(
             {
@@ -89,7 +119,7 @@ class PhoneManager:
             result.message,
             {"provider": provider_key, "public_base_url": tunnel.public_base_url},
         )
-        return {"result": result.public_dict(), "phone": self.status()}
+        return result
 
     async def start_phone_session(
         self,
