@@ -81,6 +81,7 @@ What works today:
 - Phone setup preview with Twilio/Telnyx configuration, automatic public
   connection controls, Advanced custom URL mode, and Twilio inbound media stream
   bridge scaffolding.
+- Twilio Debugger panel for recent webhook/API alerts during inbound call testing.
 - Bundled cloudflared connector for packaged macOS and Windows automatic phone
   setup.
 

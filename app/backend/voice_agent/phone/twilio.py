@@ -6,6 +6,7 @@ import json
 import urllib.parse
 import urllib.request
 import xml.sax.saxutils
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from voice_agent.phone.base import PhoneConfigError, PhoneProvisionResult
@@ -62,6 +63,10 @@ class TwilioPhoneAdapter:
             {"Status": "completed"},
         )
         return {"status": "completed", "provider": self.name, "reason": reason}
+
+    async def debugger_alerts(self, env: dict[str, str], limit: int = 10, hours: int = 24) -> list[dict[str, str]]:
+        self.validate_config(env)
+        return await asyncio.to_thread(self._debugger_alerts_sync, env, limit, hours)
 
     def inbound_twiml(self, public_ws_url: str, call_sid: str = "", from_number: str = "", to_number: str = "") -> str:
         media_url = f"{public_ws_url.rstrip('/')}/phone/twilio/media"
@@ -133,3 +138,42 @@ class TwilioPhoneAdapter:
         except Exception as exc:
             raise PhoneConfigError(f"Twilio API request failed: {exc}") from exc
         return json.loads(raw) if raw else {}
+
+    def _debugger_alerts_sync(self, env: dict[str, str], limit: int, hours: int) -> list[dict[str, str]]:
+        page_size = max(1, min(limit, 20))
+        lookback_hours = max(1, min(hours, 24 * 30))
+        start_date = (datetime.now(tz=UTC) - timedelta(hours=lookback_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        query = urllib.parse.urlencode({"StartDate": start_date, "PageSize": str(page_size)})
+        payload = self._request_absolute(env, "GET", f"https://monitor.twilio.com/v1/Alerts?{query}")
+        alerts = payload.get("alerts") if isinstance(payload, dict) else None
+        if not isinstance(alerts, list):
+            return []
+        normalized = [self._normalize_debugger_alert(alert) for alert in alerts if isinstance(alert, dict)]
+        return [alert for alert in normalized if alert]
+
+    def _request_absolute(self, env: dict[str, str], method: str, url: str) -> dict[str, Any]:
+        account_sid = env["TWILIO_ACCOUNT_SID"]
+        auth_token = env["TWILIO_AUTH_TOKEN"]
+        request = urllib.request.Request(url, method=method)
+        token = base64.b64encode(f"{account_sid}:{auth_token}".encode("utf-8")).decode("ascii")
+        request.add_header("Authorization", f"Basic {token}")
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                raw = response.read().decode("utf-8")
+        except Exception as exc:
+            raise PhoneConfigError(f"Twilio Debugger request failed: {exc}") from exc
+        return json.loads(raw) if raw else {}
+
+    def _normalize_debugger_alert(self, alert: dict[str, Any]) -> dict[str, str]:
+        return {
+            "sid": str(alert.get("sid") or ""),
+            "date_created": str(alert.get("date_created") or alert.get("dateCreated") or ""),
+            "date_generated": str(alert.get("date_generated") or alert.get("dateGenerated") or ""),
+            "error_code": str(alert.get("error_code") or alert.get("errorCode") or ""),
+            "log_level": str(alert.get("log_level") or alert.get("logLevel") or ""),
+            "alert_text": str(alert.get("alert_text") or alert.get("alertText") or ""),
+            "request_method": str(alert.get("request_method") or alert.get("requestMethod") or ""),
+            "request_url": str(alert.get("request_url") or alert.get("requestUrl") or ""),
+            "resource_sid": str(alert.get("resource_sid") or alert.get("resourceSid") or ""),
+            "more_info": str(alert.get("more_info") or alert.get("moreInfo") or ""),
+        }

@@ -18,6 +18,7 @@ import type {
   ToolCallRecord,
   ToolInfo,
   TranscriptRecord,
+  TwilioDebuggerAlert,
   VoicePreviewCache,
 } from "@/lib/types";
 import { isSupportedVoice } from "@/lib/voices";
@@ -162,6 +163,9 @@ export function useAppData() {
   const [appLogs, setAppLogs] = useState<AppLogRecord[]>([]);
   const [logWindow, setLogWindow] = useState<LogTimeWindow>("24h");
   const [voicePreviewCache, setVoicePreviewCache] = useState<VoicePreviewCache>(emptyVoicePreviewCache);
+  const [twilioDebuggerAlerts, setTwilioDebuggerAlerts] = useState<TwilioDebuggerAlert[]>([]);
+  const [twilioDebuggerError, setTwilioDebuggerError] = useState("");
+  const [twilioDebuggerLoading, setTwilioDebuggerLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessProfile>(defaultBusiness);
   const [agent, setAgent] = useState<AgentProfile>(defaultAgent);
@@ -521,6 +525,21 @@ export function useAppData() {
     setPhoneStatus(stopped.phone);
   }, []);
 
+  const refreshTwilioDebugger = useCallback(async () => {
+    setTwilioDebuggerLoading(true);
+    setTwilioDebuggerError("");
+    try {
+      const result = await api.twilioDebugger(10, 24);
+      setTwilioDebuggerAlerts(result.alerts);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Twilio Debugger unavailable";
+      setTwilioDebuggerError(message);
+      toast.error(message);
+    } finally {
+      setTwilioDebuggerLoading(false);
+    }
+  }, []);
+
   const previewVoice = useCallback(async (provider: string, voice: string) => {
     try {
       const preview = await api.createVoicePreview({ provider, voice });
@@ -561,6 +580,9 @@ export function useAppData() {
     config,
     providers,
     phoneStatus,
+    twilioDebuggerAlerts,
+    twilioDebuggerError,
+    twilioDebuggerLoading,
     tools,
     sessions,
     transcripts,
@@ -604,6 +626,7 @@ export function useAppData() {
     saveSettings,
     connectPhone,
     stopPhoneConnection,
+    refreshTwilioDebugger,
     previewVoice,
     downloadLogs,
     pruneOldLogs,

@@ -3,6 +3,7 @@ import { BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, KeyRound, Loader2,
 
 import { Field } from "@/components/field";
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
 import { DEFAULT_OPENAI_REALTIME_MODEL, geminiLiveModelOptions } from "@/lib/models";
-import type { PhoneStatus, PublicConfig, VoicePreviewCache } from "@/lib/types";
+import type { PhoneStatus, PublicConfig, TwilioDebuggerAlert, VoicePreviewCache } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isSupportedVoice, type VoiceOption, voiceOptionsForProvider } from "@/lib/voices";
 
@@ -364,6 +365,9 @@ function twilioChecklist({
 export function SettingsView({
   config,
   phoneStatus,
+  twilioDebuggerAlerts,
+  twilioDebuggerError,
+  twilioDebuggerLoading,
   openAiKey,
   geminiKey,
   providerChoice,
@@ -410,6 +414,7 @@ export function SettingsView({
   onTelnyxApplicationNameChange,
   onTelnyxPhoneNumberChange,
   onPreviewVoice,
+  onRefreshTwilioDebugger,
   onConnectPhone,
   onStopPhoneConnection,
   onSave,
@@ -419,6 +424,9 @@ export function SettingsView({
 }: {
   config: PublicConfig;
   phoneStatus: PhoneStatus;
+  twilioDebuggerAlerts: TwilioDebuggerAlert[];
+  twilioDebuggerError: string;
+  twilioDebuggerLoading: boolean;
   openAiKey: string;
   geminiKey: string;
   providerChoice: string;
@@ -465,6 +473,7 @@ export function SettingsView({
   onTelnyxApplicationNameChange: (value: string) => void;
   onTelnyxPhoneNumberChange: (value: string) => void;
   onPreviewVoice: (provider: string, voice: string) => Promise<void>;
+  onRefreshTwilioDebugger: () => Promise<void>;
   onConnectPhone: () => Promise<void>;
   onStopPhoneConnection: () => Promise<void>;
   onSave: () => void;
@@ -803,6 +812,12 @@ export function SettingsView({
                   </Field>
                 </div>
                 <PhoneTestChecklist items={twilioTestChecklist} />
+                <TwilioDebuggerPanel
+                  alerts={twilioDebuggerAlerts}
+                  error={twilioDebuggerError}
+                  loading={twilioDebuggerLoading}
+                  onRefresh={onRefreshTwilioDebugger}
+                />
               </>
             )}
 
@@ -1044,6 +1059,83 @@ function UnsavedPhoneSettingsNotice() {
         <p className="text-sm font-medium">Unsaved phone settings</p>
         <p className="text-sm text-muted-foreground">Save settings or Connect Phone to apply these changes to the local backend.</p>
       </div>
+    </div>
+  );
+}
+
+function formatAlertTime(value: string) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+}
+
+function debuggerTone(level: string) {
+  const normalized = level.toLowerCase();
+  if (normalized === "error") return "red";
+  if (normalized === "warning") return "yellow";
+  return "neutral";
+}
+
+function TwilioDebuggerPanel({
+  alerts,
+  error,
+  loading,
+  onRefresh,
+}: {
+  alerts: TwilioDebuggerAlert[];
+  error: string;
+  loading: boolean;
+  onRefresh: () => Promise<void>;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg bg-muted/30 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h4 className="text-sm font-medium">Twilio Debugger</h4>
+          <p className="text-sm text-muted-foreground">Recent Twilio webhook and API alerts from the last 24 hours.</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void onRefresh()}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+          Refresh
+        </Button>
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {!error && alerts.length === 0 && (
+        <p className="rounded-lg bg-background/60 p-3 text-sm text-muted-foreground">
+          No recent Twilio Debugger alerts loaded. Refresh after a failed inbound call.
+        </p>
+      )}
+
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((alert) => (
+            <div key={alert.sid || `${alert.date_created}-${alert.error_code}`} className="space-y-2 rounded-lg bg-background/60 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={debuggerTone(alert.log_level)}>{titleCaseStatus(alert.log_level || "alert")}</Badge>
+                {alert.error_code && <Badge tone="neutral">{alert.error_code}</Badge>}
+                <span className="text-xs text-muted-foreground">{formatAlertTime(alert.date_generated || alert.date_created)}</span>
+              </div>
+              <p className="text-sm font-medium">{alert.alert_text || "Twilio alert"}</p>
+              {(alert.request_method || alert.request_url) && (
+                <p className="break-all text-xs text-muted-foreground">
+                  {[alert.request_method, alert.request_url].filter(Boolean).join(" ")}
+                </p>
+              )}
+              {alert.more_info && (
+                <a className="text-xs text-muted-foreground underline underline-offset-4" href={alert.more_info} target="_blank" rel="noreferrer">
+                  Twilio error reference
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

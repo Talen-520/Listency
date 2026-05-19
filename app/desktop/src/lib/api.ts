@@ -13,6 +13,7 @@ import type {
   ToolCallRecord,
   ToolInfo,
   TranscriptRecord,
+  TwilioDebuggerAlert,
   VoicePreviewCache,
   VoicePreviewRecord,
 } from "./types";
@@ -84,6 +85,7 @@ export const api = {
   startPhoneConnection: () => request<{ connection: PhoneStatus["connection"]; phone: PhoneStatus }>("/phone/connection/start", { method: "POST" }),
   stopPhoneConnection: () => request<{ connection: PhoneStatus["connection"]; phone: PhoneStatus }>("/phone/connection/stop", { method: "POST" }),
   provisionPhone: () => request<{ result: Record<string, string>; phone: PhoneStatus }>("/phone/provision", { method: "POST" }),
+  twilioDebugger: (limit = 10, hours = 24) => request<{ alerts: TwilioDebuggerAlert[] }>(`/phone/twilio/debugger?limit=${limit}&hours=${hours}`),
   voicePreviewCache: () => request<VoicePreviewCache>("/voice-previews"),
   createVoicePreview: async (payload: { provider: string; voice: string; text?: string }) => {
     const preview = await request<VoicePreviewRecord>("/voice-preview", {

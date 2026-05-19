@@ -54,6 +54,9 @@ export function App() {
           <SettingsView
             config={data.config}
             phoneStatus={data.phoneStatus}
+            twilioDebuggerAlerts={data.twilioDebuggerAlerts}
+            twilioDebuggerError={data.twilioDebuggerError}
+            twilioDebuggerLoading={data.twilioDebuggerLoading}
             openAiKey={data.openAiKey}
             geminiKey={data.geminiKey}
             providerChoice={data.providerChoice}
@@ -100,6 +103,7 @@ export function App() {
             onTelnyxApplicationNameChange={data.setTelnyxApplicationName}
             onTelnyxPhoneNumberChange={data.setTelnyxPhoneNumber}
             onPreviewVoice={data.previewVoice}
+            onRefreshTwilioDebugger={data.refreshTwilioDebugger}
             onConnectPhone={() => data.runAction(data.connectPhone, "Phone connected")}
             onStopPhoneConnection={() => data.runAction(data.stopPhoneConnection, "Phone connection stopped")}
             onSave={() => void data.runAction(data.saveSettings, ".env saved")}

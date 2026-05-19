@@ -256,6 +256,15 @@ async def provision_phone() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/phone/twilio/debugger")
+async def twilio_debugger(limit: int = 10, hours: int = 24) -> dict[str, Any]:
+    try:
+        alerts = await TwilioPhoneAdapter().debugger_alerts(env_store.read(), limit=limit, hours=hours)
+    except PhoneConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"alerts": alerts}
+
+
 @app.post("/phone/twilio/inbound")
 async def twilio_inbound(request: Request) -> Response:
     form = _parse_form_body(await request.body())

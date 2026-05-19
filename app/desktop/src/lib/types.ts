@@ -25,6 +25,19 @@ export type PhoneStatus = {
   transfer_target_ready: boolean;
 };
 
+export type TwilioDebuggerAlert = {
+  sid: string;
+  date_created: string;
+  date_generated: string;
+  error_code: string;
+  log_level: string;
+  alert_text: string;
+  request_method: string;
+  request_url: string;
+  resource_sid: string;
+  more_info: string;
+};
+
 export type BackendHealth = {
   available: boolean;
   checking: boolean;
