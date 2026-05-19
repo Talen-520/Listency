@@ -39,6 +39,11 @@ type PhoneNoticeInfo = {
   title: string;
   tone: PhoneNoticeTone;
 };
+type ChecklistItemInfo = {
+  detail: string;
+  ready: boolean;
+  title: string;
+};
 
 function titleCaseStatus(value: string) {
   return value
@@ -242,6 +247,120 @@ function phoneNotice({
   };
 }
 
+function hasUnsavedPhoneSettings({
+  cloudflaredBin,
+  config,
+  phoneConnectionMode,
+  phoneProvider,
+  phonePublicBaseUrl,
+  phoneRealtimeProvider,
+  phoneTransferTarget,
+  telnyxApiKey,
+  telnyxApplicationName,
+  telnyxCallControlAppId,
+  telnyxPhoneNumber,
+  twilioAccountSid,
+  twilioAuthToken,
+  twilioPhoneNumber,
+  twilioPhoneNumberSid,
+}: {
+  cloudflaredBin: string;
+  config: PublicConfig;
+  phoneConnectionMode: string;
+  phoneProvider: string;
+  phonePublicBaseUrl: string;
+  phoneRealtimeProvider: string;
+  phoneTransferTarget: string;
+  telnyxApiKey: string;
+  telnyxApplicationName: string;
+  telnyxCallControlAppId: string;
+  telnyxPhoneNumber: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
+  twilioPhoneNumberSid: string;
+}) {
+  return (
+    phoneProvider !== (config.PHONE_PROVIDER || "none") ||
+    phoneConnectionMode !== (config.PHONE_CONNECTION_MODE || "automatic") ||
+    phonePublicBaseUrl !== (config.PHONE_PUBLIC_BASE_URL || "") ||
+    phoneRealtimeProvider !== (config.PHONE_REALTIME_PROVIDER || "") ||
+    phoneTransferTarget !== (config.PHONE_TRANSFER_TARGET || "") ||
+    cloudflaredBin !== (config.CLOUDFLARED_BIN || "") ||
+    twilioPhoneNumber !== (config.TWILIO_PHONE_NUMBER || "") ||
+    telnyxCallControlAppId !== (config.TELNYX_CALL_CONTROL_APP_ID || "") ||
+    telnyxApplicationName !== (config.TELNYX_APPLICATION_NAME || "Listency") ||
+    telnyxPhoneNumber !== (config.TELNYX_PHONE_NUMBER || "") ||
+    Boolean(twilioAccountSid || twilioAuthToken || twilioPhoneNumberSid || telnyxApiKey)
+  );
+}
+
+function twilioChecklist({
+  config,
+  phoneConnectionMode,
+  phoneConnectionStatus,
+  phonePublicBaseUrl,
+  phoneStatus,
+  phoneUnsaved,
+  twilioAccountSid,
+  twilioAuthToken,
+  twilioPhoneNumber,
+  twilioPhoneNumberSid,
+}: {
+  config: PublicConfig;
+  phoneConnectionMode: string;
+  phoneConnectionStatus: string;
+  phonePublicBaseUrl: string;
+  phoneStatus: PhoneStatus;
+  phoneUnsaved: boolean;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
+  twilioPhoneNumberSid: string;
+}) {
+  const missing = missingPhoneFields({
+    config,
+    phoneProvider: "twilio",
+    telnyxApiKey: "",
+    telnyxCallControlAppId: "",
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioPhoneNumber,
+    twilioPhoneNumberSid,
+  });
+  const connectionReady =
+    phoneConnectionStatus === "running" ||
+    (phoneConnectionMode === "manual" && Boolean(phonePublicBaseUrl.trim()));
+
+  return [
+    {
+      detail: missing.length > 0 ? `Missing ${missing.join(", ")}.` : "Twilio account and phone number settings are available.",
+      ready: missing.length === 0,
+      title: "Twilio credentials",
+    },
+    {
+      detail:
+        phoneConnectionMode === "manual"
+          ? "Advanced Custom URL is ready for provider webhooks."
+          : connectionReady
+            ? "Automatic secure connection is running."
+            : "Connect Phone will create the secure public connection.",
+      ready: connectionReady,
+      title: "Secure connection",
+    },
+    {
+      detail: phoneStatus.configured && phoneStatus.provider === "twilio" ? "Twilio webhooks point at the active Listency URL." : "Connect Phone will configure Twilio webhooks.",
+      ready: phoneStatus.configured && phoneStatus.provider === "twilio",
+      title: "Webhook provisioning",
+    },
+    {
+      detail: phoneUnsaved ? "Save or Connect Phone to apply the current phone settings." : "Saved settings match the current form.",
+      ready: !phoneUnsaved,
+      title: "Saved settings",
+    },
+  ] satisfies ChecklistItemInfo[];
+}
+
 export function SettingsView({
   config,
   phoneStatus,
@@ -386,6 +505,23 @@ export function SettingsView({
   const phoneActionBusy = phoneAction !== "idle";
   const canStopPhoneConnection = phoneConnectionStatus === "running" || phoneConnectionStatus === "starting";
   const selectedPhoneProviderConfigured = phoneStatus.configured && phoneStatus.provider === phoneProvider;
+  const phoneUnsaved = hasUnsavedPhoneSettings({
+    cloudflaredBin,
+    config,
+    phoneConnectionMode,
+    phoneProvider,
+    phonePublicBaseUrl,
+    phoneRealtimeProvider,
+    phoneTransferTarget,
+    telnyxApiKey,
+    telnyxApplicationName,
+    telnyxCallControlAppId,
+    telnyxPhoneNumber,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioPhoneNumber,
+    twilioPhoneNumberSid,
+  });
   const notice = phoneNotice({
     config,
     phoneAction,
@@ -405,6 +541,18 @@ export function SettingsView({
   const canConnectPhone = !phoneActionBusy && !notice?.blocking;
   const connectPhoneLabel =
     phoneAction === "connecting" ? "Connecting..." : phoneAction === "provisioning" ? "Configuring Webhooks..." : "Connect Phone";
+  const twilioTestChecklist = twilioChecklist({
+    config,
+    phoneConnectionMode,
+    phoneConnectionStatus,
+    phonePublicBaseUrl,
+    phoneStatus,
+    phoneUnsaved,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioPhoneNumber,
+    twilioPhoneNumberSid,
+  });
 
   async function handleConnectPhone() {
     if (!canConnectPhone) {
@@ -573,6 +721,8 @@ export function SettingsView({
           />
         </div>
 
+        {phoneUnsaved && <UnsavedPhoneSettingsNotice />}
+
         {phoneProvider !== "none" && (
           <Card className="space-y-5 rounded-lg p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -637,20 +787,23 @@ export function SettingsView({
             </Field>
 
             {phoneProvider === "twilio" && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Twilio Account SID">
-                  <Input type="password" placeholder={config.TWILIO_ACCOUNT_SID || "AC..."} value={twilioAccountSid} onChange={(event) => onTwilioAccountSidChange(event.target.value)} />
-                </Field>
-                <Field label="Twilio Auth Token">
-                  <Input type="password" placeholder={config.TWILIO_AUTH_TOKEN || "auth token"} value={twilioAuthToken} onChange={(event) => onTwilioAuthTokenChange(event.target.value)} />
-                </Field>
-                <Field label="Twilio Phone Number">
-                  <Input placeholder="+15551234567" value={twilioPhoneNumber} onChange={(event) => onTwilioPhoneNumberChange(event.target.value)} />
-                </Field>
-                <Field label="Phone Number SID">
-                  <Input type="password" placeholder={config.TWILIO_PHONE_NUMBER_SID || "optional"} value={twilioPhoneNumberSid} onChange={(event) => onTwilioPhoneNumberSidChange(event.target.value)} />
-                </Field>
-              </div>
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Twilio Account SID">
+                    <Input type="password" placeholder={config.TWILIO_ACCOUNT_SID || "AC..."} value={twilioAccountSid} onChange={(event) => onTwilioAccountSidChange(event.target.value)} />
+                  </Field>
+                  <Field label="Twilio Auth Token">
+                    <Input type="password" placeholder={config.TWILIO_AUTH_TOKEN || "auth token"} value={twilioAuthToken} onChange={(event) => onTwilioAuthTokenChange(event.target.value)} />
+                  </Field>
+                  <Field label="Twilio Phone Number">
+                    <Input placeholder="+15551234567" value={twilioPhoneNumber} onChange={(event) => onTwilioPhoneNumberChange(event.target.value)} />
+                  </Field>
+                  <Field label="Phone Number SID">
+                    <Input type="password" placeholder={config.TWILIO_PHONE_NUMBER_SID || "optional"} value={twilioPhoneNumberSid} onChange={(event) => onTwilioPhoneNumberSidChange(event.target.value)} />
+                  </Field>
+                </div>
+                <PhoneTestChecklist items={twilioTestChecklist} />
+              </>
             )}
 
             {phoneProvider === "telnyx" && (
@@ -880,6 +1033,43 @@ function PhoneProviderCard({
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
     </Card>
+  );
+}
+
+function UnsavedPhoneSettingsNotice() {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4">
+      <CircleDashed className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Unsaved phone settings</p>
+        <p className="text-sm text-muted-foreground">Save settings or Connect Phone to apply these changes to the local backend.</p>
+      </div>
+    </div>
+  );
+}
+
+function PhoneTestChecklist({ items }: { items: ChecklistItemInfo[] }) {
+  return (
+    <div className="space-y-3 rounded-lg bg-muted/30 p-4">
+      <div>
+        <h4 className="text-sm font-medium">Twilio Test Prep</h4>
+        <p className="text-sm text-muted-foreground">Use this before a real inbound call test.</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => {
+          const Icon = item.ready ? CheckCircle2 : CircleDashed;
+          return (
+            <div key={item.title} className="flex items-start gap-3 rounded-lg bg-background/60 p-3">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{item.title}</p>
+                <p className="text-sm text-muted-foreground">{item.detail}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

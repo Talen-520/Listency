@@ -31,6 +31,8 @@ async def handle_twilio_media_stream(
     session_id: str | None = None
     phone_call_id: int | None = None
     stream_sid = ""
+    call_end_reason = EndReason.CALLER_HUNG_UP
+    call_end_error: str | None = None
     try:
         while True:
             receive_task = asyncio.create_task(websocket.receive_text())
@@ -51,7 +53,7 @@ async def handle_twilio_media_stream(
                 if provider_event is None:
                     break
                 if provider_event and session_id:
-                    keep_open = await _handle_provider_event(
+                    keep_open, end_reason = await _handle_provider_event(
                         websocket,
                         session_id,
                         provider_event,
@@ -62,11 +64,12 @@ async def handle_twilio_media_stream(
                         phone_manager=phone_manager,
                     )
                     if not keep_open:
+                        call_end_reason = end_reason or call_end_reason
                         break
                 continue
 
             message = receive_task.result()
-            keep_open, session_id, phone_call_id, stream_sid = await _handle_twilio_event(
+            keep_open, session_id, phone_call_id, stream_sid, end_reason = await _handle_twilio_event(
                 websocket,
                 message,
                 session_id=session_id,
@@ -76,14 +79,24 @@ async def handle_twilio_media_stream(
                 session_manager=session_manager,
                 phone_manager=phone_manager,
             )
+            call_end_reason = end_reason or call_end_reason
             if not keep_open:
                 break
     except WebSocketDisconnect:
         db.add_log("info", "twilio_media_disconnected", "Twilio media stream disconnected.", {"session_id": session_id})
+    except Exception as exc:
+        call_end_reason = EndReason.PROVIDER_ERROR
+        call_end_error = str(exc)
+        db.add_log("error", "twilio_media_error", call_end_error, {"session_id": session_id})
     finally:
         if session_id and session_manager.get_active_session(session_id):
-            await session_manager.stop_session(session_id, EndReason.CALLER_HUNG_UP)
-        await phone_manager.finish_phone_call(phone_call_id, status="caller_hung_up", ended_reason=EndReason.CALLER_HUNG_UP)
+            await session_manager.stop_session(session_id, call_end_reason, call_end_error)
+        await phone_manager.finish_phone_call(
+            phone_call_id,
+            status=_phone_call_status_for_end_reason(call_end_reason),
+            ended_reason=call_end_reason,
+            error_message=call_end_error,
+        )
 
 
 async def _handle_twilio_event(
@@ -96,12 +109,12 @@ async def _handle_twilio_event(
     db: Database,
     session_manager: SessionManager,
     phone_manager: PhoneManager,
-) -> tuple[bool, str | None, int | None, str]:
+) -> tuple[bool, str | None, int | None, str, str | None]:
     event = json.loads(message)
     event_type = str(event.get("event") or "")
     if event_type == "connected":
         db.add_log("info", "twilio_media_connected", "Twilio media stream connected.")
-        return True, session_id, phone_call_id, stream_sid
+        return True, session_id, phone_call_id, stream_sid, None
 
     if event_type == "start":
         start = event.get("start") or {}
@@ -126,7 +139,7 @@ async def _handle_twilio_event(
             "Inbound Twilio call connected to Listency.",
             {"session_id": session_id, "phone_call_id": phone_call_id, "call_sid": call_sid},
         )
-        return True, session_id, phone_call_id, stream_sid
+        return True, session_id, phone_call_id, stream_sid, None
 
     if event_type == "media" and session_id:
         media = event.get("media") or {}
@@ -138,15 +151,14 @@ async def _handle_twilio_event(
             target_rate = _provider_input_rate(active.provider if active else "openai")
             pcm = resample_pcm16_mono(pcm8k, 8000, target_rate)
             await session_manager.receive_audio_chunk(session_id, pcm)
-        return True, session_id, phone_call_id, stream_sid
+        return True, session_id, phone_call_id, stream_sid, None
 
     if event_type == "stop":
         if session_id:
             await session_manager.stop_session(session_id, EndReason.CALLER_HUNG_UP)
-        await phone_manager.finish_phone_call(phone_call_id, status="completed", ended_reason=EndReason.CALLER_HUNG_UP)
-        return False, session_id, phone_call_id, stream_sid
+        return False, session_id, phone_call_id, stream_sid, EndReason.CALLER_HUNG_UP
 
-    return True, session_id, phone_call_id, stream_sid
+    return True, session_id, phone_call_id, stream_sid, None
 
 
 async def _handle_provider_event(
@@ -159,12 +171,12 @@ async def _handle_provider_event(
     session_manager: SessionManager,
     tool_registry: ToolRegistry,
     phone_manager: PhoneManager,
-) -> bool:
+) -> tuple[bool, str | None]:
     event = {"session_id": session_id, **event}
     event_type = str(event.get("type") or "")
     raw_type = str(event.get("raw_type") or event_type)
     if event_type == "session.ended":
-        return False
+        return False, str(event.get("ended_reason") or "")
 
     if event_type == "provider.output_audio.delta" and stream_sid:
         audio = str(event.get("audio") or "")
@@ -174,29 +186,37 @@ async def _handle_provider_event(
             pcm8k = resample_pcm16_mono(pcm, sample_rate, 8000)
             payload = base64.b64encode(pcm16_to_mulaw(pcm8k)).decode("ascii")
             await websocket.send_json({"event": "media", "streamSid": stream_sid, "media": {"payload": payload}})
-        return True
+        return True, None
 
     if event_type in {"provider.transcript.delta", "provider.transcript.done"}:
         content = str(event.get("content") or "")
         if content and event.get("is_final"):
             db.add_transcript(session_id, str(event.get("speaker") or "assistant"), content, True)
-        return True
+        return True, None
 
     if event_type == "provider.error":
         message = str(event.get("message") or "Realtime provider returned an error.")
         db.add_log("error", "provider_error", message, {"session_id": session_id, "raw_type": raw_type})
         await session_manager.stop_session(session_id, EndReason.PROVIDER_ERROR, message)
-        return False
+        return False, EndReason.PROVIDER_ERROR
 
     if event_type == "provider.tool_call.done":
         await _handle_tool_call(session_id, event, db=db, session_manager=session_manager, tool_registry=tool_registry, phone_manager=phone_manager)
-        return True
+        return True, None
 
     if raw_type in {"response.output_audio.done", "response.audio.done", "serverContent.turnComplete"} and session_manager.mark_agent_hangup_ready(session_id):
         await session_manager.stop_session(session_id, EndReason.AGENT_HUNG_UP)
-        return False
+        return False, EndReason.AGENT_HUNG_UP
 
-    return True
+    return True, None
+
+
+def _phone_call_status_for_end_reason(reason: str) -> str:
+    if reason in {EndReason.PROVIDER_ERROR, EndReason.NETWORK_ERROR}:
+        return "failed"
+    if reason == EndReason.CALLER_HUNG_UP:
+        return "caller_hung_up"
+    return "completed"
 
 
 async def _handle_tool_call(
