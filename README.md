@@ -23,9 +23,11 @@
 
 Listency runs a local desktop control panel and a thin local backend. In
 packaged builds, the desktop app starts a bundled backend sidecar automatically
-and stops it when the app closes. Users can save provider API keys, enter
-business information, edit an agent prompt, enable local tools, run microphone
-test calls, and inspect transcripts, tool calls, and provider events.
+and stops it when the app closes. Packaged builds also include the cloudflared
+connector used by automatic phone setup. Users can save provider API keys,
+enter business information, edit an agent prompt, enable local tools, run
+microphone test calls, and inspect transcripts, tool calls, and provider
+events.
 
 > Status: early MVP / alpha. The current project is intended for local
 > development and testing, not production phone deployment.
@@ -76,10 +78,15 @@ What works today:
 - Logs view with 24h / 7 days / 30 days filtering, JSON export, and per-session transcript, tool call, and event detail overlays.
 - Settings data controls for pruning records older than 30 days or clearing local logs.
 - Five-minute maximum duration for each active AI conversation.
+- Phone setup preview with Twilio/Telnyx configuration, automatic public
+  connection controls, Advanced custom URL mode, and Twilio inbound media stream
+  bridge scaffolding.
+- Bundled cloudflared connector for packaged macOS and Windows automatic phone
+  setup.
 
 Planned next:
 
-- Real phone provider configuration and inbound call lifecycle.
+- Complete real phone provider hardening and clean Twilio/Telnyx user testing.
 - Pipeline mode with separate STT, LLM, and TTS providers.
 - More complete booking and business workflow tools.
 - Signed macOS and Windows installers.
@@ -110,9 +117,10 @@ This is the intended path for general or non-technical users.
 8. Review transcripts, tool calls, and app events in Logs.
 9. Export Logs as JSON or use Settings to prune/clear local log data.
 
-Packaged builds include the backend sidecar, so users do not need Python, Node,
-pnpm, Rust, or a terminal. The app writes local configuration files for them
-and keeps provider keys in the local `.env`.
+Packaged builds include the backend sidecar and the cloudflared connector, so
+users do not need Python, Node, pnpm, Rust, cloudflared, or a terminal. The app
+writes local configuration files for them and keeps provider keys in the local
+`.env`.
 
 > Release installers are still planned. Current alpha macOS and Windows build
 > artifacts are produced by GitHub Actions for testing.
@@ -171,7 +179,8 @@ pnpm run tauri:dev
 The Tauri shell checks `127.0.0.1:8765` and starts a local backend automatically
 when no backend is already running. During development, it falls back to
 `app/backend/.venv` when no bundled sidecar is present. In packaged builds, it
-prefers the bundled `listency-backend` sidecar.
+prefers the bundled `listency-backend` sidecar and passes the bundled
+cloudflared connector path to the backend when present.
 
 For browser-only frontend development, start the backend manually:
 
@@ -194,7 +203,7 @@ The frontend dev server uses:
 http://127.0.0.1:5173/
 ```
 
-Build a distributable local app with a bundled backend sidecar:
+Build a distributable local app with bundled backend and cloudflared sidecars:
 
 ```bash
 cd app/backend
@@ -205,8 +214,8 @@ pnpm run tauri:build:sidecar
 ```
 
 Use `tauri:build:sidecar` for local app bundles that a user can open without
-installing Python, Node, pnpm, or Rust. The sidecar build writes a
-target-triple-specific backend executable under
+installing Python, Node, pnpm, Rust, or cloudflared. The sidecar build writes
+target-triple-specific backend and cloudflared binaries under
 `app/desktop/src-tauri/binaries/`, which is bundled into the Tauri app
 resources. When the app closes, the Tauri launcher shuts down the backend child
 process it started.
@@ -220,9 +229,9 @@ pnpm run tauri:build
 
 macOS and Windows packaged smoke are checked in GitHub Actions on pushes and
 pull requests to `main`. The workflows build the backend sidecar, run the
-clean-data sidecar smoke test, build the Tauri app, launch the packaged desktop
-app, verify backend health/CORS, close the app, and verify the backend shuts
-down.
+clean-data sidecar smoke test, download cloudflared for the runner platform,
+build the Tauri app, launch the packaged desktop app, verify backend
+health/CORS, close the app, and verify the backend shuts down.
 
 For macOS artifact testing, use `Listency-macos.zip` from the
 `listency-macos-*` workflow artifact, extract it, and open `Listency.app`.
@@ -285,6 +294,10 @@ Listency is designed to run locally first:
 - Session records are stored in local SQLite.
 - Log data can be exported as JSON from Logs and pruned or cleared from Settings.
 - Voice preview audio is cached locally.
+- Phone provider credentials are stored in the local `.env`. Automatic phone
+  connection uses the bundled cloudflared connector and exposes only `/phone/*`
+  provider webhooks; normal local app APIs remain blocked from the public tunnel
+  host.
 - Source/development mode stores local data under the repository `data/` directory.
 - Packaged sidecar mode stores `.env`, SQLite, and preview cache under the
   operating system's app local data directory through `VOICE_AGENT_ROOT`.

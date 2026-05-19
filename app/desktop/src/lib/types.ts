@@ -5,6 +5,26 @@ export type RuntimeStatus = {
   session_limit_seconds: number;
 };
 
+export type PhoneTunnelStatus = {
+  mode: string;
+  status: string;
+  public_base_url: string;
+  public_ws_url: string;
+  message: string;
+  provider: string;
+};
+
+export type PhoneStatus = {
+  provider: string;
+  provider_ready: boolean;
+  provider_error: string | null;
+  connection: PhoneTunnelStatus;
+  configured: boolean;
+  last_provisioned_url: string;
+  last_provisioned_at: string;
+  transfer_target_ready: boolean;
+};
+
 export type BackendHealth = {
   available: boolean;
   checking: boolean;
@@ -38,8 +58,26 @@ export type PublicConfig = {
   OPENAI_DEFAULT_VOICE: string;
   GEMINI_DEFAULT_VOICE: string;
   DEFAULT_VOICE: string;
+  PHONE_PROVIDER: string;
+  PHONE_CONNECTION_MODE: string;
+  PHONE_PUBLIC_BASE_URL: string;
+  PHONE_REALTIME_PROVIDER: string;
+  PHONE_TRANSFER_TARGET: string;
+  PHONE_LAST_PROVISIONED_URL: string;
+  PHONE_LAST_PROVISIONED_AT: string;
+  CLOUDFLARED_BIN: string;
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
+  TWILIO_PHONE_NUMBER: string;
+  TWILIO_PHONE_NUMBER_SID: string;
+  TELNYX_API_KEY: string;
+  TELNYX_CALL_CONTROL_APP_ID: string;
+  TELNYX_APPLICATION_NAME: string;
+  TELNYX_PHONE_NUMBER: string;
   has_openai_key: boolean;
   has_gemini_key: boolean;
+  has_twilio_auth_token: boolean;
+  has_telnyx_api_key: boolean;
   env_path: string;
 };
 
@@ -113,6 +151,22 @@ export type AppLogRecord = {
   created_at: string;
 };
 
+export type PhoneCallRecord = {
+  id: number;
+  provider: string;
+  provider_call_id: string;
+  provider_stream_id: string | null;
+  session_id: string | null;
+  from_number: string | null;
+  to_number: string | null;
+  status: string;
+  started_at: string;
+  answered_at: string | null;
+  ended_at: string | null;
+  ended_reason: string | null;
+  error_message: string | null;
+};
+
 export type VoicePreviewCache = {
   cached: Record<string, string[]>;
 };
@@ -135,6 +189,7 @@ export type LogExport = {
   transcripts: TranscriptRecord[];
   tool_calls: ToolCallRecord[];
   app_logs: AppLogRecord[];
+  phone_calls: PhoneCallRecord[];
 };
 
 export type LogDeleteCounts = {
@@ -143,6 +198,7 @@ export type LogDeleteCounts = {
   transcripts: number;
   tool_calls: number;
   app_logs: number;
+  phone_calls: number;
 };
 
 export type LogPruneResult = {

@@ -53,6 +53,7 @@ export function App() {
         return (
           <SettingsView
             config={data.config}
+            phoneStatus={data.phoneStatus}
             openAiKey={data.openAiKey}
             geminiKey={data.geminiKey}
             providerChoice={data.providerChoice}
@@ -61,6 +62,20 @@ export function App() {
             openAiMock={data.openAiMock}
             openAiVoice={data.openAiVoice}
             geminiVoice={data.geminiVoice}
+            phoneProvider={data.phoneProvider}
+            phoneConnectionMode={data.phoneConnectionMode}
+            phonePublicBaseUrl={data.phonePublicBaseUrl}
+            phoneRealtimeProvider={data.phoneRealtimeProvider}
+            phoneTransferTarget={data.phoneTransferTarget}
+            cloudflaredBin={data.cloudflaredBin}
+            twilioAccountSid={data.twilioAccountSid}
+            twilioAuthToken={data.twilioAuthToken}
+            twilioPhoneNumber={data.twilioPhoneNumber}
+            twilioPhoneNumberSid={data.twilioPhoneNumberSid}
+            telnyxApiKey={data.telnyxApiKey}
+            telnyxCallControlAppId={data.telnyxCallControlAppId}
+            telnyxApplicationName={data.telnyxApplicationName}
+            telnyxPhoneNumber={data.telnyxPhoneNumber}
             voicePreviewCache={data.voicePreviewCache}
             onOpenAiKeyChange={data.setOpenAiKey}
             onGeminiKeyChange={data.setGeminiKey}
@@ -70,7 +85,23 @@ export function App() {
             onOpenAiMockChange={data.setOpenAiMock}
             onOpenAiVoiceChange={data.setOpenAiVoice}
             onGeminiVoiceChange={data.setGeminiVoice}
+            onPhoneProviderChange={data.setPhoneProvider}
+            onPhoneConnectionModeChange={data.setPhoneConnectionMode}
+            onPhonePublicBaseUrlChange={data.setPhonePublicBaseUrl}
+            onPhoneRealtimeProviderChange={data.setPhoneRealtimeProvider}
+            onPhoneTransferTargetChange={data.setPhoneTransferTarget}
+            onCloudflaredBinChange={data.setCloudflaredBin}
+            onTwilioAccountSidChange={data.setTwilioAccountSid}
+            onTwilioAuthTokenChange={data.setTwilioAuthToken}
+            onTwilioPhoneNumberChange={data.setTwilioPhoneNumber}
+            onTwilioPhoneNumberSidChange={data.setTwilioPhoneNumberSid}
+            onTelnyxApiKeyChange={data.setTelnyxApiKey}
+            onTelnyxCallControlAppIdChange={data.setTelnyxCallControlAppId}
+            onTelnyxApplicationNameChange={data.setTelnyxApplicationName}
+            onTelnyxPhoneNumberChange={data.setTelnyxPhoneNumber}
             onPreviewVoice={data.previewVoice}
+            onConnectPhone={() => void data.runAction(data.connectPhone, "Phone connected")}
+            onStopPhoneConnection={() => void data.runAction(data.stopPhoneConnection, "Phone connection stopped")}
             onSave={() => void data.runAction(data.saveSettings, ".env saved")}
             onPruneLogs={() => void data.runAction(data.pruneOldLogs, "Old logs cleaned")}
             onClearLogs={() => void data.runAction(data.clearLogs, "Logs cleared")}

@@ -32,6 +32,21 @@ function findPortableSidecar() {
   return candidates[0];
 }
 
+function findPortableCloudflared() {
+  const binariesDir = path.join(portableDir, "binaries");
+  assert(fs.existsSync(binariesDir), `Portable binaries directory is missing: ${binariesDir}`);
+  const candidates = fs
+    .readdirSync(binariesDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(binariesDir, entry.name))
+    .filter((candidate) => {
+      const name = path.basename(candidate).toLowerCase();
+      return name.startsWith("cloudflared-") && name.endsWith(".exe");
+    });
+  assert(candidates.length > 0, `Portable cloudflared connector is missing from ${binariesDir}`);
+  return candidates[0];
+}
+
 async function fetchHealth() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
@@ -185,6 +200,7 @@ if (process.platform !== "win32") {
 
 assert(fs.existsSync(appExe), `Portable Listency.exe is missing: ${appExe}`);
 const sidecar = findPortableSidecar();
+const cloudflared = findPortableCloudflared();
 
 let existingBackendHealthy = false;
 try {
@@ -218,6 +234,7 @@ try {
   await waitForBackendOffline();
   console.log(`Windows desktop launcher smoke passed with ${path.relative(repoRoot, appExe)}`);
   console.log(`Portable sidecar: ${path.relative(repoRoot, sidecar)}`);
+  console.log(`Portable cloudflared: ${path.relative(repoRoot, cloudflared)}`);
   console.log("Windows desktop launcher shutdown cleanup passed.");
 } catch (error) {
   printDiagnostics(error);

@@ -13,6 +13,7 @@ use tauri::Manager;
 
 const BACKEND_PORT: u16 = 8765;
 const BACKEND_SIDECAR_NAME: &str = "listency-backend";
+const CLOUDFLARED_BINARY_NAME: &str = "cloudflared";
 
 struct BackendProcess {
     child: Mutex<Option<Child>>,
@@ -136,6 +137,7 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, Stri
             )
         })?;
 
+    let bundled_cloudflared = find_bundled_cloudflared(app);
     let mut command = Command::new(sidecar);
     command
         .current_dir(&app_data_dir)
@@ -146,6 +148,21 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, Stri
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
+    if let Some(cloudflared) = &bundled_cloudflared {
+        command.env("CLOUDFLARED_BIN", cloudflared.as_os_str());
+        append_bootstrap_log(
+            app,
+            &format!(
+                "Bundled cloudflared connector found: {}",
+                cloudflared.display()
+            ),
+        );
+    } else {
+        append_bootstrap_log(
+            app,
+            "No bundled cloudflared connector found; backend will use PATH or manual public URL.",
+        );
+    }
     hide_windows_console(&mut command);
     isolate_unix_process_group(&mut command);
 
@@ -359,6 +376,15 @@ fn find_bundled_sidecar(app: &tauri::App) -> Option<PathBuf> {
     None
 }
 
+fn find_bundled_cloudflared(app: &tauri::App) -> Option<PathBuf> {
+    for root in sidecar_search_roots(app) {
+        if let Some(cloudflared) = find_cloudflared_in_root(&root) {
+            return Some(cloudflared);
+        }
+    }
+    None
+}
+
 fn sidecar_search_roots(app: &tauri::App) -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
@@ -403,6 +429,25 @@ fn find_sidecar_in_root(root: &Path) -> Option<PathBuf> {
     None
 }
 
+fn find_cloudflared_in_root(root: &Path) -> Option<PathBuf> {
+    let binary_name = cloudflared_binary_name();
+    let exact = root.join(&binary_name);
+    if exact.is_file() {
+        return Some(exact);
+    }
+
+    if let Ok(entries) = std::fs::read_dir(root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if is_cloudflared_candidate(&path) {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
 enum BackendStartStatus {
     Healthy,
     Exited(Option<i32>),
@@ -431,6 +476,14 @@ fn sidecar_binary_name() -> String {
     }
 }
 
+fn cloudflared_binary_name() -> String {
+    if cfg!(target_os = "windows") {
+        format!("{CLOUDFLARED_BINARY_NAME}.exe")
+    } else {
+        CLOUDFLARED_BINARY_NAME.to_string()
+    }
+}
+
 fn is_sidecar_candidate(path: &Path) -> bool {
     if !path.is_file() {
         return false;
@@ -447,6 +500,24 @@ fn is_sidecar_candidate(path: &Path) -> bool {
     name == sidecar_binary_name()
         || name.starts_with(&format!("{BACKEND_SIDECAR_NAME}-"))
         || name.starts_with(&format!("{BACKEND_SIDECAR_NAME}."))
+}
+
+fn is_cloudflared_candidate(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+
+    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+
+    if cfg!(target_os = "windows") && !name.ends_with(".exe") {
+        return false;
+    }
+
+    name == cloudflared_binary_name()
+        || name.starts_with(&format!("{CLOUDFLARED_BINARY_NAME}-"))
+        || name.starts_with(&format!("{CLOUDFLARED_BINARY_NAME}."))
 }
 
 fn find_backend_dir() -> Option<PathBuf> {

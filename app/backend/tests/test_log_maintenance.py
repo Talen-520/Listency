@@ -50,6 +50,8 @@ class LogMaintenanceTest(unittest.TestCase):
             db.add_transcript("session", "user", "transcript")
             db.add_tool_call("business_info_lookup", {"query": "hours"}, {"answer": "open"}, "completed", "session")
             db.add_log("info", "event", "message", {"session_id": "session"})
+            phone_call_id = db.create_phone_call("twilio", "CA123", "+15550000001", "+15550000002")
+            db.attach_phone_session(phone_call_id, "session")
 
             deleted = db.clear_log_data()
 
@@ -58,7 +60,8 @@ class LogMaintenanceTest(unittest.TestCase):
             self.assertEqual(deleted["transcripts"], 1)
             self.assertEqual(deleted["tool_calls"], 1)
             self.assertEqual(deleted["app_logs"], 1)
-            self.assertEqual(db.export_log_data(), {"sessions": [], "transcripts": [], "tool_calls": [], "app_logs": []})
+            self.assertEqual(deleted["phone_calls"], 1)
+            self.assertEqual(db.export_log_data(), {"sessions": [], "transcripts": [], "tool_calls": [], "app_logs": [], "phone_calls": []})
 
     def test_export_log_data_filters_by_session_and_since(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

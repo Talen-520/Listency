@@ -79,6 +79,10 @@ jobs:
             exit $exitCode
           }
 
+      - name: Download cloudflared connector
+        working-directory: app/desktop
+        run: pnpm run cloudflared:sidecar
+
       - name: Build Windows Tauri app
         working-directory: app/desktop
         run: pnpm exec tauri build --bundles nsis
@@ -95,12 +99,14 @@ jobs:
       - name: Stage sidecar next to desktop exe
         shell: pwsh
         run: |
-          $sidecar = Get-Item "app/desktop/src-tauri/binaries/listency-backend-*.exe" | Select-Object -First 1
-          if ($sidecar) {
-            Copy-Item $sidecar.FullName "app/desktop/src-tauri/target/release/$($sidecar.Name)"
-            Write-Output "Staged sidecar: $($sidecar.Name)"
+          $binaries = Get-Item "app/desktop/src-tauri/binaries/listency-backend-*.exe", "app/desktop/src-tauri/binaries/cloudflared-*.exe" -ErrorAction SilentlyContinue
+          if ($binaries) {
+            foreach ($binary in $binaries) {
+              Copy-Item $binary.FullName "app/desktop/src-tauri/target/release/$($binary.Name)"
+              Write-Output "Staged binary: $($binary.Name)"
+            }
           } else {
-            Write-Warning "No sidecar exe found in binaries/"
+            Write-Warning "No packaged binaries found in binaries/"
           }
 
       - name: Upload Windows artifacts

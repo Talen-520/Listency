@@ -162,6 +162,22 @@ class Database:
                   metadata_json TEXT,
                   created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS phone_calls (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  provider TEXT NOT NULL,
+                  provider_call_id TEXT NOT NULL,
+                  provider_stream_id TEXT,
+                  session_id TEXT,
+                  from_number TEXT,
+                  to_number TEXT,
+                  status TEXT NOT NULL,
+                  started_at TEXT NOT NULL,
+                  answered_at TEXT,
+                  ended_at TEXT,
+                  ended_reason TEXT,
+                  error_message TEXT
+                );
                 """
             )
 
@@ -240,6 +256,94 @@ class Database:
                 """,
                 (session_id, provider, mode, utc_now(), status, timeout_at),
             )
+
+    def create_phone_call(self, provider: str, provider_call_id: str, from_number: str = "", to_number: str = "") -> int:
+        with self.open_connection() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO phone_calls (provider, provider_call_id, from_number, to_number, status, started_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (provider, provider_call_id, from_number, to_number, "starting", utc_now()),
+            )
+            return int(cursor.lastrowid)
+
+    def attach_phone_session(self, phone_call_id: int, session_id: str) -> None:
+        with self.open_connection() as connection:
+            connection.execute(
+                """
+                UPDATE phone_calls
+                SET session_id = ?, answered_at = ?
+                WHERE id = ?
+                """,
+                (session_id, utc_now(), phone_call_id),
+            )
+
+    def update_phone_call_stream(self, phone_call_id: int, provider_stream_id: str) -> None:
+        with self.open_connection() as connection:
+            connection.execute(
+                """
+                UPDATE phone_calls
+                SET provider_stream_id = ?
+                WHERE id = ?
+                """,
+                (provider_stream_id, phone_call_id),
+            )
+
+    def update_phone_call_status(
+        self,
+        phone_call_id: int,
+        status: str,
+        *,
+        ended_reason: str = "",
+        error_message: str | None = None,
+    ) -> None:
+        ended_at = utc_now() if status in {"completed", "failed", "transferred", "caller_hung_up"} else None
+        with self.open_connection() as connection:
+            connection.execute(
+                """
+                UPDATE phone_calls
+                SET status = ?,
+                    ended_at = COALESCE(?, ended_at),
+                    ended_reason = COALESCE(NULLIF(?, ''), ended_reason),
+                    error_message = COALESCE(?, error_message)
+                WHERE id = ?
+                """,
+                (status, ended_at, ended_reason, error_message, phone_call_id),
+            )
+
+    def get_phone_call_by_session(self, session_id: str) -> dict[str, Any] | None:
+        with self.open_connection() as connection:
+            row = connection.execute(
+                """
+                SELECT id, provider, provider_call_id, provider_stream_id, session_id, from_number, to_number,
+                       status, started_at, answered_at, ended_at, ended_reason, error_message
+                FROM phone_calls
+                WHERE session_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_phone_calls(self, limit: int = 100, since: str | None = None) -> list[dict[str, Any]]:
+        since = normalize_timestamp_filter(since)
+        query = """
+                SELECT id, provider, provider_call_id, provider_stream_id, session_id, from_number, to_number,
+                       status, started_at, answered_at, ended_at, ended_reason, error_message
+                FROM phone_calls
+                """
+        params: Iterable[Any]
+        if since:
+            query += " WHERE started_at >= ?"
+            params = (since,)
+        else:
+            params = ()
+        query += " ORDER BY started_at DESC LIMIT ?"
+        with self.open_connection() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
+        return [dict(row) for row in rows]
 
     def finish_session(
         self,
@@ -459,6 +563,18 @@ class Database:
                 session_column=None,
                 order_column="created_at",
             ),
+            "phone_calls": self._list_export_rows(
+                """
+                SELECT id, provider, provider_call_id, provider_stream_id, session_id, from_number, to_number,
+                       status, started_at, answered_at, ended_at, ended_reason, error_message
+                FROM phone_calls
+                """,
+                timestamp_column="started_at",
+                since=since,
+                session_id=session_id,
+                session_column="session_id",
+                order_column="started_at",
+            ),
         }
 
     def prune_log_data(self, retention_days: int = 30, protected_session_ids: Iterable[str] = ()) -> dict[str, Any]:
@@ -483,6 +599,7 @@ class Database:
                 "transcripts": 0,
                 "tool_calls": 0,
                 "app_logs": 0,
+                "phone_calls": 0,
             }
 
             for table, timestamp_column in (("messages", "created_at"), ("transcripts", "created_at")):
@@ -491,6 +608,8 @@ class Database:
 
             deleted["tool_calls"] += self._delete_by_session_ids(connection, "tool_calls", old_session_ids)
             deleted["tool_calls"] += self._delete_older_than(connection, "tool_calls", "started_at", cutoff, protected)
+            deleted["phone_calls"] += self._delete_by_session_ids(connection, "phone_calls", old_session_ids)
+            deleted["phone_calls"] += self._delete_older_than(connection, "phone_calls", "started_at", cutoff, protected)
 
             app_log_query = "DELETE FROM app_logs WHERE created_at < ?"
             app_log_params: list[Any] = [cutoff]
@@ -511,10 +630,11 @@ class Database:
             "transcripts": 0,
             "tool_calls": 0,
             "app_logs": 0,
+            "phone_calls": 0,
         }
         with self.open_connection() as connection:
             if not protected:
-                for table in ("messages", "transcripts", "tool_calls", "app_logs", "sessions"):
+                for table in ("messages", "transcripts", "tool_calls", "phone_calls", "app_logs", "sessions"):
                     deleted[table] = connection.execute(f"DELETE FROM {table}").rowcount
                 return deleted
 
@@ -526,6 +646,10 @@ class Database:
                 ).rowcount
             deleted["tool_calls"] = connection.execute(
                 f"DELETE FROM tool_calls WHERE session_id IS NULL OR session_id NOT IN ({placeholders})",
+                protected,
+            ).rowcount
+            deleted["phone_calls"] = connection.execute(
+                f"DELETE FROM phone_calls WHERE session_id IS NULL OR session_id NOT IN ({placeholders})",
                 protected,
             ).rowcount
 

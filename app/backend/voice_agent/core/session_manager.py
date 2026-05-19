@@ -30,6 +30,9 @@ class ActiveSession:
     handled_tool_call_ids: set[str] | None = None
     agent_hangup_requested: bool = False
     agent_hangup_ready: bool = False
+    phone_call_id: int | None = None
+    phone_provider: str | None = None
+    provider_call_id: str | None = None
 
 
 class SessionManager:
@@ -86,6 +89,48 @@ class SessionManager:
         return self.status()
 
     async def start_test_session(self, provider_name: str | None = None) -> dict[str, Any]:
+        return await self._start_realtime_session(
+            provider_name=provider_name,
+            mode="test_call",
+            system_transcript="Realtime test session started.",
+        )
+
+    async def start_phone_session(
+        self,
+        provider_name: str | None = None,
+        *,
+        phone_provider: str,
+        provider_call_id: str,
+        from_number: str = "",
+        to_number: str = "",
+        phone_call_id: int | None = None,
+    ) -> dict[str, Any]:
+        return await self._start_realtime_session(
+            provider_name=provider_name,
+            mode="phone_call",
+            system_transcript="Inbound phone call started.",
+            phone_call_id=phone_call_id,
+            phone_provider=phone_provider,
+            provider_call_id=provider_call_id,
+            call_context={
+                "phone_provider": phone_provider,
+                "provider_call_id": provider_call_id,
+                "from_number": from_number,
+                "to_number": to_number,
+            },
+        )
+
+    async def _start_realtime_session(
+        self,
+        provider_name: str | None = None,
+        *,
+        mode: str,
+        system_transcript: str,
+        phone_call_id: int | None = None,
+        phone_provider: str | None = None,
+        provider_call_id: str | None = None,
+        call_context: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         if self.background_status in {BackgroundStatus.STOPPED, BackgroundStatus.ERROR}:
             await self.start_background()
 
@@ -106,6 +151,14 @@ class SessionManager:
         business_content = str(profile.get("content") or "").strip()
         if business_content:
             instructions = f"{instructions}\n\nBusiness information:\n{business_content}".strip()
+        if call_context:
+            instructions = (
+                f"{instructions}\n\n"
+                "Phone call context:\n"
+                f"- Phone provider: {call_context.get('phone_provider', '')}\n"
+                f"- Caller number: {call_context.get('from_number', '') or 'unknown'}\n"
+                f"- Business number: {call_context.get('to_number', '') or 'unknown'}"
+            ).strip()
         instructions = (
             f"{instructions}\n\n"
             "Call control:\n"
@@ -129,11 +182,11 @@ class SessionManager:
         self.db.create_session(
             session_id=session_id,
             provider=provider_key,
-            mode="realtime",
+            mode=mode,
             status=SessionStatus.RUNNING,
             timeout_at=timeout_at.isoformat(),
         )
-        self.db.add_transcript(session_id, "system", "Realtime test session started.", True)
+        self.db.add_transcript(session_id, "system", system_transcript, True)
         timeout_task = asyncio.create_task(self._timeout_session(session_id))
         active = ActiveSession(
             id=session_id,
@@ -143,6 +196,9 @@ class SessionManager:
             handle=handle,
             timeout_task=timeout_task,
             provider_events=provider_events,
+            phone_call_id=phone_call_id,
+            phone_provider=phone_provider,
+            provider_call_id=provider_call_id,
         )
         self.active_sessions[session_id] = active
         return {

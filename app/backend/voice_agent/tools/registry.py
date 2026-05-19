@@ -11,6 +11,7 @@ from voice_agent.storage.database import Database
 class ToolContext:
     db: Database
     session_id: str | None = None
+    phone_manager: Any | None = None
 
 
 ToolHandler = Callable[[dict[str, Any], ToolContext], dict[str, Any]]

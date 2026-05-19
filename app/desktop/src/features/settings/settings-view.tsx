@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, CheckCircle2, KeyRound, Loader2, Play, RotateCcw, Trash2 } from "lucide-react";
+import { BadgeCheck, CheckCircle2, KeyRound, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
 import { DEFAULT_OPENAI_REALTIME_MODEL, geminiLiveModelOptions } from "@/lib/models";
-import type { PublicConfig, VoicePreviewCache } from "@/lib/types";
+import type { PhoneStatus, PublicConfig, VoicePreviewCache } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isSupportedVoice, type VoiceOption, voiceOptionsForProvider } from "@/lib/voices";
 
@@ -21,6 +21,7 @@ const PROVIDER_DEFAULT_VOICE = "__provider_default__";
 
 export function SettingsView({
   config,
+  phoneStatus,
   openAiKey,
   geminiKey,
   providerChoice,
@@ -29,6 +30,20 @@ export function SettingsView({
   openAiMock,
   openAiVoice,
   geminiVoice,
+  phoneProvider,
+  phoneConnectionMode,
+  phonePublicBaseUrl,
+  phoneRealtimeProvider,
+  phoneTransferTarget,
+  cloudflaredBin,
+  twilioAccountSid,
+  twilioAuthToken,
+  twilioPhoneNumber,
+  twilioPhoneNumberSid,
+  telnyxApiKey,
+  telnyxCallControlAppId,
+  telnyxApplicationName,
+  telnyxPhoneNumber,
   voicePreviewCache,
   onOpenAiKeyChange,
   onGeminiKeyChange,
@@ -38,13 +53,30 @@ export function SettingsView({
   onOpenAiMockChange,
   onOpenAiVoiceChange,
   onGeminiVoiceChange,
+  onPhoneProviderChange,
+  onPhoneConnectionModeChange,
+  onPhonePublicBaseUrlChange,
+  onPhoneRealtimeProviderChange,
+  onPhoneTransferTargetChange,
+  onCloudflaredBinChange,
+  onTwilioAccountSidChange,
+  onTwilioAuthTokenChange,
+  onTwilioPhoneNumberChange,
+  onTwilioPhoneNumberSidChange,
+  onTelnyxApiKeyChange,
+  onTelnyxCallControlAppIdChange,
+  onTelnyxApplicationNameChange,
+  onTelnyxPhoneNumberChange,
   onPreviewVoice,
+  onConnectPhone,
+  onStopPhoneConnection,
   onSave,
   onPruneLogs,
   onClearLogs,
   hasActiveSession,
 }: {
   config: PublicConfig;
+  phoneStatus: PhoneStatus;
   openAiKey: string;
   geminiKey: string;
   providerChoice: string;
@@ -53,6 +85,20 @@ export function SettingsView({
   openAiMock: string;
   openAiVoice: string;
   geminiVoice: string;
+  phoneProvider: string;
+  phoneConnectionMode: string;
+  phonePublicBaseUrl: string;
+  phoneRealtimeProvider: string;
+  phoneTransferTarget: string;
+  cloudflaredBin: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
+  twilioPhoneNumberSid: string;
+  telnyxApiKey: string;
+  telnyxCallControlAppId: string;
+  telnyxApplicationName: string;
+  telnyxPhoneNumber: string;
   voicePreviewCache: VoicePreviewCache;
   onOpenAiKeyChange: (value: string) => void;
   onGeminiKeyChange: (value: string) => void;
@@ -62,7 +108,23 @@ export function SettingsView({
   onOpenAiMockChange: (value: string) => void;
   onOpenAiVoiceChange: (value: string) => void;
   onGeminiVoiceChange: (value: string) => void;
+  onPhoneProviderChange: (value: string) => void;
+  onPhoneConnectionModeChange: (value: string) => void;
+  onPhonePublicBaseUrlChange: (value: string) => void;
+  onPhoneRealtimeProviderChange: (value: string) => void;
+  onPhoneTransferTargetChange: (value: string) => void;
+  onCloudflaredBinChange: (value: string) => void;
+  onTwilioAccountSidChange: (value: string) => void;
+  onTwilioAuthTokenChange: (value: string) => void;
+  onTwilioPhoneNumberChange: (value: string) => void;
+  onTwilioPhoneNumberSidChange: (value: string) => void;
+  onTelnyxApiKeyChange: (value: string) => void;
+  onTelnyxCallControlAppIdChange: (value: string) => void;
+  onTelnyxApplicationNameChange: (value: string) => void;
+  onTelnyxPhoneNumberChange: (value: string) => void;
   onPreviewVoice: (provider: string, voice: string) => Promise<void>;
+  onConnectPhone: () => void;
+  onStopPhoneConnection: () => void;
   onSave: () => void;
   onPruneLogs: () => void;
   onClearLogs: () => void;
@@ -205,6 +267,141 @@ export function SettingsView({
             />
           </Field>
         </ProviderPanel>
+      </div>
+
+      {/* Phone Section */}
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">Phone</h2>
+        <p className="text-sm text-muted-foreground">Connect inbound calls without exposing technical webhook settings.</p>
+      </div>
+      <Separator />
+      <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <PhoneProviderCard
+            active={phoneProvider === "none"}
+            title="Off"
+            description="Use local Test Call only."
+            onSelect={() => onPhoneProviderChange("none")}
+          />
+          <PhoneProviderCard
+            active={phoneProvider === "twilio"}
+            title="Twilio"
+            description="Connect Twilio inbound calls."
+            onSelect={() => onPhoneProviderChange("twilio")}
+          />
+          <PhoneProviderCard
+            active={phoneProvider === "telnyx"}
+            title="Telnyx"
+            description="Prepare Telnyx Call Control."
+            onSelect={() => onPhoneProviderChange("telnyx")}
+          />
+        </div>
+
+        {phoneProvider !== "none" && (
+          <Card className="space-y-5 rounded-lg p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold">Phone Connection</h3>
+                <p className="text-sm text-muted-foreground">
+                  Automatic mode creates a secure public connection and configures provider webhooks for you.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={onConnectPhone}>
+                  <PlugZap className="h-4 w-4" />
+                  Connect Phone
+                </Button>
+                <Button type="button" variant="outline" onClick={onStopPhoneConnection}>
+                  <Square className="h-4 w-4 fill-current stroke-current" />
+                  Stop Connection
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatusTile label="Provider" value={phoneStatus.provider === "none" ? "Off" : phoneStatus.provider} />
+              <StatusTile label="Connection" value={phoneStatus.connection.status || "Stopped"} />
+              <StatusTile label="Inbound Calls" value={phoneStatus.configured ? "Ready" : "Not Connected"} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Connection Mode">
+                <Select value={phoneConnectionMode} onValueChange={onPhoneConnectionModeChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Connection mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="automatic">Automatic Secure Connection</SelectItem>
+                    <SelectItem value="manual">Advanced Custom URL</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="AI Provider For Calls">
+                <Select value={phoneRealtimeProvider || "default"} onValueChange={(next) => onPhoneRealtimeProviderChange(next === "default" ? "" : next)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Use runtime default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Use Runtime Default</SelectItem>
+                    <SelectItem value="openai">OpenAI Realtime</SelectItem>
+                    <SelectItem value="gemini">Gemini Live</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <Field label="Transfer Target Number">
+              <Input placeholder="+15551234567" value={phoneTransferTarget} onChange={(event) => onPhoneTransferTargetChange(event.target.value)} />
+            </Field>
+
+            {phoneProvider === "twilio" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Twilio Account SID">
+                  <Input type="password" placeholder={config.TWILIO_ACCOUNT_SID || "AC..."} value={twilioAccountSid} onChange={(event) => onTwilioAccountSidChange(event.target.value)} />
+                </Field>
+                <Field label="Twilio Auth Token">
+                  <Input type="password" placeholder={config.TWILIO_AUTH_TOKEN || "auth token"} value={twilioAuthToken} onChange={(event) => onTwilioAuthTokenChange(event.target.value)} />
+                </Field>
+                <Field label="Twilio Phone Number">
+                  <Input placeholder="+15551234567" value={twilioPhoneNumber} onChange={(event) => onTwilioPhoneNumberChange(event.target.value)} />
+                </Field>
+                <Field label="Phone Number SID">
+                  <Input type="password" placeholder={config.TWILIO_PHONE_NUMBER_SID || "optional"} value={twilioPhoneNumberSid} onChange={(event) => onTwilioPhoneNumberSidChange(event.target.value)} />
+                </Field>
+              </div>
+            )}
+
+            {phoneProvider === "telnyx" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Telnyx API Key">
+                  <Input type="password" placeholder={config.TELNYX_API_KEY || "KEY..."} value={telnyxApiKey} onChange={(event) => onTelnyxApiKeyChange(event.target.value)} />
+                </Field>
+                <Field label="Call Control App ID">
+                  <Input value={telnyxCallControlAppId} onChange={(event) => onTelnyxCallControlAppIdChange(event.target.value)} />
+                </Field>
+                <Field label="Application Name">
+                  <Input value={telnyxApplicationName} onChange={(event) => onTelnyxApplicationNameChange(event.target.value)} />
+                </Field>
+                <Field label="Telnyx Phone Number">
+                  <Input placeholder="+15551234567" value={telnyxPhoneNumber} onChange={(event) => onTelnyxPhoneNumberChange(event.target.value)} />
+                </Field>
+              </div>
+            )}
+
+            <details className="rounded-lg bg-muted/40 p-4">
+              <summary className="cursor-pointer text-sm font-medium">Advanced</summary>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <Field label="Custom Public URL">
+                  <Input placeholder="https://voice.example.com" value={phonePublicBaseUrl} onChange={(event) => onPhonePublicBaseUrlChange(event.target.value)} />
+                </Field>
+                <Field label="cloudflared Binary">
+                  <Input placeholder="Bundled automatically in packaged builds" value={cloudflaredBin} onChange={(event) => onCloudflaredBinChange(event.target.value)} />
+                </Field>
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">{phoneStatus.connection.message}</p>
+            </details>
+          </Card>
+        )}
       </div>
 
       {/* Data Section */}
@@ -360,5 +557,57 @@ function ProviderPanel({
       </div>
       <div className="space-y-4">{children}</div>
     </Card>
+  );
+}
+
+function PhoneProviderCard({
+  active,
+  description,
+  onSelect,
+  title,
+}: {
+  active: boolean;
+  description: string;
+  onSelect: () => void;
+  title: string;
+}) {
+  return (
+    <Card
+      role="button"
+      tabIndex={0}
+      aria-pressed={active}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "flex items-start gap-3 rounded-lg p-4 outline-none transition-all duration-300",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        active ? "border-foreground/35 bg-card text-foreground ring-1 ring-foreground/10" : "bg-muted/25 text-muted-foreground opacity-70 hover:bg-muted/40 hover:opacity-100",
+      )}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
+        <PhoneCall className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 space-y-1">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+    </Card>
+  );
+}
+
+function StatusTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg bg-muted/40 p-4">
+      <CheckCircle2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-sm capitalize text-muted-foreground">{value.replace(/_/g, " ")}</p>
+      </div>
+    </div>
   );
 }

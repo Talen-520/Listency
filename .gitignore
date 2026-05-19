@@ -211,6 +211,7 @@ app/desktop/skills-lock.json
 app/desktop/src-tauri/gen/
 app/desktop/src-tauri/target/
 app/desktop/src-tauri/binaries/listency-backend-*
+app/desktop/src-tauri/binaries/cloudflared-*
 !app/desktop/src/lib/
 !app/desktop/src/lib/**
 app/backend/.venv/

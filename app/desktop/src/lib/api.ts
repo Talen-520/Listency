@@ -6,6 +6,7 @@ import type {
   LogExport,
   LogPruneResult,
   ProviderInfo,
+  PhoneStatus,
   PublicConfig,
   RuntimeStatus,
   SessionRecord,
@@ -59,12 +60,30 @@ export const api = {
     openai_default_voice: string;
     gemini_default_voice: string;
     default_voice: string;
+    phone_provider: string;
+    phone_connection_mode: string;
+    phone_public_base_url: string;
+    phone_realtime_provider: string;
+    phone_transfer_target: string;
+    cloudflared_bin: string;
+    twilio_account_sid: string;
+    twilio_auth_token: string;
+    twilio_phone_number: string;
+    twilio_phone_number_sid: string;
+    telnyx_api_key: string;
+    telnyx_call_control_app_id: string;
+    telnyx_application_name: string;
+    telnyx_phone_number: string;
   }) =>
     request<PublicConfig>("/config", {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
   providers: () => request<{ providers: ProviderInfo[] }>("/providers"),
+  phoneStatus: () => request<PhoneStatus>("/phone/status"),
+  startPhoneConnection: () => request<{ connection: PhoneStatus["connection"]; phone: PhoneStatus }>("/phone/connection/start", { method: "POST" }),
+  stopPhoneConnection: () => request<{ connection: PhoneStatus["connection"]; phone: PhoneStatus }>("/phone/connection/stop", { method: "POST" }),
+  provisionPhone: () => request<{ result: Record<string, string>; phone: PhoneStatus }>("/phone/provision", { method: "POST" }),
   voicePreviewCache: () => request<VoicePreviewCache>("/voice-previews"),
   createVoicePreview: async (payload: { provider: string; voice: string; text?: string }) => {
     const preview = await request<VoicePreviewRecord>("/voice-preview", {

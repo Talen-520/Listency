@@ -44,13 +44,13 @@ def transfer_call(payload: dict[str, Any], context: ToolContext) -> dict[str, An
     context.db.add_log(
         "info",
         "transfer_call_requested",
-        "Transfer call placeholder triggered.",
+        "Transfer call requested.",
         {"reason": reason, "target": target, "session_id": context.session_id},
     )
     return {
-        "status": "logged",
+        "status": "pending_phone_transfer",
         "target": target,
-        "message": "Transfer intent logged. Real phone transfer is pending phone provider integration.",
+        "message": "Transfer intent logged. If this is an active phone call with a configured provider, Listency will attempt the transfer.",
     }
 
 
@@ -139,8 +139,8 @@ def build_default_registry() -> ToolRegistry:
             ToolDefinition(
                 name="transfer_call",
                 description=(
-                    "Log a transfer-call intent. Use when the caller asks for a human, manager, front desk, emergency help, complaint escalation, "
-                    "billing dispute, or a task outside the agent's tools. Tell the caller that real phone transfer requires configured phone provider support."
+                    "Transfer an active phone call to business staff when phone provider support is configured; otherwise log the transfer intent. "
+                    "Use when the caller asks for a human, manager, front desk, emergency help, complaint escalation, billing dispute, or a task outside the agent's tools."
                 ),
                 input_schema={
                     "type": "object",

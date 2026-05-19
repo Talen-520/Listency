@@ -19,7 +19,7 @@ function findMainExe() {
   return found;
 }
 
-function findSidecars() {
+function findPortableBinaries() {
   if (!fs.existsSync(binariesDir)) {
     return [];
   }
@@ -29,21 +29,35 @@ function findSidecars() {
     .map((entry) => path.join(binariesDir, entry.name))
     .filter((candidate) => {
       const name = path.basename(candidate);
-      return name.startsWith("listency-backend-") && name.endsWith(".exe");
+      return (
+        (name.startsWith("listency-backend-") || name.startsWith("cloudflared-")) &&
+        name.endsWith(".exe")
+      );
     });
 }
 
 const mainExe = findMainExe();
-const sidecars = findSidecars();
+const portableBinaries = findPortableBinaries();
+const sidecars = portableBinaries.filter((candidate) => {
+  const name = path.basename(candidate);
+  return name.startsWith("listency-backend-") && name.endsWith(".exe");
+});
 if (sidecars.length === 0) {
   throw new Error(`No Windows backend sidecar found in ${binariesDir}. Run pnpm run backend:sidecar first.`);
+}
+const cloudflared = portableBinaries.filter((candidate) => {
+  const name = path.basename(candidate);
+  return name.startsWith("cloudflared-") && name.endsWith(".exe");
+});
+if (cloudflared.length === 0) {
+  throw new Error(`No Windows cloudflared connector found in ${binariesDir}. Run pnpm run cloudflared:sidecar first.`);
 }
 
 fs.rmSync(portableDir, { recursive: true, force: true });
 fs.mkdirSync(portableBinariesDir, { recursive: true });
 fs.copyFileSync(mainExe, path.join(portableDir, "Listency.exe"));
-for (const sidecar of sidecars) {
-  fs.copyFileSync(sidecar, path.join(portableBinariesDir, path.basename(sidecar)));
+for (const binary of portableBinaries) {
+  fs.copyFileSync(binary, path.join(portableBinariesDir, path.basename(binary)));
 }
 
 fs.writeFileSync(
@@ -52,7 +66,7 @@ fs.writeFileSync(
     "Listency portable Windows build",
     "",
     "Run Listency.exe from this directory.",
-    "Do not move Listency.exe away from the binaries folder; the local backend sidecar lives there.",
+    "Do not move Listency.exe away from the binaries folder; the local backend and cloudflared connector live there.",
     "",
   ].join("\r\n"),
 );

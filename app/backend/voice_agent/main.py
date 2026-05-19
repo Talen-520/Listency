@@ -3,20 +3,26 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import urllib.parse
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.session_manager import SessionManager
 from voice_agent.core.state import EndReason
 from voice_agent.core.voice_preview import DEFAULT_PREVIEW_TEXT, VoicePreviewService
+from voice_agent.phone import PhoneManager
+from voice_agent.phone.base import PhoneConfigError
+from voice_agent.phone.twilio import TwilioPhoneAdapter
+from voice_agent.phone.twilio_stream import handle_twilio_media_stream
 from voice_agent.providers import GeminiLiveAdapter, OpenAIRealtimeAdapter
 from voice_agent.providers.base import ProviderConfigError
 from voice_agent.storage.database import Database, normalize_timestamp_filter, utc_now
+from voice_agent.tunnel import PublicTunnelManager
 from voice_agent.tools import ToolContext, build_default_registry
 
 
@@ -30,6 +36,20 @@ class EnvUpdate(BaseModel):
     openai_default_voice: str = ""
     gemini_default_voice: str = ""
     default_voice: str = ""
+    phone_provider: str = Field(default="none", pattern="^(none|twilio|telnyx)$")
+    phone_connection_mode: str = Field(default="automatic", pattern="^(automatic|manual)$")
+    phone_public_base_url: str = ""
+    phone_realtime_provider: str = Field(default="", pattern="^(|openai|gemini)$")
+    phone_transfer_target: str = ""
+    cloudflared_bin: str = ""
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_phone_number: str = ""
+    twilio_phone_number_sid: str = ""
+    telnyx_api_key: str = ""
+    telnyx_call_control_app_id: str = ""
+    telnyx_application_name: str = "Listency"
+    telnyx_phone_number: str = ""
 
 
 class BusinessProfileUpdate(BaseModel):
@@ -96,6 +116,8 @@ session_manager = SessionManager(
     },
 )
 voice_preview_service = VoicePreviewService(env_store, session_manager.providers)
+public_tunnel_manager = PublicTunnelManager()
+phone_manager = PhoneManager(db, env_store, session_manager, public_tunnel_manager)
 
 app = FastAPI(title="Listency Local Backend", version="0.1.0")
 app.add_middleware(
@@ -111,6 +133,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _is_public_tunnel_host(host: str) -> bool:
+    env = env_store.read()
+    public_host = public_tunnel_manager.public_host(env)
+    if not public_host:
+        return False
+    return host.split(":", 1)[0].lower() == public_host.split(":", 1)[0].lower()
+
+
+def _parse_form_body(body: bytes) -> dict[str, str]:
+    parsed = urllib.parse.parse_qs(body.decode("utf-8"), keep_blank_values=True)
+    return {key: values[-1] if values else "" for key, values in parsed.items()}
+
+
+@app.middleware("http")
+async def restrict_public_tunnel_surface(request: Request, call_next):
+    host = request.headers.get("host", "")
+    if _is_public_tunnel_host(host) and not request.url.path.startswith("/phone/"):
+        return JSONResponse({"detail": "This public phone connection only accepts phone provider webhooks."}, status_code=404)
+    return await call_next(request)
+
+
+@app.on_event("shutdown")
+async def shutdown_phone_connection() -> None:
+    await public_tunnel_manager.stop()
 
 
 @app.get("/health")
@@ -134,11 +182,29 @@ async def save_config(update: EnvUpdate) -> dict[str, Any]:
         "OPENAI_DEFAULT_VOICE": update.openai_default_voice,
         "GEMINI_DEFAULT_VOICE": update.gemini_default_voice,
         "DEFAULT_VOICE": update.default_voice,
+        "PHONE_PROVIDER": update.phone_provider,
+        "PHONE_CONNECTION_MODE": update.phone_connection_mode,
+        "PHONE_PUBLIC_BASE_URL": update.phone_public_base_url,
+        "PHONE_REALTIME_PROVIDER": update.phone_realtime_provider,
+        "PHONE_TRANSFER_TARGET": update.phone_transfer_target,
+        "CLOUDFLARED_BIN": update.cloudflared_bin,
+        "TWILIO_PHONE_NUMBER": update.twilio_phone_number,
+        "TELNYX_CALL_CONTROL_APP_ID": update.telnyx_call_control_app_id,
+        "TELNYX_APPLICATION_NAME": update.telnyx_application_name,
+        "TELNYX_PHONE_NUMBER": update.telnyx_phone_number,
     }
     if update.openai_api_key:
         updates["OPENAI_API_KEY"] = update.openai_api_key
     if update.gemini_api_key:
         updates["GEMINI_API_KEY"] = update.gemini_api_key
+    if update.twilio_account_sid:
+        updates["TWILIO_ACCOUNT_SID"] = update.twilio_account_sid
+    if update.twilio_auth_token:
+        updates["TWILIO_AUTH_TOKEN"] = update.twilio_auth_token
+    if update.twilio_phone_number_sid:
+        updates["TWILIO_PHONE_NUMBER_SID"] = update.twilio_phone_number_sid
+    if update.telnyx_api_key:
+        updates["TELNYX_API_KEY"] = update.telnyx_api_key
     env_store.write(updates)
     return env_store.read_public()
 
@@ -165,6 +231,81 @@ async def list_providers() -> dict[str, Any]:
             }
         )
     return {"providers": providers}
+
+
+@app.get("/phone/status")
+async def phone_status() -> dict[str, Any]:
+    return phone_manager.status()
+
+
+@app.post("/phone/connection/start")
+async def start_phone_connection() -> dict[str, Any]:
+    return await phone_manager.start_connection()
+
+
+@app.post("/phone/connection/stop")
+async def stop_phone_connection() -> dict[str, Any]:
+    return await phone_manager.stop_connection()
+
+
+@app.post("/phone/provision")
+async def provision_phone() -> dict[str, Any]:
+    try:
+        return await phone_manager.provision()
+    except PhoneConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/phone/twilio/inbound")
+async def twilio_inbound(request: Request) -> Response:
+    form = _parse_form_body(await request.body())
+    env = env_store.read()
+    tunnel = public_tunnel_manager.status(env)
+    if tunnel.status != "running" or not tunnel.public_ws_url:
+        return Response(
+            '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Listency phone connection is not ready.</Say><Hangup /></Response>',
+            media_type="application/xml",
+            status_code=200,
+        )
+    twiml = TwilioPhoneAdapter().inbound_twiml(
+        tunnel.public_ws_url,
+        call_sid=form.get("CallSid", ""),
+        from_number=form.get("From", ""),
+        to_number=form.get("To", ""),
+    )
+    db.add_log("info", "twilio_inbound_webhook", "Twilio inbound call webhook received.", {"call_sid": form.get("CallSid")})
+    return Response(twiml, media_type="application/xml")
+
+
+@app.post("/phone/twilio/status")
+async def twilio_status(request: Request) -> dict[str, Any]:
+    form = _parse_form_body(await request.body())
+    db.add_log(
+        "info",
+        "twilio_call_status",
+        str(form.get("CallStatus") or "Twilio call status update."),
+        {"call_sid": form.get("CallSid"), "raw": form},
+    )
+    return {"ok": True}
+
+
+@app.websocket("/phone/twilio/media")
+async def twilio_media(websocket: WebSocket) -> None:
+    await handle_twilio_media_stream(
+        websocket,
+        db=db,
+        session_manager=session_manager,
+        tool_registry=tool_registry,
+        phone_manager=phone_manager,
+    )
+
+
+@app.post("/phone/telnyx/webhook")
+async def telnyx_webhook(request: Request) -> dict[str, Any]:
+    payload = await request.json()
+    event_type = str((payload.get("data") or {}).get("event_type") or "telnyx_webhook")
+    db.add_log("info", "telnyx_webhook", event_type, {"raw": payload})
+    return {"ok": True}
 
 
 @app.get("/voice-previews")
@@ -231,6 +372,9 @@ async def list_transcripts(session_id: str | None = None, limit: int = 100, sinc
 
 @app.websocket("/sessions/{session_id}/stream")
 async def session_stream(websocket: WebSocket, session_id: str) -> None:
+    if _is_public_tunnel_host(websocket.headers.get("host", "")):
+        await websocket.close(code=4403)
+        return
     await websocket.accept()
     if not session_manager.get_active_session(session_id):
         await websocket.send_json({"type": "session.error", "message": "Session is not active."})
@@ -326,7 +470,11 @@ async def _handle_provider_tool_call(websocket: WebSocket, session_id: str, even
         db.add_tool_call(tool_name or "unknown_tool", payload, output, "failed", session_id, output["error"])
     else:
         try:
-            result = tool_registry.call(tool_name, payload, ToolContext(db=db, session_id=session_id))
+            result = tool_registry.call(tool_name, payload, ToolContext(db=db, session_id=session_id, phone_manager=phone_manager))
+            if tool_name == "transfer_call":
+                target = str(payload.get("target") or "")
+                reason = str(payload.get("reason") or "")
+                result = await phone_manager.transfer_for_session(session_id, target, reason)
             output = {"ok": True, "result": result}
             if tool_name == "end_call":
                 session_manager.request_agent_hangup(session_id)
@@ -530,7 +678,7 @@ async def call_tool(tool_name: str, request: ToolCallRequest) -> dict[str, Any]:
         return tool_registry.call(
             tool_name,
             request.payload,
-            ToolContext(db=db, session_id=request.session_id),
+            ToolContext(db=db, session_id=request.session_id, phone_manager=phone_manager),
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

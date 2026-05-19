@@ -52,6 +52,31 @@ function findBundledSidecar() {
   return candidates[0];
 }
 
+function findBundledCloudflared() {
+  const resourcesBinariesDir = path.join(appBundle, "Contents", "Resources", "binaries");
+  const candidates = [];
+
+  for (const candidate of [
+    path.join(appBundle, "Contents", "MacOS", "cloudflared"),
+    path.join(resourcesBinariesDir, "cloudflared"),
+  ]) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      candidates.push(candidate);
+    }
+  }
+
+  if (fs.existsSync(resourcesBinariesDir)) {
+    for (const entry of fs.readdirSync(resourcesBinariesDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.startsWith("cloudflared-")) {
+        candidates.push(path.join(resourcesBinariesDir, entry.name));
+      }
+    }
+  }
+
+  assert(candidates.length > 0, `Bundled cloudflared connector is missing from ${appBundle}`);
+  return candidates[0];
+}
+
 async function fetchHealth() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
@@ -197,6 +222,7 @@ if (process.platform !== "darwin") {
 
 assert(fs.existsSync(appBundle), `Listency.app is missing: ${appBundle}`);
 const sidecar = findBundledSidecar();
+const cloudflared = findBundledCloudflared();
 
 let existingBackendHealthy = false;
 try {
@@ -223,6 +249,7 @@ try {
   await waitForBackendOffline();
   console.log(`macOS desktop launcher smoke passed with ${path.relative(repoRoot, appBundle)}`);
   console.log(`Bundled sidecar: ${path.relative(repoRoot, sidecar)}`);
+  console.log(`Bundled cloudflared: ${path.relative(repoRoot, cloudflared)}`);
   console.log("macOS desktop launcher shutdown cleanup passed.");
 } catch (error) {
   printDiagnostics(error);

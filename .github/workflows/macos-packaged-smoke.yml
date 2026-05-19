@@ -71,6 +71,10 @@ jobs:
         timeout-minutes: 3
         run: pnpm run backend:sidecar:smoke 2>&1 | tee smoke.log
 
+      - name: Download cloudflared connector
+        working-directory: app/desktop
+        run: pnpm run cloudflared:sidecar
+
       - name: Build macOS Tauri app
         working-directory: app/desktop
         run: pnpm exec tauri build --bundles app

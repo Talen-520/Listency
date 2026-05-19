@@ -9,6 +9,7 @@ import type {
   BackendHealth,
   BusinessProfile,
   LogTimeWindow,
+  PhoneStatus,
   ProviderInfo,
   PublicConfig,
   ReadinessCheck,
@@ -31,8 +32,26 @@ const emptyConfig: PublicConfig = {
   OPENAI_DEFAULT_VOICE: "",
   GEMINI_DEFAULT_VOICE: "",
   DEFAULT_VOICE: "",
+  PHONE_PROVIDER: "none",
+  PHONE_CONNECTION_MODE: "automatic",
+  PHONE_PUBLIC_BASE_URL: "",
+  PHONE_REALTIME_PROVIDER: "",
+  PHONE_TRANSFER_TARGET: "",
+  PHONE_LAST_PROVISIONED_URL: "",
+  PHONE_LAST_PROVISIONED_AT: "",
+  CLOUDFLARED_BIN: "",
+  TWILIO_ACCOUNT_SID: "",
+  TWILIO_AUTH_TOKEN: "",
+  TWILIO_PHONE_NUMBER: "",
+  TWILIO_PHONE_NUMBER_SID: "",
+  TELNYX_API_KEY: "",
+  TELNYX_CALL_CONTROL_APP_ID: "",
+  TELNYX_APPLICATION_NAME: "Listency",
+  TELNYX_PHONE_NUMBER: "",
   has_openai_key: false,
   has_gemini_key: false,
+  has_twilio_auth_token: false,
+  has_telnyx_api_key: false,
   env_path: "",
 };
 
@@ -52,6 +71,24 @@ const emptyBackendHealth: BackendHealth = {
 
 const emptyVoicePreviewCache: VoicePreviewCache = {
   cached: {},
+};
+
+const emptyPhoneStatus: PhoneStatus = {
+  provider: "none",
+  provider_ready: false,
+  provider_error: null,
+  connection: {
+    mode: "automatic",
+    status: "stopped",
+    public_base_url: "",
+    public_ws_url: "",
+    message: "Automatic secure connection is stopped.",
+    provider: "cloudflare",
+  },
+  configured: false,
+  last_provisioned_url: "",
+  last_provisioned_at: "",
+  transfer_target_ready: false,
 };
 
 const defaultBusiness: BusinessProfile = {
@@ -117,6 +154,7 @@ export function useAppData() {
   const [backendHealth, setBackendHealth] = useState<BackendHealth>(emptyBackendHealth);
   const [config, setConfig] = useState<PublicConfig>(emptyConfig);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [phoneStatus, setPhoneStatus] = useState<PhoneStatus>(emptyPhoneStatus);
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [transcripts, setTranscripts] = useState<TranscriptRecord[]>([]);
@@ -135,6 +173,20 @@ export function useAppData() {
   const [openAiMock, setOpenAiMock] = useState("false");
   const [openAiVoice, setOpenAiVoice] = useState("");
   const [geminiVoice, setGeminiVoice] = useState("");
+  const [phoneProvider, setPhoneProvider] = useState("none");
+  const [phoneConnectionMode, setPhoneConnectionMode] = useState("automatic");
+  const [phonePublicBaseUrl, setPhonePublicBaseUrl] = useState("");
+  const [phoneRealtimeProvider, setPhoneRealtimeProvider] = useState("");
+  const [phoneTransferTarget, setPhoneTransferTarget] = useState("");
+  const [cloudflaredBin, setCloudflaredBin] = useState("");
+  const [twilioAccountSid, setTwilioAccountSid] = useState("");
+  const [twilioAuthToken, setTwilioAuthToken] = useState("");
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState("");
+  const [twilioPhoneNumberSid, setTwilioPhoneNumberSid] = useState("");
+  const [telnyxApiKey, setTelnyxApiKey] = useState("");
+  const [telnyxCallControlAppId, setTelnyxCallControlAppId] = useState("");
+  const [telnyxApplicationName, setTelnyxApplicationName] = useState("Listency");
+  const [telnyxPhoneNumber, setTelnyxPhoneNumber] = useState("");
   const [now, setNow] = useState(Date.now());
   const hasLoadedAllRef = useRef(false);
   const isLoadingAllRef = useRef(false);
@@ -197,6 +249,17 @@ export function useAppData() {
             : "Enable at least one tool.",
         ready: enabledToolCount > 0,
       },
+      {
+        id: "phone",
+        label: "Phone",
+        detail:
+          phoneStatus.provider === "none"
+            ? "Phone calls are optional for the current local test flow."
+            : phoneStatus.configured
+              ? `${phoneStatus.provider} inbound calls are connected.`
+              : "Connect phone service from Settings.",
+        ready: phoneStatus.provider === "none" || phoneStatus.configured,
+      },
     ];
   }, [
     agent.system_prompt,
@@ -205,6 +268,8 @@ export function useAppData() {
     config.has_gemini_key,
     config.has_openai_key,
     providerChoice,
+    phoneStatus.configured,
+    phoneStatus.provider,
     selectedProvider?.display_name,
     selectedProviderReady,
     status.background_status,
@@ -237,6 +302,7 @@ export function useAppData() {
         health,
         cfg,
         providerList,
+        phone,
         toolList,
         sessionList,
         transcriptList,
@@ -249,6 +315,7 @@ export function useAppData() {
         api.health(),
         api.getConfig(),
         api.providers(),
+        api.phoneStatus().catch(() => emptyPhoneStatus),
         api.tools(),
         api.sessions(since, 200),
         api.transcripts(undefined, 300, since),
@@ -267,6 +334,7 @@ export function useAppData() {
       setStatus(health.runtime);
       setConfig(cfg);
       setProviders(providerList.providers);
+      setPhoneStatus(phone);
       setTools(toolList.tools);
       setSessions(sessionList.sessions);
       setTranscripts(transcriptList.transcripts);
@@ -289,6 +357,20 @@ export function useAppData() {
         cfg.GEMINI_DEFAULT_VOICE ||
           (defaultProvider === "gemini" && isSupportedVoice("gemini", legacyVoice) ? legacyVoice : ""),
       );
+      setPhoneProvider(cfg.PHONE_PROVIDER || "none");
+      setPhoneConnectionMode(cfg.PHONE_CONNECTION_MODE || "automatic");
+      setPhonePublicBaseUrl(cfg.PHONE_PUBLIC_BASE_URL || "");
+      setPhoneRealtimeProvider(cfg.PHONE_REALTIME_PROVIDER || "");
+      setPhoneTransferTarget(cfg.PHONE_TRANSFER_TARGET || "");
+      setCloudflaredBin(cfg.CLOUDFLARED_BIN || "");
+      setTwilioAccountSid("");
+      setTwilioAuthToken("");
+      setTwilioPhoneNumber(cfg.TWILIO_PHONE_NUMBER || "");
+      setTwilioPhoneNumberSid("");
+      setTelnyxApiKey("");
+      setTelnyxCallControlAppId(cfg.TELNYX_CALL_CONTROL_APP_ID || "");
+      setTelnyxApplicationName(cfg.TELNYX_APPLICATION_NAME || "Listency");
+      setTelnyxPhoneNumber(cfg.TELNYX_PHONE_NUMBER || "");
       hasLoadedAllRef.current = true;
       return true;
     } catch (err) {
@@ -381,10 +463,63 @@ export function useAppData() {
       openai_default_voice: openAiVoice,
       gemini_default_voice: geminiVoice,
       default_voice: providerChoice === "gemini" ? geminiVoice : openAiVoice,
+      phone_provider: phoneProvider,
+      phone_connection_mode: phoneConnectionMode,
+      phone_public_base_url: phonePublicBaseUrl,
+      phone_realtime_provider: phoneRealtimeProvider,
+      phone_transfer_target: phoneTransferTarget,
+      cloudflared_bin: cloudflaredBin,
+      twilio_account_sid: twilioAccountSid,
+      twilio_auth_token: twilioAuthToken,
+      twilio_phone_number: twilioPhoneNumber,
+      twilio_phone_number_sid: twilioPhoneNumberSid,
+      telnyx_api_key: telnyxApiKey,
+      telnyx_call_control_app_id: telnyxCallControlAppId,
+      telnyx_application_name: telnyxApplicationName,
+      telnyx_phone_number: telnyxPhoneNumber,
     });
     setOpenAiKey("");
     setGeminiKey("");
-  }, [geminiKey, geminiModel, geminiVoice, openAiKey, openAiMock, openAiModel, openAiVoice, providerChoice]);
+    setTwilioAccountSid("");
+    setTwilioAuthToken("");
+    setTwilioPhoneNumberSid("");
+    setTelnyxApiKey("");
+  }, [
+    cloudflaredBin,
+    geminiKey,
+    geminiModel,
+    geminiVoice,
+    openAiKey,
+    openAiMock,
+    openAiModel,
+    openAiVoice,
+    phoneConnectionMode,
+    phoneProvider,
+    phonePublicBaseUrl,
+    phoneRealtimeProvider,
+    phoneTransferTarget,
+    providerChoice,
+    telnyxApiKey,
+    telnyxApplicationName,
+    telnyxCallControlAppId,
+    telnyxPhoneNumber,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioPhoneNumber,
+    twilioPhoneNumberSid,
+  ]);
+
+  const connectPhone = useCallback(async () => {
+    await saveSettings();
+    await api.startPhoneConnection();
+    const provisioned = await api.provisionPhone();
+    setPhoneStatus(provisioned.phone);
+  }, [saveSettings]);
+
+  const stopPhoneConnection = useCallback(async () => {
+    const stopped = await api.stopPhoneConnection();
+    setPhoneStatus(stopped.phone);
+  }, []);
 
   const previewVoice = useCallback(async (provider: string, voice: string) => {
     try {
@@ -425,6 +560,7 @@ export function useAppData() {
     backendHealth,
     config,
     providers,
+    phoneStatus,
     tools,
     sessions,
     transcripts,
@@ -445,6 +581,20 @@ export function useAppData() {
     openAiMock,
     openAiVoice,
     geminiVoice,
+    phoneProvider,
+    phoneConnectionMode,
+    phonePublicBaseUrl,
+    phoneRealtimeProvider,
+    phoneTransferTarget,
+    cloudflaredBin,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioPhoneNumber,
+    twilioPhoneNumberSid,
+    telnyxApiKey,
+    telnyxCallControlAppId,
+    telnyxApplicationName,
+    telnyxPhoneNumber,
     activeSession,
     remainingSeconds,
     selectedProviderReady,
@@ -452,6 +602,8 @@ export function useAppData() {
     loadAll,
     runAction,
     saveSettings,
+    connectPhone,
+    stopPhoneConnection,
     previewVoice,
     downloadLogs,
     pruneOldLogs,
@@ -471,5 +623,19 @@ export function useAppData() {
     setOpenAiMock,
     setOpenAiVoice,
     setGeminiVoice,
+    setPhoneProvider,
+    setPhoneConnectionMode,
+    setPhonePublicBaseUrl,
+    setPhoneRealtimeProvider,
+    setPhoneTransferTarget,
+    setCloudflaredBin,
+    setTwilioAccountSid,
+    setTwilioAuthToken,
+    setTwilioPhoneNumber,
+    setTwilioPhoneNumberSid,
+    setTelnyxApiKey,
+    setTelnyxCallControlAppId,
+    setTelnyxApplicationName,
+    setTelnyxPhoneNumber,
   };
 }
