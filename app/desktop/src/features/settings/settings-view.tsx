@@ -30,6 +30,15 @@ const PHONE_CONNECTION_LABELS: Record<string, string> = {
   starting: "Starting",
   stopped: "Stopped",
 };
+type StatusTone = "neutral" | "ok" | "warning";
+type PhoneActionState = "idle" | "connecting" | "provisioning" | "stopping";
+type PhoneNoticeTone = "info" | "warning" | "error";
+type PhoneNoticeInfo = {
+  blocking: boolean;
+  detail: string;
+  title: string;
+  tone: PhoneNoticeTone;
+};
 
 function titleCaseStatus(value: string) {
   return value
@@ -56,6 +65,181 @@ function connectionTone(value: string): StatusTone {
     return "warning";
   }
   return "neutral";
+}
+
+function hasValue(value: string | boolean) {
+  return typeof value === "boolean" ? value : value.trim().length > 0;
+}
+
+function missingPhoneFields({
+  config,
+  phoneProvider,
+  telnyxApiKey,
+  telnyxCallControlAppId,
+  twilioAccountSid,
+  twilioAuthToken,
+  twilioPhoneNumber,
+  twilioPhoneNumberSid,
+}: {
+  config: PublicConfig;
+  phoneProvider: string;
+  telnyxApiKey: string;
+  telnyxCallControlAppId: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
+  twilioPhoneNumberSid: string;
+}) {
+  const missing: string[] = [];
+
+  if (phoneProvider === "twilio") {
+    if (!hasValue(twilioAccountSid) && !hasValue(config.TWILIO_ACCOUNT_SID)) {
+      missing.push("Account SID");
+    }
+    if (!hasValue(twilioAuthToken) && !config.has_twilio_auth_token) {
+      missing.push("Auth Token");
+    }
+    if (!hasValue(twilioPhoneNumber) && !hasValue(twilioPhoneNumberSid) && !hasValue(config.TWILIO_PHONE_NUMBER_SID)) {
+      missing.push("Phone Number");
+    }
+  }
+
+  if (phoneProvider === "telnyx") {
+    if (!hasValue(telnyxApiKey) && !config.has_telnyx_api_key) {
+      missing.push("API Key");
+    }
+    if (!hasValue(telnyxCallControlAppId)) {
+      missing.push("Call Control App ID");
+    }
+  }
+
+  return missing;
+}
+
+function phoneNotice({
+  config,
+  phoneAction,
+  phoneConnectionMode,
+  phoneConnectionStatus,
+  phoneProvider,
+  phonePublicBaseUrl,
+  phoneStatus,
+  selectedPhoneProviderConfigured,
+  telnyxApiKey,
+  telnyxCallControlAppId,
+  twilioAccountSid,
+  twilioAuthToken,
+  twilioPhoneNumber,
+  twilioPhoneNumberSid,
+}: {
+  config: PublicConfig;
+  phoneAction: PhoneActionState;
+  phoneConnectionMode: string;
+  phoneConnectionStatus: string;
+  phoneProvider: string;
+  phonePublicBaseUrl: string;
+  phoneStatus: PhoneStatus;
+  selectedPhoneProviderConfigured: boolean;
+  telnyxApiKey: string;
+  telnyxCallControlAppId: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
+  twilioPhoneNumberSid: string;
+}): PhoneNoticeInfo | null {
+  if (phoneProvider === "none") {
+    return null;
+  }
+
+  if (phoneAction === "connecting") {
+    return {
+      blocking: true,
+      detail: "Starting the local secure connection for inbound phone webhooks.",
+      title: "Creating secure connection",
+      tone: "info",
+    };
+  }
+
+  if (phoneAction === "provisioning") {
+    return {
+      blocking: true,
+      detail: `Configuring ${providerLabel(phoneProvider)} webhooks to point at Listency.`,
+      title: "Configuring provider webhooks",
+      tone: "info",
+    };
+  }
+
+  if (phoneAction === "stopping") {
+    return {
+      blocking: true,
+      detail: "Stopping the public connection used for inbound phone webhooks.",
+      title: "Stopping phone connection",
+      tone: "info",
+    };
+  }
+
+  const missing = missingPhoneFields({
+    config,
+    phoneProvider,
+    telnyxApiKey,
+    telnyxCallControlAppId,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioPhoneNumber,
+    twilioPhoneNumberSid,
+  });
+
+  if (missing.length > 0) {
+    return {
+      blocking: true,
+      detail: `Missing ${missing.join(", ")}.`,
+      title: `Add ${providerLabel(phoneProvider)} settings`,
+      tone: "warning",
+    };
+  }
+
+  if (phoneConnectionMode === "manual" && !phonePublicBaseUrl.trim()) {
+    return {
+      blocking: true,
+      detail: "Advanced Custom URL mode needs a public HTTPS URL before provider webhooks can be configured.",
+      title: "Add Custom Public URL",
+      tone: "warning",
+    };
+  }
+
+  if (phoneStatus.provider === phoneProvider && phoneStatus.provider_error) {
+    return {
+      blocking: false,
+      detail: phoneStatus.provider_error,
+      title: `${providerLabel(phoneProvider)} needs attention`,
+      tone: "error",
+    };
+  }
+
+  if (phoneConnectionStatus === "missing_connector" || phoneConnectionStatus === "not_configured") {
+    return {
+      blocking: false,
+      detail: phoneStatus.connection.message || "Phone connection is not ready yet.",
+      title: connectionLabel(phoneConnectionStatus),
+      tone: "warning",
+    };
+  }
+
+  if (selectedPhoneProviderConfigured) {
+    return {
+      blocking: false,
+      detail: "Inbound calls are connected to the selected phone provider.",
+      title: "Inbound calls ready",
+      tone: "info",
+    };
+  }
+
+  return {
+    blocking: false,
+    detail: "Click Connect Phone to create the secure connection and configure provider webhooks.",
+    title: "Ready to connect",
+    tone: "info",
+  };
 }
 
 export function SettingsView({
@@ -162,14 +346,15 @@ export function SettingsView({
   onTelnyxApplicationNameChange: (value: string) => void;
   onTelnyxPhoneNumberChange: (value: string) => void;
   onPreviewVoice: (provider: string, voice: string) => Promise<void>;
-  onConnectPhone: () => void;
-  onStopPhoneConnection: () => void;
+  onConnectPhone: () => Promise<void>;
+  onStopPhoneConnection: () => Promise<void>;
   onSave: () => void;
   onPruneLogs: () => void;
   onClearLogs: () => void;
   hasActiveSession: boolean;
 }) {
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+  const [phoneAction, setPhoneAction] = useState<PhoneActionState>("idle");
   const openAiVoiceOptions = voiceOptionsForProvider("openai");
   const geminiVoiceOptions = voiceOptionsForProvider("gemini");
   const cachedOpenAiVoices = useMemo(() => new Set(voicePreviewCache.cached.openai ?? []), [voicePreviewCache.cached.openai]);
@@ -198,8 +383,56 @@ export function SettingsView({
   }
 
   const phoneConnectionStatus = phoneStatus.connection.status || "stopped";
+  const phoneActionBusy = phoneAction !== "idle";
   const canStopPhoneConnection = phoneConnectionStatus === "running" || phoneConnectionStatus === "starting";
   const selectedPhoneProviderConfigured = phoneStatus.configured && phoneStatus.provider === phoneProvider;
+  const notice = phoneNotice({
+    config,
+    phoneAction,
+    phoneConnectionMode,
+    phoneConnectionStatus,
+    phoneProvider,
+    phonePublicBaseUrl,
+    phoneStatus,
+    selectedPhoneProviderConfigured,
+    telnyxApiKey,
+    telnyxCallControlAppId,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioPhoneNumber,
+    twilioPhoneNumberSid,
+  });
+  const canConnectPhone = !phoneActionBusy && !notice?.blocking;
+  const connectPhoneLabel =
+    phoneAction === "connecting" ? "Connecting..." : phoneAction === "provisioning" ? "Configuring Webhooks..." : "Connect Phone";
+
+  async function handleConnectPhone() {
+    if (!canConnectPhone) {
+      return;
+    }
+    setPhoneAction("connecting");
+    const provisioningTimer = window.setTimeout(() => {
+      setPhoneAction("provisioning");
+    }, 800);
+    try {
+      await onConnectPhone();
+    } finally {
+      window.clearTimeout(provisioningTimer);
+      setPhoneAction("idle");
+    }
+  }
+
+  async function handleStopPhoneConnection() {
+    if (!canStopPhoneConnection || phoneActionBusy) {
+      return;
+    }
+    setPhoneAction("stopping");
+    try {
+      await onStopPhoneConnection();
+    } finally {
+      setPhoneAction("idle");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -350,16 +583,22 @@ export function SettingsView({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={onConnectPhone}>
-                  <PlugZap className="h-4 w-4" />
-                  Connect Phone
+                <Button type="button" disabled={!canConnectPhone} onClick={handleConnectPhone}>
+                  {phoneAction === "connecting" || phoneAction === "provisioning" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <PlugZap className="h-4 w-4" />
+                  )}
+                  {connectPhoneLabel}
                 </Button>
-                <Button type="button" variant="outline" disabled={!canStopPhoneConnection} onClick={onStopPhoneConnection}>
-                  <Square className="h-4 w-4 fill-current stroke-current" />
+                <Button type="button" variant="outline" disabled={!canStopPhoneConnection || phoneActionBusy} onClick={handleStopPhoneConnection}>
+                  {phoneAction === "stopping" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 fill-current stroke-current" />}
                   Stop Connection
                 </Button>
               </div>
             </div>
+
+            {notice && <PhoneNotice notice={notice} />}
 
             <div className="grid gap-4 md:grid-cols-3">
               <StatusTile label="Provider" value={providerLabel(phoneProvider)} tone={phoneProvider === "none" ? "neutral" : "ok"} />
@@ -644,7 +883,27 @@ function PhoneProviderCard({
   );
 }
 
-type StatusTone = "neutral" | "ok" | "warning";
+function PhoneNotice({ notice }: { notice: PhoneNoticeInfo }) {
+  const Icon = notice.tone === "info" ? CircleDashed : CircleAlert;
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-3 rounded-lg border p-4",
+        notice.tone === "error"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : notice.tone === "warning"
+            ? "border-destructive/25 bg-destructive/10 text-destructive"
+            : "border-border bg-muted/40 text-foreground",
+      )}
+    >
+      <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", notice.tone === "info" && "text-muted-foreground")} />
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{notice.title}</p>
+        <p className={cn("text-sm", notice.tone === "info" ? "text-muted-foreground" : "text-current/80")}>{notice.detail}</p>
+      </div>
+    </div>
+  );
+}
 
 function StatusTile({ label, tone = "neutral", value }: { label: string; tone?: StatusTone; value: string }) {
   const Icon = tone === "ok" ? CheckCircle2 : tone === "warning" ? CircleAlert : CircleDashed;

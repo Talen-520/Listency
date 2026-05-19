@@ -100,8 +100,8 @@ export function App() {
             onTelnyxApplicationNameChange={data.setTelnyxApplicationName}
             onTelnyxPhoneNumberChange={data.setTelnyxPhoneNumber}
             onPreviewVoice={data.previewVoice}
-            onConnectPhone={() => void data.runAction(data.connectPhone, "Phone connected")}
-            onStopPhoneConnection={() => void data.runAction(data.stopPhoneConnection, "Phone connection stopped")}
+            onConnectPhone={() => data.runAction(data.connectPhone, "Phone connected")}
+            onStopPhoneConnection={() => data.runAction(data.stopPhoneConnection, "Phone connection stopped")}
             onSave={() => void data.runAction(data.saveSettings, ".env saved")}
             onPruneLogs={() => void data.runAction(data.pruneOldLogs, "Old logs cleaned")}
             onClearLogs={() => void data.runAction(data.clearLogs, "Logs cleared")}
