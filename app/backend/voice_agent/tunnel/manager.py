@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import shutil
 import subprocess
@@ -181,4 +182,7 @@ class PublicTunnelManager:
         configured = (env.get("CLOUDFLARED_BIN") or "").strip()
         if configured:
             return configured
+        bundled = os.environ.get("CLOUDFLARED_BIN", "").strip()
+        if bundled:
+            return bundled
         return shutil.which("cloudflared") or ""

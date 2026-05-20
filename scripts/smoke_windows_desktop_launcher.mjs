@@ -181,6 +181,12 @@ function collectLogFiles() {
   return files;
 }
 
+function clearLogFiles() {
+  for (const file of collectLogFiles()) {
+    fs.rmSync(file, { force: true });
+  }
+}
+
 function printDiagnostics(error) {
   console.error(error.message);
   for (const file of collectLogFiles()) {
@@ -191,6 +197,22 @@ function printDiagnostics(error) {
       console.error(`Could not read log: ${readError.message}`);
     }
   }
+}
+
+function readBootstrapLog() {
+  const bootstrapLog = collectLogFiles().find((file) => path.basename(file) === "backend-bootstrap.log");
+  if (!bootstrapLog || !fs.existsSync(bootstrapLog)) {
+    return "";
+  }
+  return fs.readFileSync(bootstrapLog, "utf8");
+}
+
+function assertBundledCloudflaredWasPassedToBackend() {
+  const log = readBootstrapLog();
+  assert(
+    log.includes("Bundled cloudflared connector found:"),
+    `Desktop launcher did not pass a bundled cloudflared connector to the backend. Bootstrap log:\n${log}`,
+  );
 }
 
 if (process.platform !== "win32") {
@@ -216,6 +238,8 @@ assert(
   "Port 8765 is already serving Listency health before the desktop launcher smoke starts.",
 );
 
+clearLogFiles();
+
 const child = spawn(appExe, {
   cwd: portableDir,
   env: {
@@ -227,6 +251,7 @@ const child = spawn(appExe, {
 
 try {
   await waitForHealth(child);
+  assertBundledCloudflaredWasPassedToBackend();
   await assertTauriCors();
   closeMainWindow(child.pid);
   const exitCode = await waitForExit(child);
