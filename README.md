@@ -81,6 +81,8 @@ What works today:
 - Logs view with 24h / 7 days / 30 days filtering, JSON export, and per-session transcript, tool call, and event detail overlays.
 - Phone call records are linked into session detail so caller hangup, AI hangup,
   and provider failure outcomes are visible in Logs.
+- Logs include a Phone Stability summary and Phone Calls table for repeated
+  inbound-call testing.
 - Settings data controls for pruning records older than 30 days or clearing local logs.
 - Five-minute maximum duration for each active AI conversation.
 - Phone setup alpha with Twilio/Telnyx configuration, automatic public
@@ -197,6 +199,9 @@ Get-FileHash .\portable\Listency.exe -Algorithm SHA256
 The Windows packaged artifact has been manually tested on a clean Windows
 machine, including backend startup, bundled cloudflared detection, Twilio
 Connect Phone provisioning, and inbound call handling.
+
+The macOS packaged artifact has been manually opened after removing the
+quarantine flag expected for unsigned alpha builds.
 
 ## Developer Requirements
 

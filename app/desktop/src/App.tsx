@@ -185,6 +185,7 @@ export function App() {
             transcripts={data.transcripts}
             toolCalls={data.toolCalls}
             appLogs={data.appLogs}
+            phoneCalls={data.phoneCalls}
             onDownloadLogs={() => void data.runAction(data.downloadLogs, "Logs downloaded")}
           />
         );

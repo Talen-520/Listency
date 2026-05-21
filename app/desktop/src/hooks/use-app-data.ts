@@ -11,6 +11,7 @@ import type {
   BusinessProfile,
   LogTimeWindow,
   PhoneStatus,
+  PhoneCallRecord,
   ProviderInfo,
   PublicConfig,
   ReadinessCheck,
@@ -167,6 +168,7 @@ export function useAppData() {
   const [transcripts, setTranscripts] = useState<TranscriptRecord[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCallRecord[]>([]);
   const [appLogs, setAppLogs] = useState<AppLogRecord[]>([]);
+  const [phoneCalls, setPhoneCalls] = useState<PhoneCallRecord[]>([]);
   const [logWindow, setLogWindow] = useState<LogTimeWindow>("24h");
   const [voicePreviewCache, setVoicePreviewCache] = useState<VoicePreviewCache>(emptyVoicePreviewCache);
   const [twilioDebuggerAlerts, setTwilioDebuggerAlerts] = useState<TwilioDebuggerAlert[]>([]);
@@ -298,16 +300,18 @@ export function useAppData() {
 
   const loadLogData = useCallback(async () => {
     const since = logWindowSince(logWindow);
-    const [sessionList, transcriptList, toolCallList, appLogList] = await Promise.all([
+    const [sessionList, transcriptList, toolCallList, appLogList, phoneCallList] = await Promise.all([
       api.sessions(since, 200),
       api.transcripts(undefined, 300, since),
       api.toolCalls(undefined, 300, since),
       api.appLogs(undefined, 300, since),
+      api.phoneCalls(undefined, 200, since),
     ]);
     setSessions(sessionList.sessions);
     setTranscripts(transcriptList.transcripts);
     setToolCalls(toolCallList.tool_calls);
     setAppLogs(appLogList.logs);
+    setPhoneCalls(phoneCallList.phone_calls);
   }, [logWindow]);
 
   const loadAll = useCallback(async () => {
@@ -328,6 +332,7 @@ export function useAppData() {
         transcriptList,
         toolCallList,
         appLogList,
+        phoneCallList,
         businessProfile,
         agentProfile,
         previewCache,
@@ -341,6 +346,7 @@ export function useAppData() {
         api.transcripts(undefined, 300, since),
         api.toolCalls(undefined, 300, since),
         api.appLogs(undefined, 300, since),
+        api.phoneCalls(undefined, 200, since),
         api.businessProfile(),
         api.agent(),
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
@@ -360,6 +366,7 @@ export function useAppData() {
       setTranscripts(transcriptList.transcripts);
       setToolCalls(toolCallList.tool_calls);
       setAppLogs(appLogList.logs);
+      setPhoneCalls(phoneCallList.phone_calls);
       setVoicePreviewCache(previewCache);
       setBusiness(businessProfile);
       setAgent(agentProfile);
@@ -603,6 +610,7 @@ export function useAppData() {
     transcripts,
     toolCalls,
     appLogs,
+    phoneCalls,
     logWindow,
     voicePreviewCache,
     selectedSessionId,

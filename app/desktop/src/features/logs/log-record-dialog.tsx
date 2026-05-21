@@ -14,6 +14,7 @@ export type LogDetailRecord =
   | { kind: "session"; record: SessionRecord }
   | { kind: "transcript"; record: TranscriptRecord }
   | { kind: "tool"; record: ToolCallRecord }
+  | { kind: "phone"; record: PhoneCallRecord }
   | { kind: "app-log"; record: AppLogRecord };
 
 type DetailRow = {
@@ -29,6 +30,17 @@ function formatJson(value: string | null) {
   } catch {
     return value;
   }
+}
+
+function formatDuration(startedAt: string, endedAt: string | null) {
+  const start = new Date(startedAt).getTime();
+  const end = endedAt ? new Date(endedAt).getTime() : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return "-";
+  const totalSeconds = Math.round((end - start) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) return `${seconds}s`;
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }
 
 function detailRows(detail: LogDetailRecord): { title: string; description: string; badge: string; rows: DetailRow[] } {
@@ -82,6 +94,29 @@ function detailRows(detail: LogDetailRecord): { title: string; description: stri
         { label: "Error", value: record.error_message ?? "-" },
         { label: "Input", value: formatJson(record.input_json), code: true },
         { label: "Output", value: formatJson(record.output_json), code: true },
+      ],
+    };
+  }
+
+  if (detail.kind === "phone") {
+    const { record } = detail;
+    return {
+      title: "Phone Call",
+      description: record.provider_call_id,
+      badge: record.status,
+      rows: [
+        { label: "Provider", value: record.provider },
+        { label: "Provider call id", value: record.provider_call_id },
+        { label: "Stream id", value: record.provider_stream_id ?? "-" },
+        { label: "Session", value: record.session_id ?? "-" },
+        { label: "Route", value: `${record.from_number || "-"} -> ${record.to_number || "-"}` },
+        { label: "Status", value: formatLifecycleLabel(record.status) },
+        { label: "End reason", value: formatLifecycleLabel(record.ended_reason) },
+        { label: "Duration", value: formatDuration(record.started_at, record.ended_at) },
+        { label: "Started", value: formatDate(record.started_at) },
+        { label: "Answered", value: formatDate(record.answered_at) },
+        { label: "Ended", value: formatDate(record.ended_at) },
+        { label: "Error", value: record.error_message ?? "-" },
       ],
     };
   }
