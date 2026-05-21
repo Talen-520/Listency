@@ -8,8 +8,43 @@ from pathlib import Path
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.session_manager import SessionManager
 from voice_agent.core.state import EndReason
+from voice_agent.providers.base import ProviderSessionHandle
 from voice_agent.providers.openai_realtime import OpenAIRealtimeAdapter
 from voice_agent.storage.database import Database
+
+
+class FlakyProvider:
+    name = "flaky"
+    display_name = "Flaky Provider"
+
+    def __init__(self) -> None:
+        self.start_count = 0
+        self.send_count = 0
+
+    def validate_config(self, env: dict[str, str]) -> None:
+        return None
+
+    def list_voices(self, env: dict[str, str]) -> list[str]:
+        return []
+
+    async def start_session(self, session_id, env, session_config=None, event_callback=None):
+        self.start_count += 1
+        return ProviderSessionHandle(
+            provider=self.name,
+            provider_session_id=f"flaky-{self.start_count}",
+            metadata={"session_config": session_config or {}},
+        )
+
+    async def send_audio(self, handle, pcm16_chunk):
+        self.send_count += 1
+        if self.send_count == 1:
+            raise RuntimeError("socket closed")
+
+    async def send_tool_result(self, handle, tool_call_id, output):
+        return None
+
+    async def close_session(self, handle):
+        return None
 
 
 class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
@@ -150,6 +185,39 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(manager.mark_agent_hangup_ready(session["id"]))
             self.assertFalse(manager.mark_agent_hangup_ready(session["id"]))
             self.assertTrue(manager.is_agent_hangup_ready(session["id"]))
+
+    async def test_audio_send_failure_reconnects_provider_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            db = Database(root / "test.sqlite3")
+            env = EnvStore(root / ".env", root / ".env.example")
+            env.write({"DEFAULT_REALTIME_PROVIDER": "flaky"})
+            provider = FlakyProvider()
+            manager = SessionManager(
+                db=db,
+                env_store=env,
+                providers={"flaky": provider},
+                session_limit_seconds=30,
+            )
+
+            session = await manager.start_test_session("flaky")
+            event = await manager.receive_audio_chunk(session["id"], b"\x00\x00")
+            active = manager.get_active_session(session["id"])
+
+            self.assertEqual(event["type"], "audio.chunk_ack")
+            self.assertEqual(provider.start_count, 2)
+            self.assertEqual(provider.send_count, 2)
+            self.assertIsNotNone(active)
+            assert active is not None
+            self.assertEqual(active.status, "running")
+            self.assertEqual(active.reconnect_attempts, 1)
+
+            queued = []
+            assert active.provider_events is not None
+            while not active.provider_events.empty():
+                queued.append((await active.provider_events.get())["type"])
+            self.assertIn("provider.reconnecting", queued)
+            self.assertIn("provider.reconnected", queued)
 
 
 if __name__ == "__main__":

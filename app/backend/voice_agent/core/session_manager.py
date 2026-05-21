@@ -22,10 +22,14 @@ class ActiveSession:
     started_at: str
     timeout_at: str
     handle: ProviderSessionHandle
+    session_config: dict[str, Any]
+    status: str = SessionStatus.RUNNING
     timeout_task: asyncio.Task[None] | None = None
     provider_events: asyncio.Queue[dict[str, Any]] | None = None
     audio_chunks: int = 0
     audio_bytes: int = 0
+    reconnect_attempts: int = 0
+    last_error: str | None = None
     transcript_started: bool = False
     handled_tool_call_ids: set[str] | None = None
     agent_hangup_requested: bool = False
@@ -58,10 +62,15 @@ class SessionManager:
             {
                 "id": session.id,
                 "provider": session.provider,
+                "status": session.status,
                 "started_at": session.started_at,
                 "timeout_at": session.timeout_at,
                 "audio_chunks": session.audio_chunks,
                 "audio_bytes": session.audio_bytes,
+                "reconnect_attempts": session.reconnect_attempts,
+                "last_error": session.last_error,
+                "phone_provider": session.phone_provider,
+                "provider_call_id": session.provider_call_id,
             }
             for session in self.active_sessions.values()
         ]
@@ -86,6 +95,7 @@ class SessionManager:
             await self.stop_session(session_id, EndReason.BACKEND_SHUTDOWN)
         self.db.add_log("info", "background_stopped", "Local background runtime stopped.")
         self.background_status = BackgroundStatus.STOPPED
+        self.last_error = None
         return self.status()
 
     async def start_test_session(self, provider_name: str | None = None) -> dict[str, Any]:
@@ -170,13 +180,14 @@ class SessionManager:
         async def queue_provider_event(event: dict[str, Any]) -> None:
             await provider_events.put(event)
 
+        session_config = {
+            "instructions": instructions,
+            "tools": self.list_tools_for_provider() if self.list_tools_for_provider else [],
+        }
         handle = await provider.start_session(
             session_id,
             env,
-            session_config={
-                "instructions": instructions,
-                "tools": self.list_tools_for_provider() if self.list_tools_for_provider else [],
-            },
+            session_config=session_config,
             event_callback=queue_provider_event,
         )
         self.db.create_session(
@@ -194,6 +205,7 @@ class SessionManager:
             started_at=started_at.isoformat(),
             timeout_at=timeout_at.isoformat(),
             handle=handle,
+            session_config=session_config,
             timeout_task=timeout_task,
             provider_events=provider_events,
             phone_call_id=phone_call_id,
@@ -219,6 +231,7 @@ class SessionManager:
         if not active:
             return {"id": session_id, "status": SessionStatus.STOPPED, "ended_reason": reason}
 
+        active.status = SessionStatus.STOPPING
         if active.timeout_task:
             active.timeout_task.cancel()
         provider = self.providers.get(active.provider)
@@ -229,12 +242,14 @@ class SessionManager:
             status = SessionStatus.TIMEOUT
         elif reason in {EndReason.PROVIDER_ERROR, EndReason.NETWORK_ERROR}:
             status = SessionStatus.ERROR
+            self.background_status = BackgroundStatus.DEGRADED
+            self.last_error = self._readable_end_reason(reason, error_message)
         else:
             status = SessionStatus.STOPPED
         self.db.finish_session(session_id, status, reason, error_message)
-        self.db.add_transcript(session_id, "system", f"Session ended: {reason}", True)
+        self.db.add_transcript(session_id, "system", f"Session ended: {self._readable_end_reason(reason, error_message)}", True)
         if active.provider_events:
-            await active.provider_events.put({"type": "session.ended", "ended_reason": reason})
+            await active.provider_events.put({"type": "session.ended", "ended_reason": reason, "message": self._readable_end_reason(reason, error_message)})
         return {"id": session_id, "status": status, "ended_reason": reason}
 
     def get_active_session(self, session_id: str) -> ActiveSession | None:
@@ -250,7 +265,16 @@ class SessionManager:
         active.audio_bytes += chunk_size
         provider = self.providers.get(active.provider)
         if provider:
-            await provider.send_audio(active.handle, pcm16_chunk)
+            try:
+                await provider.send_audio(active.handle, pcm16_chunk)
+            except Exception as exc:
+                reconnected = await self.reconnect_provider_session(session_id, str(exc) or "Audio delivery failed.")
+                if not reconnected:
+                    raise
+                active = self.active_sessions.get(session_id)
+                if not active:
+                    raise
+                await provider.send_audio(active.handle, pcm16_chunk)
         event: dict[str, Any] = {
             "type": "audio.chunk_ack",
             "session_id": session_id,
@@ -271,6 +295,95 @@ class SessionManager:
             }
 
         return event
+
+    async def reconnect_provider_session(self, session_id: str, message: str = "", max_attempts: int = 1) -> bool:
+        active = self.active_sessions.get(session_id)
+        if not active:
+            return False
+        if active.reconnect_attempts >= max_attempts:
+            await self.stop_session(
+                session_id,
+                EndReason.NETWORK_ERROR,
+                message or "Realtime provider connection was lost.",
+            )
+            return False
+
+        provider = self.providers.get(active.provider)
+        if not provider:
+            await self.stop_session(session_id, EndReason.PROVIDER_ERROR, f"Provider {active.provider} is unavailable.")
+            return False
+
+        active.reconnect_attempts += 1
+        active.status = SessionStatus.RECONNECTING
+        active.last_error = message or "Realtime provider connection was lost."
+        self.background_status = BackgroundStatus.DEGRADED
+        self.last_error = active.last_error
+        self.db.add_log(
+            "warning",
+            "provider_reconnecting",
+            f"{provider.display_name} connection lost. Reconnecting.",
+            {"session_id": session_id, "provider": active.provider, "attempt": active.reconnect_attempts, "message": message},
+        )
+        self.db.add_transcript(session_id, "system", "Provider connection lost. Reconnecting.", True)
+        if active.provider_events:
+            await active.provider_events.put(
+                {
+                    "type": "provider.reconnecting",
+                    "provider": active.provider,
+                    "message": "Provider connection lost. Reconnecting.",
+                    "attempt": active.reconnect_attempts,
+                }
+            )
+
+        try:
+            await provider.close_session(active.handle)
+            env = self.env_store.read()
+
+            async def queue_provider_event(event: dict[str, Any]) -> None:
+                current = self.active_sessions.get(session_id)
+                if current and current.provider_events:
+                    await current.provider_events.put(event)
+
+            active.handle = await provider.start_session(
+                session_id,
+                env,
+                session_config=active.session_config,
+                event_callback=queue_provider_event,
+            )
+        except Exception as exc:
+            error = str(exc) or "Realtime provider reconnect failed."
+            active.last_error = error
+            self.db.add_log(
+                "error",
+                "provider_reconnect_failed",
+                error,
+                {"session_id": session_id, "provider": active.provider, "attempt": active.reconnect_attempts},
+            )
+            await self.stop_session(session_id, EndReason.NETWORK_ERROR, error)
+            return False
+
+        active.status = SessionStatus.RUNNING
+        active.last_error = None
+        if self.background_status == BackgroundStatus.DEGRADED:
+            self.background_status = BackgroundStatus.STANDBY
+        self.last_error = None
+        self.db.add_log(
+            "info",
+            "provider_reconnected",
+            f"{provider.display_name} connection recovered.",
+            {"session_id": session_id, "provider": active.provider, "attempt": active.reconnect_attempts},
+        )
+        self.db.add_transcript(session_id, "system", "Provider connection recovered.", True)
+        if active.provider_events:
+            await active.provider_events.put(
+                {
+                    "type": "provider.reconnected",
+                    "provider": active.provider,
+                    "message": "Provider connection recovered.",
+                    "attempt": active.reconnect_attempts,
+                }
+            )
+        return True
 
     async def send_tool_result(self, session_id: str, tool_call_id: str, output: dict[str, Any]) -> None:
         active = self.active_sessions.get(session_id)
@@ -322,3 +435,18 @@ class SessionManager:
             await self.stop_session(session_id, EndReason.TIMEOUT_5_MINUTES)
         except asyncio.CancelledError:
             return
+
+    def _readable_end_reason(self, reason: str, error_message: str | None = None) -> str:
+        labels = {
+            EndReason.USER_STOPPED: "user stopped the session",
+            EndReason.CALLER_HUNG_UP: "caller hung up",
+            EndReason.AGENT_HUNG_UP: "AI ended the call",
+            EndReason.TIMEOUT_5_MINUTES: "5 minute session limit reached",
+            EndReason.PROVIDER_ERROR: "provider error",
+            EndReason.NETWORK_ERROR: "network connection lost",
+            EndReason.BACKEND_SHUTDOWN: "backend shutdown",
+        }
+        label = labels.get(reason, reason.replace("_", " "))
+        if error_message and reason in {EndReason.PROVIDER_ERROR, EndReason.NETWORK_ERROR}:
+            return f"{label}: {error_message}"
+        return label

@@ -222,6 +222,15 @@ function phoneNotice({
     };
   }
 
+  if (phoneStatus.provider === phoneProvider && phoneStatus.last_call_status === "failed" && phoneStatus.last_call_error) {
+    return {
+      blocking: false,
+      detail: phoneStatus.last_call_error,
+      title: "Latest phone call failed",
+      tone: "error",
+    };
+  }
+
   if (phoneConnectionStatus === "missing_connector" || phoneConnectionStatus === "not_configured") {
     return {
       blocking: false,
@@ -557,6 +566,7 @@ export function SettingsView({
     twilioPhoneNumberSid,
   });
   const canConnectPhone = !phoneActionBusy && !notice?.blocking;
+  const canTogglePhoneConnection = canStopPhoneConnection ? !phoneActionBusy : canConnectPhone;
   const connectPhoneLabel =
     phoneAction === "connecting"
       ? "Connecting..."
@@ -565,6 +575,14 @@ export function SettingsView({
         : phoneStatus.provider === phoneProvider && phoneStatus.reprovision_required
           ? "Update Webhooks"
           : "Connect Phone";
+  const phoneConnectionToggleLabel =
+    phoneAction === "stopping"
+      ? "Stopping..."
+      : canStopPhoneConnection
+        ? "Stop Connection"
+        : connectPhoneLabel;
+  const PhoneConnectionToggleIcon =
+    phoneActionBusy ? Loader2 : canStopPhoneConnection ? Square : PlugZap;
   const twilioTestChecklist = twilioChecklist({
     config,
     phoneConnectionMode,
@@ -604,6 +622,14 @@ export function SettingsView({
     } finally {
       setPhoneAction("idle");
     }
+  }
+
+  async function handleTogglePhoneConnection() {
+    if (canStopPhoneConnection) {
+      await handleStopPhoneConnection();
+      return;
+    }
+    await handleConnectPhone();
   }
 
   return (
@@ -757,17 +783,20 @@ export function SettingsView({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" disabled={!canConnectPhone} onClick={handleConnectPhone}>
-                  {phoneAction === "connecting" || phoneAction === "provisioning" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <PlugZap className="h-4 w-4" />
-                  )}
-                  {connectPhoneLabel}
-                </Button>
-                <Button type="button" variant="outline" disabled={!canStopPhoneConnection || phoneActionBusy} onClick={handleStopPhoneConnection}>
-                  {phoneAction === "stopping" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 fill-current stroke-current" />}
-                  Stop Connection
+                <Button
+                  type="button"
+                  variant={canStopPhoneConnection ? "outline" : "default"}
+                  disabled={!canTogglePhoneConnection}
+                  onClick={handleTogglePhoneConnection}
+                >
+                  <PhoneConnectionToggleIcon
+                    className={cn(
+                      "h-4 w-4",
+                      phoneActionBusy && "animate-spin",
+                      canStopPhoneConnection && !phoneActionBusy && "fill-current stroke-current",
+                    )}
+                  />
+                  {phoneConnectionToggleLabel}
                 </Button>
               </div>
             </div>

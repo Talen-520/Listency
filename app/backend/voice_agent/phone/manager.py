@@ -35,6 +35,8 @@ class PhoneManager:
         tunnel = self.tunnel_manager.status(env)
         provider_ready = False
         provider_error = None
+        recent_calls = self.db.list_phone_calls(limit=20)
+        last_call = next((call for call in recent_calls if provider_key == "none" or call.get("provider") == provider_key), {})
         if provider_key != "none":
             try:
                 self._provider(provider_key).validate_config(env)
@@ -65,6 +67,9 @@ class PhoneManager:
             "reprovision_required": reprovision_required,
             "reprovision_reason": "Tunnel URL changed. Connect Phone will update provider webhooks." if reprovision_required else "",
             "transfer_target_ready": bool(env.get("PHONE_TRANSFER_TARGET", "").strip()),
+            "last_call_status": str(last_call.get("status") or ""),
+            "last_call_error": str(last_call.get("error_message") or ""),
+            "last_call_ended_reason": str(last_call.get("ended_reason") or ""),
         }
 
     async def start_connection(self) -> dict[str, Any]:

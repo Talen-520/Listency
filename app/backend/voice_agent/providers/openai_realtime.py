@@ -171,6 +171,7 @@ class OpenAIRealtimeAdapter:
     ) -> None:
         if handle.connection is None:
             return
+        disconnect_message = "OpenAI Realtime connection closed."
         try:
             async for raw_message in handle.connection:
                 try:
@@ -183,8 +184,28 @@ class OpenAIRealtimeAdapter:
         except asyncio.CancelledError:
             return
         except Exception as exc:
+            disconnect_message = f"OpenAI Realtime connection lost: {exc}"
             if event_callback:
-                await event_callback({"type": "provider.error", "provider": self.name, "message": str(exc)})
+                await event_callback(
+                    {
+                        "type": "provider.disconnected",
+                        "provider": self.name,
+                        "raw_type": "websocket.closed",
+                        "message": disconnect_message,
+                        "reconnectable": True,
+                    }
+                )
+            return
+        if event_callback:
+            await event_callback(
+                {
+                    "type": "provider.disconnected",
+                    "provider": self.name,
+                    "raw_type": "websocket.closed",
+                    "message": disconnect_message,
+                    "reconnectable": True,
+                }
+            )
 
     def _normalize_event(self, event: dict[str, Any]) -> dict[str, Any]:
         event_type = str(event.get("type", "provider.event"))

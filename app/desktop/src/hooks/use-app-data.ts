@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { DEFAULT_GEMINI_LIVE_MODEL, DEFAULT_OPENAI_REALTIME_MODEL, isSupportedGeminiLiveModel } from "@/lib/models";
+import { isRuntimeRunning } from "@/lib/runtime";
 import type {
   AgentProfile,
   AppLogRecord,
@@ -92,6 +93,9 @@ const emptyPhoneStatus: PhoneStatus = {
   reprovision_required: false,
   reprovision_reason: "",
   transfer_target_ready: false,
+  last_call_status: "",
+  last_call_error: "",
+  last_call_ended_reason: "",
 };
 
 const defaultBusiness: BusinessProfile = {
@@ -222,8 +226,13 @@ export function useAppData() {
       {
         id: "runtime",
         label: "Runtime",
-        detail: status.background_status === "standby" ? "Background runtime is running." : "Click Start to enter standby.",
-        ready: status.background_status === "standby",
+        detail:
+          status.background_status === "degraded"
+            ? status.last_error || "Runtime is degraded. Check the latest provider or phone error."
+            : isRuntimeRunning(status.background_status)
+              ? "Background runtime is running."
+              : "Click Start to enter standby.",
+        ready: isRuntimeRunning(status.background_status) && status.background_status !== "degraded",
       },
       {
         id: "provider",
@@ -261,10 +270,12 @@ export function useAppData() {
         detail:
           phoneStatus.provider === "none"
             ? "Phone calls are optional for the current local test flow."
+            : phoneStatus.last_call_status === "failed" && phoneStatus.last_call_error
+              ? phoneStatus.last_call_error
             : phoneStatus.configured
               ? `${phoneStatus.provider} inbound calls are connected.`
               : "Connect phone service from Settings.",
-        ready: phoneStatus.provider === "none" || phoneStatus.configured,
+        ready: (phoneStatus.provider === "none" || phoneStatus.configured) && phoneStatus.last_call_status !== "failed",
       },
     ];
   }, [
@@ -275,10 +286,13 @@ export function useAppData() {
     config.has_openai_key,
     providerChoice,
     phoneStatus.configured,
+    phoneStatus.last_call_error,
+    phoneStatus.last_call_status,
     phoneStatus.provider,
     selectedProvider?.display_name,
     selectedProviderReady,
     status.background_status,
+    status.last_error,
     tools,
   ]);
 

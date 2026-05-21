@@ -236,6 +236,7 @@ class GeminiLiveAdapter:
     ) -> None:
         if handle.connection is None:
             return
+        disconnect_message = "Gemini Live connection closed."
         try:
             async for raw_message in handle.connection:
                 try:
@@ -255,9 +256,30 @@ class GeminiLiveAdapter:
         except asyncio.CancelledError:
             return
         except Exception as exc:
+            disconnect_message = f"Gemini Live connection lost: {exc}"
             self._setup_events.pop(handle.provider_session_id, None)
             if event_callback:
-                await event_callback({"type": "provider.error", "provider": self.name, "message": str(exc)})
+                await event_callback(
+                    {
+                        "type": "provider.disconnected",
+                        "provider": self.name,
+                        "raw_type": "websocket.closed",
+                        "message": disconnect_message,
+                        "reconnectable": True,
+                    }
+                )
+            return
+        self._setup_events.pop(handle.provider_session_id, None)
+        if event_callback:
+            await event_callback(
+                {
+                    "type": "provider.disconnected",
+                    "provider": self.name,
+                    "raw_type": "websocket.closed",
+                    "message": disconnect_message,
+                    "reconnectable": True,
+                }
+            )
 
     def _normalize_events(self, handle: ProviderSessionHandle, event: dict[str, Any]) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []

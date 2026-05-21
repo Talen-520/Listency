@@ -33,7 +33,17 @@ export function DashboardView({
           <CardTitle>Runtime</CardTitle>
           <CardDescription>Local background process and current call state.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <CardContent className="space-y-3">
+          {status.last_error && (
+            <div className="flex gap-3 rounded-lg bg-destructive/10 p-4 text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-medium leading-none">Runtime Degraded</p>
+                <p className="text-sm">{status.last_error}</p>
+              </div>
+            </div>
+          )}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="flex gap-3 rounded-lg bg-muted/40 p-4">
             <Server className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 space-y-1">
@@ -52,7 +62,7 @@ export function DashboardView({
             <Radio className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 space-y-1">
               <p className="text-sm font-medium leading-none">Session</p>
-              <p className="text-sm text-muted-foreground">{toTitleCase(activeSession ? activeSession.provider : "idle")}</p>
+              <p className="text-sm text-muted-foreground">{toTitleCase(activeSession ? activeSession.status : "idle")}</p>
             </div>
           </div>
           <div className="flex gap-3 rounded-lg bg-muted/40 p-4">
@@ -61,6 +71,7 @@ export function DashboardView({
               <p className="text-sm font-medium leading-none">Limit</p>
               <p className="text-sm text-muted-foreground">{toTitleCase(`${status.session_limit_seconds / 60} min`)}</p>
             </div>
+          </div>
           </div>
         </CardContent>
       </Card>

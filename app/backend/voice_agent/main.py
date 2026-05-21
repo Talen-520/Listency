@@ -17,6 +17,8 @@ from voice_agent.core.state import EndReason
 from voice_agent.core.voice_preview import DEFAULT_PREVIEW_TEXT, VoicePreviewService
 from voice_agent.phone import PhoneManager
 from voice_agent.phone.base import PhoneConfigError
+from voice_agent.phone.telnyx import TelnyxPhoneAdapter
+from voice_agent.phone.telnyx_stream import handle_telnyx_media_stream
 from voice_agent.phone.twilio import TwilioPhoneAdapter
 from voice_agent.phone.twilio_stream import handle_twilio_media_stream
 from voice_agent.providers import GeminiLiveAdapter, OpenAIRealtimeAdapter
@@ -146,6 +148,12 @@ def _is_public_tunnel_host(host: str) -> bool:
 def _parse_form_body(body: bytes) -> dict[str, str]:
     parsed = urllib.parse.parse_qs(body.decode("utf-8"), keep_blank_values=True)
     return {key: values[-1] if values else "" for key, values in parsed.items()}
+
+
+def _telnyx_number(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("phone_number") or value.get("number") or "")
+    return str(value or "")
 
 
 @app.middleware("http")
@@ -320,9 +328,55 @@ async def twilio_media(websocket: WebSocket) -> None:
 @app.post("/phone/telnyx/webhook")
 async def telnyx_webhook(request: Request) -> dict[str, Any]:
     payload = await request.json()
-    event_type = str((payload.get("data") or {}).get("event_type") or "telnyx_webhook")
+    data = payload.get("data") if isinstance(payload, dict) else {}
+    data = data if isinstance(data, dict) else {}
+    event_type = str(data.get("event_type") or "telnyx_webhook")
+    event_payload = data.get("payload") if isinstance(data.get("payload"), dict) else {}
     db.add_log("info", "telnyx_webhook", event_type, {"raw": payload})
+
+    if event_type == "call.initiated" and str(event_payload.get("direction") or "").lower() == "incoming":
+        env = env_store.read()
+        tunnel = public_tunnel_manager.status(env)
+        media_url = TelnyxPhoneAdapter().media_url(tunnel)
+        call_control_id = str(event_payload.get("call_control_id") or "")
+        from_number = _telnyx_number(event_payload.get("from"))
+        to_number = _telnyx_number(event_payload.get("to"))
+        try:
+            await TelnyxPhoneAdapter().answer_call_with_stream(
+                env,
+                call_control_id,
+                media_url,
+                from_number=from_number,
+                to_number=to_number,
+            )
+        except PhoneConfigError as exc:
+            phone_call_id = db.create_phone_call("telnyx", call_control_id, from_number, to_number)
+            db.update_phone_call_status(phone_call_id, "failed", ended_reason=EndReason.PROVIDER_ERROR, error_message=str(exc))
+            db.add_log(
+                "error",
+                "telnyx_answer_failed",
+                str(exc),
+                {"call_control_id": call_control_id, "from": from_number, "to": to_number},
+            )
+        else:
+            db.add_log(
+                "info",
+                "telnyx_answered_with_stream",
+                "Telnyx inbound call answered with Listency media stream.",
+                {"call_control_id": call_control_id, "media_url": media_url},
+            )
     return {"ok": True}
+
+
+@app.websocket("/phone/telnyx/media")
+async def telnyx_media(websocket: WebSocket) -> None:
+    await handle_telnyx_media_stream(
+        websocket,
+        db=db,
+        session_manager=session_manager,
+        tool_registry=tool_registry,
+        phone_manager=phone_manager,
+    )
 
 
 @app.get("/voice-previews")
@@ -433,6 +487,23 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
 async def _handle_provider_event(websocket: WebSocket, session_id: str, event: dict[str, Any]) -> None:
     event = {"session_id": session_id, **event}
     _log_provider_event(session_id, event)
+    if event.get("type") == "provider.disconnected":
+        message = str(event.get("message") or "Realtime provider connection closed.")
+        db.add_log(
+            "warning",
+            "provider_disconnected",
+            message,
+            {
+                "session_id": session_id,
+                "provider": event.get("provider"),
+                "raw_type": event.get("raw_type"),
+            },
+        )
+        await session_manager.reconnect_provider_session(session_id, message)
+        return
+    if event.get("type") in {"provider.reconnecting", "provider.reconnected"}:
+        await websocket.send_json(event)
+        return
     if event.get("type") == "provider.error":
         message = str(event.get("message") or "Realtime provider returned an error.")
         db.add_log(
@@ -564,6 +635,9 @@ def _log_provider_event(session_id: str, event: dict[str, Any]) -> None:
         "serverContent.generationComplete",
         "toolCall",
         "goAway",
+        "websocket.closed",
+        "provider.reconnecting",
+        "provider.reconnected",
         "rate_limits.updated",
     }
     if raw_type not in tracked_events:
@@ -643,7 +717,7 @@ async def _handle_client_stream_message(websocket: WebSocket, session_id: str, m
 async def _handle_audio_stream_error(websocket: WebSocket, session_id: str, exc: Exception) -> None:
     message = str(exc) or "Audio stream delivery failed."
     db.add_log("error", "audio_stream_failed", message, {"session_id": session_id})
-    await session_manager.stop_session(session_id, EndReason.PROVIDER_ERROR, message)
+    await session_manager.stop_session(session_id, EndReason.NETWORK_ERROR, message)
     await websocket.send_json(
         {
             "type": "provider.error",
@@ -652,7 +726,7 @@ async def _handle_audio_stream_error(websocket: WebSocket, session_id: str, exc:
             "message": message,
         }
     )
-    await websocket.send_json({"type": "session.ended", "session_id": session_id, "ended_reason": EndReason.PROVIDER_ERROR})
+    await websocket.send_json({"type": "session.ended", "session_id": session_id, "ended_reason": EndReason.NETWORK_ERROR, "message": message})
     await websocket.close(code=4000)
 
 

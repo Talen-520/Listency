@@ -201,6 +201,18 @@ export function useRealtimeTest({
             ...current,
           ]);
         }
+        if (payload.type === "provider.reconnecting") {
+          setStreamStatus("reconnecting");
+          toast.warning(String(payload.message ?? "Provider connection lost. Reconnecting."));
+        }
+        if (payload.type === "provider.reconnected") {
+          setStreamStatus("streaming");
+          toast.success(String(payload.message ?? "Provider connection recovered."));
+        }
+        if (payload.type === "session.ended") {
+          const message = payload.message ? String(payload.message) : "Session ended.";
+          toast.info(message);
+        }
         if (payload.transcript) {
           setTranscripts((current) => [
             {
@@ -308,6 +320,15 @@ function formatStreamEvent(payload: RealtimeStreamEvent) {
   }
   if (payload.type === "session.agent_hangup_ready") {
     return "AI goodbye complete, ending call";
+  }
+  if (payload.type === "provider.reconnecting" && payload.message) {
+    return `provider.reconnecting: ${payload.message}`;
+  }
+  if (payload.type === "provider.reconnected" && payload.message) {
+    return `provider.reconnected: ${payload.message}`;
+  }
+  if (payload.type === "session.ended" && payload.message) {
+    return `session.ended: ${payload.message}`;
   }
   return String(payload.type ?? "event");
 }

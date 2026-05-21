@@ -26,12 +26,12 @@ packaged builds, the desktop app starts a bundled backend sidecar automatically
 and stops it when the app closes. Packaged builds also include the cloudflared
 connector used by automatic phone setup. Users can save provider API keys,
 enter business information, edit an agent prompt, enable local tools, run
-microphone and Twilio phone test calls, and inspect transcripts, tool calls,
+microphone and phone-provider test calls, and inspect transcripts, tool calls,
 phone call records, and provider events.
 
-> Status: early MVP / alpha. OpenAI, Gemini, and Twilio inbound test calls are
-> usable for local testing. Signed installers, production phone hardening, and
-> Telnyx media streaming are still planned.
+> Status: early MVP / alpha. OpenAI, Gemini, Twilio inbound calls, and a Telnyx
+> Call Control media stream proof of concept are usable for local testing.
+> Signed installers and production phone hardening are still planned.
 
 ## Interface Preview
 
@@ -74,6 +74,8 @@ What works today:
 - Provider-specific mono PCM16 input: 24 kHz for OpenAI Realtime and 16 kHz for Gemini Live.
 - OpenAI Realtime and Gemini Live transcript capture and local tool calling.
 - OpenAI Realtime sessions use low-effort reasoning by default for voice latency.
+- Provider disconnects surface degraded/error states and attempt one conservative
+  reconnect before ending the session as a network failure.
 - Built-in tools for business info lookup, booking capture, transfer request
   logging, customer request logging, and AI-ended calls.
 - Logs view with 24h / 7 days / 30 days filtering, JSON export, and per-session transcript, tool call, and event detail overlays.
@@ -82,21 +84,25 @@ What works today:
 - Settings data controls for pruning records older than 30 days or clearing local logs.
 - Five-minute maximum duration for each active AI conversation.
 - Phone setup alpha with Twilio/Telnyx configuration, automatic public
-  connection controls, Advanced custom URL mode, and a Twilio inbound media
-  stream bridge connected to the existing Realtime runtime.
+  connection controls, Advanced custom URL mode, a Twilio inbound media stream
+  bridge, and a Telnyx Call Control media stream proof of concept connected to
+  the existing Realtime runtime.
 - Connect Phone starts the public tunnel and configures provider webhooks as one
   backend action, including webhook updates when the tunnel URL changes.
 - Twilio Debugger panel for recent webhook/API alerts during inbound call testing.
 - Twilio paid-account inbound calling has been tested successfully from multiple
   caller numbers through the automatic tunnel path.
+- Phone failure details from provider setup, media stream, and Realtime provider
+  errors are surfaced in Settings, Dashboard readiness, Logs, and phone records.
 - Bundled cloudflared connector for packaged macOS and Windows automatic phone
   setup.
 
 Planned next:
 
-- Continue Twilio hardening: reconnect behavior, clearer provider-failure
-  recovery, and longer repeated-call testing.
-- Add Telnyx media stream proof of concept.
+- Continue phone hardening with longer repeated-call tests, tunnel reconnect
+  testing, and provider-specific failure recovery.
+- Telnyx real-call testing is deferred; the alpha Call Control media stream PoC
+  is considered complete for this MVP pass.
 - Pipeline mode with separate STT, LLM, and TTS providers.
 - More complete booking and business workflow tools.
 - Signed macOS and Windows installers.
@@ -124,8 +130,8 @@ This is the intended path for general or non-technical users.
 5. Fill in Business Info and Agent prompt.
 6. Enable the tools the agent should use.
 7. Start Runtime, then use Test Call to speak with the agent.
-8. Optional: configure Twilio in Settings, choose Connect Phone, then call the
-   configured Twilio number to test an inbound phone session.
+8. Optional: configure Twilio or Telnyx in Settings, choose Connect Phone, then
+   call the configured number to test an inbound phone session.
 9. Review transcripts, tool calls, phone outcomes, and app events in Logs.
 10. Export Logs as JSON or use Settings to prune/clear local log data.
 
@@ -318,8 +324,8 @@ next to the executable and will show the backend as offline on a clean machine.
 5. Enable the tools needed for the session.
 6. Start Runtime.
 7. Start a Test Call and speak through the microphone.
-8. For phone testing, save Twilio credentials in Settings, choose Connect Phone,
-   and call the configured Twilio number.
+8. For phone testing, save Twilio or Telnyx credentials in Settings, choose
+   Connect Phone, and call the configured provider number.
 9. Review transcripts, tool calls, phone outcomes, and app events in Logs.
 10. Download JSON log exports from Logs or clean old records from Settings.
 
@@ -330,6 +336,7 @@ app/backend/
   voice_agent/
     config/       local .env and path helpers
     core/         runtime and session lifecycle
+    phone/        Twilio/Telnyx adapters and media stream bridges
     providers/    OpenAI Realtime and Gemini Live transports
     storage/      SQLite persistence
     tools/        local tool registry and built-in tools
@@ -367,7 +374,8 @@ Listency is designed to run locally first:
 - Phone provider credentials are stored in the local `.env`. Automatic phone
   connection uses the bundled cloudflared connector and exposes only `/phone/*`
   provider webhooks; normal local app APIs remain blocked from the public tunnel
-  host. Twilio webhooks are updated when the automatic tunnel URL changes.
+  host. Twilio and Telnyx webhooks are updated when the automatic tunnel URL
+  changes.
 - Source/development mode stores local data under the repository `data/` directory.
 - Packaged sidecar mode stores `.env`, SQLite, and preview cache under the
   operating system's app local data directory through `VOICE_AGENT_ROOT`.

@@ -15,5 +15,5 @@ export function formatRuntimeStatus(status: string) {
 }
 
 export function isRuntimeRunning(status: string) {
-  return status === "standby";
+  return status === "standby" || status === "degraded";
 }

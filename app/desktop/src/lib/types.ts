@@ -25,6 +25,9 @@ export type PhoneStatus = {
   reprovision_required: boolean;
   reprovision_reason: string;
   transfer_target_ready: boolean;
+  last_call_status: string;
+  last_call_error: string;
+  last_call_ended_reason: string;
 };
 
 export type TwilioDebuggerAlert = {
@@ -57,10 +60,15 @@ export type ReadinessCheck = {
 export type ActiveSession = {
   id: string;
   provider: string;
+  status: string;
   started_at: string;
   timeout_at: string;
   audio_chunks: number;
   audio_bytes: number;
+  reconnect_attempts: number;
+  last_error: string | null;
+  phone_provider: string | null;
+  provider_call_id: string | null;
 };
 
 export type PublicConfig = {

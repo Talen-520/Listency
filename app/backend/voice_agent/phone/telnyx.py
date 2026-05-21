@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import urllib.request
 from typing import Any
@@ -54,6 +55,37 @@ class TelnyxPhoneAdapter:
         await asyncio.to_thread(self._request, env, "POST", f"/v2/calls/{provider_call_id}/actions/hangup", {})
         return {"status": "completed", "provider": self.name, "reason": reason}
 
+    async def answer_call_with_stream(
+        self,
+        env: dict[str, str],
+        provider_call_id: str,
+        media_url: str,
+        *,
+        from_number: str = "",
+        to_number: str = "",
+    ) -> dict[str, Any]:
+        self.validate_config(env)
+        if not provider_call_id:
+            raise PhoneConfigError("Telnyx webhook did not include a call_control_id.")
+        if not media_url:
+            raise PhoneConfigError("Telnyx media stream URL is not available.")
+        return await asyncio.to_thread(
+            self._request,
+            env,
+            "POST",
+            f"/v2/calls/{provider_call_id}/actions/answer",
+            {
+                "stream_url": media_url,
+                "stream_track": "inbound_track",
+                "stream_codec": "PCMU",
+                "stream_bidirectional_mode": "rtp",
+                "stream_bidirectional_codec": "PCMU",
+                "stream_bidirectional_target_legs": "opposite",
+                "stream_bidirectional_sampling_rate": 8000,
+                "client_state": self._client_state(from_number, to_number),
+            },
+        )
+
     def _provision_sync(self, env: dict[str, str], tunnel: TunnelStatus) -> PhoneProvisionResult:
         inbound_url = f"{tunnel.public_base_url.rstrip('/')}/phone/telnyx/webhook"
         application_name = env.get("TELNYX_APPLICATION_NAME", "").strip() or "Listency"
@@ -77,6 +109,9 @@ class TelnyxPhoneAdapter:
             media_url=f"{tunnel.public_ws_url.rstrip('/')}/phone/telnyx/media" if tunnel.public_ws_url else "",
         )
 
+    def media_url(self, tunnel: TunnelStatus) -> str:
+        return f"{tunnel.public_ws_url.rstrip('/')}/phone/telnyx/media" if tunnel.public_ws_url else ""
+
     def _request(self, env: dict[str, str], method: str, path: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         url = f"https://api.telnyx.com{path}"
         body = json.dumps(data or {}).encode("utf-8") if data is not None else None
@@ -89,3 +124,7 @@ class TelnyxPhoneAdapter:
         except Exception as exc:
             raise PhoneConfigError(f"Telnyx API request failed: {exc}") from exc
         return json.loads(raw) if raw else {}
+
+    def _client_state(self, from_number: str, to_number: str) -> str:
+        payload = json.dumps({"from": from_number, "to": to_number}, separators=(",", ":")).encode("utf-8")
+        return base64.b64encode(payload).decode("ascii")
