@@ -96,18 +96,32 @@ jobs:
         timeout-minutes: 3
         run: pnpm run windows:launcher:smoke
 
-      - name: Stage sidecar next to desktop exe
+      - name: Stage Windows release artifacts
         shell: pwsh
         run: |
-          $binaries = Get-Item "app/desktop/src-tauri/binaries/listency-backend-*.exe", "app/desktop/src-tauri/binaries/cloudflared-*.exe" -ErrorAction SilentlyContinue
-          if ($binaries) {
-            foreach ($binary in $binaries) {
-              Copy-Item $binary.FullName "app/desktop/src-tauri/target/release/$($binary.Name)"
-              Write-Output "Staged binary: $($binary.Name)"
-            }
-          } else {
-            Write-Warning "No packaged binaries found in binaries/"
+          $release = Resolve-Path "app/desktop/src-tauri/target/release"
+          $stage = "app/desktop/dist-artifacts/windows"
+          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item "$release/portable" "$stage/portable" -Recurse
+          if (Test-Path "app/desktop/smoke.log") {
+            Copy-Item "app/desktop/smoke.log" "$stage/smoke.log"
           }
+          $nsis = Join-Path $release "bundle/nsis"
+          if (Test-Path $nsis) {
+            Copy-Item "$nsis/*.exe" $stage -ErrorAction SilentlyContinue
+          }
+          $root = Resolve-Path $stage
+          $files = @()
+          $files += Get-ChildItem $root -File -Recurse | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+          $lines = $files | Sort-Object FullName | ForEach-Object {
+            $relative = $_.FullName.Substring($root.Path.Length + 1).Replace("\", "/")
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+            "$hash  $relative"
+          }
+          $checksumPath = Join-Path $root "SHA256SUMS.txt"
+          Set-Content -Path $checksumPath -Value $lines -Encoding utf8
+          Get-Content $checksumPath
 
       - name: Upload Windows artifacts
         if: always()
@@ -116,7 +130,4 @@ jobs:
           name: listency-windows-${{ github.sha }}
           if-no-files-found: warn
           path: |
-            app/desktop/smoke.log
-            app/desktop/src-tauri/target/release/portable/**
-            app/desktop/src-tauri/target/release/bundle/nsis/*.exe
-            app/desktop/src-tauri/target/release/bundle/**
+            app/desktop/dist-artifacts/windows/**

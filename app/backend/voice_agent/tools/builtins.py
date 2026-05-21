@@ -68,7 +68,7 @@ def log_customer_request(payload: dict[str, Any], context: ToolContext) -> dict[
 
 
 def check_booking_capacity(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
-    return {"message": "剩余可以book数量为5"}
+    return {"message": "5 rooms available"}
 
 
 def end_call(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:

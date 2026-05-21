@@ -135,7 +135,8 @@ writes local configuration files for them and keeps provider keys in the local
 `.env`.
 
 > Release installers are still planned. Current alpha macOS and Windows build
-> artifacts are produced by GitHub Actions for testing.
+> artifacts are produced by GitHub Actions for testing. Each packaged artifact
+> includes `SHA256SUMS.txt` so testers can verify downloaded files.
 
 ### macOS Alpha Artifact
 
@@ -153,6 +154,43 @@ xattr -dr com.apple.quarantine /path/to/Listency.app
 
 This should be replaced by Developer ID signing and Apple notarization before
 publishing builds for non-technical users.
+
+### Windows Alpha Artifact
+
+The Windows GitHub Actions artifact contains a portable folder and, when Tauri
+produces it, an NSIS installer at the artifact root. For the most predictable
+alpha test path, open `portable/Listency.exe` without moving it away from the
+adjacent `binaries/` folder. That folder contains the bundled backend sidecar
+and cloudflared connector used for local backend startup and automatic phone
+setup.
+
+Do not launch the raw `target/release/*.exe` from the artifact tree. It is not
+the user-facing portable layout and can appear with the backend offline if the
+sidecar binaries are not next to it.
+
+### Artifact Verification
+
+Alpha artifacts include `SHA256SUMS.txt`. After downloading and extracting an
+artifact, verify files before testing:
+
+macOS:
+
+```bash
+cd path/to/extracted/listency-macos-*
+shasum -a 256 -c SHA256SUMS.txt
+```
+
+Windows PowerShell:
+
+```powershell
+cd path\to\extracted\listency-windows-*
+Get-Content SHA256SUMS.txt
+Get-FileHash .\portable\Listency.exe -Algorithm SHA256
+```
+
+The Windows packaged artifact has been manually tested on a clean Windows
+machine, including backend startup, bundled cloudflared detection, Twilio
+Connect Phone provisioning, and inbound call handling.
 
 ## Developer Requirements
 
@@ -260,15 +298,16 @@ macOS and Windows packaged smoke are checked in GitHub Actions on pushes and
 pull requests to `main`. The workflows build the backend sidecar, run the
 clean-data sidecar smoke test, download cloudflared for the runner platform,
 build the Tauri app, launch the packaged desktop app, verify backend
-health/CORS, close the app, and verify the backend shuts down.
+health/CORS, close the app, verify the backend shuts down, and emit artifact
+checksums.
 
 For macOS artifact testing, use `Listency-macos.zip` from the
 `listency-macos-*` workflow artifact, extract it, and open `Listency.app`.
 
-For Windows artifact testing, use either the NSIS installer under
-`bundle/nsis/` or the generated `portable/Listency.exe`. Do not run the raw
-`target/release/*.exe` by itself; it does not carry the backend sidecar next to
-the executable and will show the backend as offline on a clean machine.
+For Windows artifact testing, use either the NSIS installer in the artifact root
+or the generated `portable/Listency.exe`. Do not run raw `target/release/*.exe`
+files from a local build by themselves; they do not carry the backend sidecar
+next to the executable and will show the backend as offline on a clean machine.
 
 ## Local Workflow
 

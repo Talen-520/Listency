@@ -88,6 +88,16 @@ jobs:
         working-directory: app/desktop/src-tauri/target/release/bundle/macos
         run: ditto -c -k --sequesterRsrc --keepParent Listency.app Listency-macos.zip
 
+      - name: Stage macOS release artifacts
+        run: |
+          rm -rf app/desktop/dist-artifacts/macos
+          mkdir -p app/desktop/dist-artifacts/macos
+          cp app/desktop/src-tauri/target/release/bundle/macos/Listency-macos.zip app/desktop/dist-artifacts/macos/
+          cp app/desktop/smoke.log app/desktop/dist-artifacts/macos/smoke.log
+          cd app/desktop/dist-artifacts/macos
+          shasum -a 256 Listency-macos.zip smoke.log > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Upload macOS artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -95,5 +105,4 @@ jobs:
           name: listency-macos-${{ github.sha }}
           if-no-files-found: warn
           path: |
-            app/desktop/smoke.log
-            app/desktop/src-tauri/target/release/bundle/macos/Listency-macos.zip
+            app/desktop/dist-artifacts/macos/**

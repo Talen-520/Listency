@@ -22,7 +22,7 @@ class ToolRegistryTest(unittest.TestCase):
 
             calls = db.list_tool_calls()
 
-            self.assertEqual(result, {"message": "剩余可以book数量为5"})
+            self.assertEqual(result, {"message": "5 rooms available"})
             self.assertEqual(calls[0]["tool_name"], "check_booking_capacity")
             self.assertEqual(calls[0]["status"], "completed")
 
