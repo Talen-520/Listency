@@ -201,6 +201,7 @@ cython_debug/
 
 # voiceAgent local runtime
 .DS_Store
+.agent/
 .agents/
 /agent/
 data/
