@@ -235,13 +235,35 @@ Required macOS repository secrets for signed public builds:
   `APPLE_API_KEY`, `APPLE_API_KEY_BASE64`, `APPLE_API_ISSUER`; or Apple ID
   secrets: `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
 
+Encode the Developer ID `.p12` as a single-line base64 value:
+
+```bash
+openssl base64 -A -in DeveloperIDApplication.p12 -out apple_certificate_base64.txt
+```
+
 Required Windows repository secrets for signed public builds:
 
 - `WINDOWS_CERTIFICATE`: base64-encoded code-signing `.pfx`.
 - `WINDOWS_CERTIFICATE_PASSWORD`: password for the `.pfx`.
+- Optional repository variable `WINDOWS_TIMESTAMP_URL`: timestamp server URL.
+  Defaults to `http://timestamp.digicert.com`.
 
-The Windows workflow signs the staged Listency installer, portable executable,
-and bundled Listency backend executable when these secrets are available.
+Encode the Windows `.pfx` as a raw base64 value without PEM headers:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("ListencyCodeSigning.pfx")) |
+  Set-Content windows_certificate_base64.txt
+```
+
+When Windows signing secrets are available, the workflow imports the certificate
+before `tauri build`, generates a temporary Tauri signing config from the
+certificate thumbprint, signs the app during packaging, then signs any remaining
+staged Listency executables and verifies Authenticode status before checksums
+are written.
+
+After adding all signing secrets, run **Release Draft** with
+`require_signed=true`. The expected `SIGNING_STATUS.txt` values are
+`signed=true` on both platforms and `notarization_configured=true` on macOS.
 
 ## Developer Requirements
 

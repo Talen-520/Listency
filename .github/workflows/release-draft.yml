@@ -166,6 +166,16 @@ jobs:
         working-directory: app/desktop
         run: pnpm exec tauri build --ci --bundles app,dmg
 
+      - name: Verify macOS signature and notarization
+        if: env.MACOS_SIGNING_READY == 'true'
+        run: |
+          app_path="app/desktop/src-tauri/target/release/bundle/macos/Listency.app"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+
+          if [ "$MACOS_NOTARIZATION_READY" = "true" ]; then
+            xcrun stapler validate "$app_path"
+          fi
+
       - name: Smoke test macOS desktop launcher
         working-directory: app/desktop
         timeout-minutes: 3
@@ -275,9 +285,91 @@ jobs:
         working-directory: app/desktop
         run: pnpm run cloudflared:sidecar
 
+      - name: Check Windows signing readiness
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          $signingReady = -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE) -and -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)
+          "WINDOWS_SIGNING_READY=$($signingReady.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          if ($env:REQUIRE_SIGNED -eq "true" -and -not $signingReady) {
+            Write-Output "::error title=Windows signing secrets missing::Set WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD."
+            exit 1
+          }
+
+          if (-not $signingReady) {
+            return
+          }
+
+          $timestampUrl = $env:WINDOWS_TIMESTAMP_URL
+          if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
+            $timestampUrl = "http://timestamp.digicert.com"
+          }
+
+          $certPath = Join-Path $env:RUNNER_TEMP "listency-codesign.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $securePassword = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword | Out-Null
+
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certPath, $env:WINDOWS_CERTIFICATE_PASSWORD)
+          $thumbprint = $cert.Thumbprint.Replace(" ", "")
+          "WINDOWS_CERTIFICATE_THUMBPRINT=$thumbprint" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_TIMESTAMP_URL=$timestampUrl" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_TAURI_CONFIG=src-tauri/tauri.windows.signing.json" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          $signingConfig = @{
+            bundle = @{
+              windows = @{
+                certificateThumbprint = $thumbprint
+                digestAlgorithm = "sha256"
+                timestampUrl = $timestampUrl
+              }
+            }
+          } | ConvertTo-Json -Depth 8
+          Set-Content -Path "app/desktop/src-tauri/tauri.windows.signing.json" -Value $signingConfig -Encoding utf8
+
+      - name: Sign Windows sidecar inputs
+        if: env.WINDOWS_SIGNING_READY == 'true'
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+
+          if (-not $signtool) {
+            Write-Output "::error title=signtool missing::Could not find signtool.exe on the Windows runner."
+            exit 1
+          }
+
+          $targets = Get-ChildItem "app/desktop/src-tauri/binaries" -File -Filter "listency-backend-*.exe"
+          if (-not $targets) {
+            Write-Output "::error title=No Windows sidecar signing targets::No listency-backend sidecar executable was found."
+            exit 1
+          }
+
+          foreach ($target in $targets) {
+            $signature = Get-AuthenticodeSignature $target.FullName
+            if ($signature.Status -eq "NotSigned") {
+              & $signtool.FullName sign /fd SHA256 /td SHA256 /tr $env:WINDOWS_TIMESTAMP_URL /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT $target.FullName
+              if ($LASTEXITCODE -ne 0) {
+                exit $LASTEXITCODE
+              }
+            }
+          }
+
       - name: Build Windows Tauri installer
         working-directory: app/desktop
-        run: pnpm exec tauri build --ci --bundles nsis
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_SIGNING_READY -eq "true") {
+            pnpm exec tauri build --ci --bundles nsis --config $env:WINDOWS_TAURI_CONFIG
+          } else {
+            pnpm exec tauri build --ci --bundles nsis
+          }
 
       - name: Package portable Windows app
         working-directory: app/desktop
@@ -307,31 +399,11 @@ jobs:
             Copy-Item "$nsis/*.exe" $stage -ErrorAction SilentlyContinue
           }
 
-      - name: Check Windows signing readiness
-        shell: pwsh
-        env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-        run: |
-          $signingReady = -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE) -and -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)
-          "WINDOWS_SIGNING_READY=$($signingReady.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-          if ($env:REQUIRE_SIGNED -eq "true" -and -not $signingReady) {
-            Write-Output "::error title=Windows signing secrets missing::Set WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD."
-            exit 1
-          }
-
-      - name: Sign Windows executables
+      - name: Sign staged Windows executables
         if: env.WINDOWS_SIGNING_READY == 'true'
         shell: pwsh
-        env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
           $stage = Resolve-Path "app/desktop/dist-artifacts/windows"
-          $certPath = Join-Path $env:RUNNER_TEMP "listency-codesign.pfx"
-          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
-
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
             Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } |
             Sort-Object FullName -Descending |
@@ -351,10 +423,35 @@ jobs:
           }
 
           foreach ($target in $targets) {
-            & $signtool.FullName sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $certPath /p $env:WINDOWS_CERTIFICATE_PASSWORD $target.FullName
-            if ($LASTEXITCODE -ne 0) {
-              exit $LASTEXITCODE
+            $signature = Get-AuthenticodeSignature $target.FullName
+            if ($signature.Status -eq "NotSigned") {
+              & $signtool.FullName sign /fd SHA256 /td SHA256 /tr $env:WINDOWS_TIMESTAMP_URL /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT $target.FullName
+              if ($LASTEXITCODE -ne 0) {
+                exit $LASTEXITCODE
+              }
             }
+          }
+
+      - name: Verify Windows signatures
+        if: env.WINDOWS_SIGNING_READY == 'true'
+        shell: pwsh
+        run: |
+          $stage = Resolve-Path "app/desktop/dist-artifacts/windows"
+          $targets = Get-ChildItem $stage -File -Recurse -Filter "*.exe" |
+            Where-Object { $_.Name -like "Listency*" -or $_.Name -like "listency-backend*" }
+
+          $bad = @()
+          foreach ($target in $targets) {
+            $signature = Get-AuthenticodeSignature $target.FullName
+            Write-Host "$($target.FullName): $($signature.Status)"
+            if ($signature.Status -ne "Valid") {
+              $bad += $target.FullName
+            }
+          }
+
+          if ($bad.Count -gt 0) {
+            Write-Output "::error title=Windows signature verification failed::$($bad -join '; ')"
+            exit 1
           }
 
       - name: Write Windows checksums
