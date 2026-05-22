@@ -16,6 +16,9 @@
   <a href="https://github.com/Talen-520/Listency/actions/workflows/macos-packaged-smoke.yml">
     <img alt="macOS packaged smoke" src="https://github.com/Talen-520/Listency/actions/workflows/macos-packaged-smoke.yml/badge.svg" />
   </a>
+  <a href="https://github.com/Talen-520/Listency/actions/workflows/release-draft.yml">
+    <img alt="Release draft" src="https://github.com/Talen-520/Listency/actions/workflows/release-draft.yml/badge.svg" />
+  </a>
   <img alt="Coverage" src="https://img.shields.io/badge/coverage-not%20configured-lightgrey" />
   <img alt="Python" src="https://img.shields.io/badge/python-%3E%3D3.11-blue" />
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
@@ -31,7 +34,8 @@ phone call records, and provider events.
 
 > Status: early MVP / alpha. OpenAI, Gemini, Twilio inbound calls, and a Telnyx
 > Call Control media stream proof of concept are usable for local testing.
-> Signed installers and production phone hardening are still planned.
+> Release draft automation exists; public one-click releases still need Apple
+> and Windows signing credentials.
 
 ## Interface Preview
 
@@ -98,16 +102,19 @@ What works today:
   errors are surfaced in Settings, Dashboard readiness, Logs, and phone records.
 - Bundled cloudflared connector for packaged macOS and Windows automatic phone
   setup.
+- Manual Release Draft workflow for macOS and Windows artifacts, optional
+  signing/notarization, release checksums, and GitHub draft release creation.
 
 Planned next:
 
+- Configure Apple Developer ID / notarization credentials and Windows code
+  signing credentials for public signed releases.
 - Continue phone hardening with longer repeated-call tests, tunnel reconnect
   testing, and provider-specific failure recovery.
 - Telnyx real-call testing is deferred; the alpha Call Control media stream PoC
   is considered complete for this MVP pass.
 - Pipeline mode with separate STT, LLM, and TTS providers.
 - More complete booking and business workflow tools.
-- Signed macOS and Windows installers.
 
 ## How It Works
 
@@ -142,15 +149,16 @@ users do not need Python, Node, pnpm, Rust, cloudflared, or a terminal. The app
 writes local configuration files for them and keeps provider keys in the local
 `.env`.
 
-> Release installers are still planned. Current alpha macOS and Windows build
-> artifacts are produced by GitHub Actions for testing. Each packaged artifact
-> includes `SHA256SUMS.txt` so testers can verify downloaded files.
+> The Release Draft workflow can create GitHub draft releases with macOS and
+> Windows artifacts plus checksums. Until signing secrets are configured, those
+> artifacts remain alpha builds and may still trigger operating-system trust
+> prompts.
 
 ### macOS Alpha Artifact
 
-The macOS GitHub Actions artifact is not signed or notarized yet. For alpha
-testing, download the `listency-macos-*` artifact, open the artifact folder, then
-extract `Listency-macos.zip` and open the extracted `Listency.app`.
+The macOS Packaged Smoke artifact is not signed or notarized. For alpha testing,
+download the `listency-macos-*` artifact, open the artifact folder, then extract
+`Listency-macos.zip` and open the extracted `Listency.app`.
 
 If macOS shows `"Listency" is damaged and can't be opened`, it is Gatekeeper
 blocking an unsigned downloaded app. For local alpha testing only, remove the
@@ -202,6 +210,38 @@ Connect Phone provisioning, and inbound call handling.
 
 The macOS packaged artifact has been manually opened after removing the
 quarantine flag expected for unsigned alpha builds.
+
+### Signed Release Draft Workflow
+
+Run **Actions -> Release Draft** when preparing a release candidate. The workflow
+builds macOS and Windows packages, runs the existing packaged smoke checks,
+stages per-platform `SHA256SUMS.txt`, creates platform zip archives, generates a
+top-level `SHA256SUMS-all.txt`, and creates or updates a GitHub draft release for
+the selected tag.
+
+The workflow has two modes:
+
+- Default mode allows unsigned alpha artifacts. Each platform archive includes
+  `SIGNING_STATUS.txt` so testers can see whether signing was configured.
+- `require_signed=true` fails the workflow if signing or notarization secrets are
+  missing. Use this before promoting a release for non-technical users.
+
+Required macOS repository secrets for signed public builds:
+
+- `APPLE_CERTIFICATE`: base64-encoded Developer ID Application `.p12`.
+- `APPLE_CERTIFICATE_PASSWORD`: password for the exported `.p12`.
+- `APPLE_SIGNING_IDENTITY`: Developer ID Application signing identity.
+- For notarization, either App Store Connect API key secrets:
+  `APPLE_API_KEY`, `APPLE_API_KEY_BASE64`, `APPLE_API_ISSUER`; or Apple ID
+  secrets: `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
+
+Required Windows repository secrets for signed public builds:
+
+- `WINDOWS_CERTIFICATE`: base64-encoded code-signing `.pfx`.
+- `WINDOWS_CERTIFICATE_PASSWORD`: password for the `.pfx`.
+
+The Windows workflow signs the staged Listency installer, portable executable,
+and bundled Listency backend executable when these secrets are available.
 
 ## Developer Requirements
 
