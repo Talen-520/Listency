@@ -8,28 +8,59 @@
 - Rust and Cargo for Tauri
 - PyInstaller when building distributable backend sidecars
 
-## Backend
+## One-Command App Development
+
+```bash
+corepack enable
+pnpm dev
+```
+
+`pnpm dev` runs the developer setup first, then starts the Tauri development
+app. On the first run it:
+
+- creates `app/backend/.venv` when missing;
+- installs Python dependencies from `app/backend/requirements.txt`;
+- installs desktop dependencies in `app/desktop`;
+- starts `pnpm run tauri:dev`;
+- lets the Tauri shell start the local backend automatically.
+
+After the first run, unchanged dependencies are skipped.
+
+## Backend Tests
+
+```bash
+pnpm run test:backend
+```
+
+## Browser-Only Frontend
+
+```bash
+pnpm run dev:web
+```
+
+This starts both:
+
+- FastAPI backend on `127.0.0.1:8765`
+- Vite frontend on `127.0.0.1:5173`
+
+Use this mode when you only need browser UI iteration. The Tauri path remains
+the primary development mode because it matches packaged app behavior more
+closely.
+
+## Manual Backend
 
 ```bash
 cd app/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m voice_agent
+uvicorn voice_agent.main:app --host 127.0.0.1 --port 8765 --reload
 ```
 
-Run tests:
-
-```bash
-cd app/backend
-python -m unittest discover -s tests
-```
-
-## Desktop App
+## Manual Desktop
 
 ```bash
 cd app/desktop
-corepack enable
 pnpm install
 pnpm run tauri:dev
 ```
@@ -38,17 +69,7 @@ The Tauri shell checks `127.0.0.1:8765` and starts a local backend automatically
 when no backend is already running. During development, it falls back to
 `app/backend/.venv` when no bundled sidecar is present.
 
-## Browser-Only Frontend
-
-Start the backend manually:
-
-```bash
-cd app/backend
-source .venv/bin/activate
-uvicorn voice_agent.main:app --host 127.0.0.1 --port 8765 --reload
-```
-
-Then run Vite:
+For a browser-only frontend without the helper script:
 
 ```bash
 cd app/desktop

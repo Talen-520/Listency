@@ -88,16 +88,12 @@ For alpha users:
 For developers:
 
 ```bash
-cd app/backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-cd ../desktop
 corepack enable
-pnpm install
-pnpm run tauri:dev
+pnpm dev
 ```
+
+The first run creates the backend virtual environment, installs Python and
+desktop dependencies, then starts the Tauri development app.
 
 See [Development](docs/DEVELOPMENT.md) for the full local workflow.
 

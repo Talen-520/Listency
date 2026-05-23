@@ -1,0 +1,16 @@
+{
+  "name": "listency",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local-first desktop app for running an AI phone assistant for small businesses.",
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "setup": "node scripts/dev_setup.mjs",
+    "dev": "node scripts/dev_app.mjs",
+    "dev:web": "node scripts/dev_web.mjs",
+    "build": "pnpm --dir app/desktop run build",
+    "tauri:dev": "node scripts/dev_app.mjs",
+    "tauri:build:sidecar": "pnpm --dir app/desktop run tauri:build:sidecar",
+    "test:backend": "node scripts/test_backend.mjs"
+  }
+}
