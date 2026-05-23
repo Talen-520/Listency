@@ -11,7 +11,7 @@
 - Updated Quick Start to link to `https://github.com/Talen-520/Listency/releases`.
 - Added the releases link to the README documentation list.
 - Updated alpha testing docs to prefer GitHub Releases for normal alpha testing.
-- Updated release docs to recommend publishing unsigned MVP builds as
+- Updated release docs to recommend publishing unsigned alpha builds as
   pre-releases rather than stable releases.
 
 ## Verification

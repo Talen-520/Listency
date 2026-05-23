@@ -8,7 +8,7 @@ of an internal planning note.
 ## Changes
 
 - Rewrote the README project introduction for local-first AI voice agent users.
-- Added current MVP status and alpha warning.
+- Added current alpha status and early-release warning.
 - Documented implemented features, known gaps, quick start, local data/privacy,
   architecture, roadmap, contributing notes, and license.
 - Kept internal agent/development documents discoverable through a documentation

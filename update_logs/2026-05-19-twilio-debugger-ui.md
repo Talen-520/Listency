@@ -12,7 +12,7 @@
 - Returned only safe summary fields to the desktop UI, excluding account SID, request headers, response headers, and response bodies.
 - Added a Twilio Debugger panel in Settings with a refresh action, level badge, error code, timestamp, request URL, and Twilio error reference link.
 - Added unit coverage for Twilio Debugger alert normalization.
-- Updated README and local MVP notes.
+- Updated README and local roadmap notes.
 
 ## Files
 

@@ -45,4 +45,4 @@
 
 - Twilio paid-account inbound testing remains the verified real-call path.
 - Telnyx support is an alpha proof of concept. Real Telnyx inbound call testing
-  is intentionally deferred and the PoC is marked complete for this MVP pass.
+  is intentionally deferred for a later alpha pass.

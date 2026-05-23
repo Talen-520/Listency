@@ -1,8 +1,8 @@
-# 2026-04-28 Initial MVP Scaffold
+# 2026-04-28 Initial Alpha Scaffold
 
 ## Goal
 
-- Build the first executable local-only MVP scaffold for `voiceAgent`.
+- Build the first executable local-only alpha scaffold for `voiceAgent`.
 - Establish Tauri/React desktop UI, Python FastAPI backend, local `.env` config, SQLite storage, provider adapter boundaries, and a local Test Call audio stream.
 
 ## Changes
@@ -33,7 +33,7 @@
 - `scripts/smoke_ws.py`
 - `scripts/generate_tauri_icon.mjs`
 - `DEVELOPMENT.md`
-- `MVP_PLAN.md`
+- local roadmap notes
 
 ## Verification
 
@@ -50,7 +50,7 @@
 - Test Call currently streams local PCM16 audio to backend and records local/system transcript events only.
 - Provider output audio playback is not implemented yet.
 - Phone provider integration is not implemented yet.
-- DMG packaging is intentionally not the default MVP target; `.app` bundle is the current target.
+- DMG packaging is intentionally not the default alpha target; `.app` bundle is the current target.
 
 ## Next Steps
 

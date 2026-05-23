@@ -32,4 +32,4 @@
 
 ## Next Steps
 
-- Continue MVP work on distributable packaging, release checks, and phone-provider integration.
+- Continue alpha work on distributable packaging, release checks, and phone-provider integration.

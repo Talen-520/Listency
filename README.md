@@ -36,7 +36,7 @@ calls afterward.
 
 Listency is a local-first Tauri desktop app with a thin Python backend. Packaged
 builds start the backend sidecar automatically and stop it when the app closes.
-No hosted Listency server is required for the current MVP.
+No hosted Listency server is required for the current alpha.
 
 The current realtime path supports:
 
@@ -51,22 +51,22 @@ The current realtime path supports:
 <details open>
   <summary><strong>Dark Theme</strong></summary>
   <br />
-  <a href="assets/ui%20dark.png">
-    <img src="assets/ui%20dark.png" alt="Listency dark theme dashboard" width="100%" />
+  <a href="assets/dark.png">
+    <img src="assets/dark.png" alt="Listency dark theme dashboard" width="100%" />
   </a>
 </details>
 
 <details>
   <summary><strong>Light Theme</strong></summary>
   <br />
-  <a href="assets/ui%20light.png">
-    <img src="assets/ui%20light.png" alt="Listency light theme dashboard" width="100%" />
+  <a href="assets/light.png">
+    <img src="assets/light.png" alt="Listency light theme dashboard" width="100%" />
   </a>
 </details>
 
 ## Current Status
 
-Listency is in early MVP / alpha.
+Listency is in early alpha.
 
 What works today:
 

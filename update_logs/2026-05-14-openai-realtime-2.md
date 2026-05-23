@@ -2,7 +2,7 @@
 
 ## Goal
 
-Move the OpenAI Realtime MVP defaults to `gpt-realtime-2` and make the voice-agent prompt/tool policy better aligned with Realtime 2 guidance.
+Move the OpenAI Realtime alpha defaults to `gpt-realtime-2` and make the voice-agent prompt/tool policy better aligned with Realtime 2 guidance.
 
 ## Changes
 

@@ -21,7 +21,7 @@
 
 ## Docs
 
-- Updated the MVP plan to mark the clean macOS artifact test record complete.
+- Updated local roadmap notes to mark the clean macOS artifact test record complete.
 - Updated README to mention the phone stability summary and macOS alpha
   artifact opening result.
 

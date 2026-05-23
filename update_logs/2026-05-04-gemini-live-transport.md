@@ -2,7 +2,7 @@
 
 ## Goal
 
-- Connect the Gemini Live provider path for the MVP realtime Test Call.
+- Connect the Gemini Live provider path for the alpha realtime Test Call.
 
 ## Changes
 
