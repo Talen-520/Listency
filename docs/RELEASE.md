@@ -28,6 +28,10 @@ The workflow builds macOS and Windows artifacts, runs packaged smoke checks,
 creates per-platform checksums, creates platform zip archives, generates
 `SHA256SUMS-all.txt`, and creates or updates a GitHub draft release.
 
+For the current MVP, publish successful unsigned builds as GitHub pre-releases,
+not stable releases. Signed and notarized builds can later be promoted through
+the same workflow with `require_signed=true`.
+
 ## macOS Signing
 
 Public macOS distribution should use Developer ID signing and Apple

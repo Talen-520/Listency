@@ -19,6 +19,9 @@
   <a href="https://github.com/Talen-520/Listency/actions/workflows/release-draft.yml">
     <img alt="Release draft" src="https://github.com/Talen-520/Listency/actions/workflows/release-draft.yml/badge.svg" />
   </a>
+  <a href="https://github.com/Talen-520/Listency/releases">
+    <img alt="Releases" src="https://img.shields.io/github/v/release/Talen-520/Listency?include_prereleases&label=release" />
+  </a>
   <img alt="Coverage" src="https://img.shields.io/badge/coverage-not%20configured-lightgrey" />
   <img alt="Python" src="https://img.shields.io/badge/python-%3E%3D3.11-blue" />
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
@@ -88,7 +91,8 @@ Still in progress:
 
 For alpha users:
 
-1. Download a packaged Listency artifact or draft release asset.
+1. Download a packaged Listency build from
+   [GitHub Releases](https://github.com/Talen-520/Listency/releases).
 2. Open the desktop app.
 3. Add OpenAI and/or Gemini API keys in Settings.
 4. Choose a provider, model, and voice.
@@ -159,6 +163,7 @@ data.
 
 ## Documentation
 
+- [GitHub Releases](https://github.com/Talen-520/Listency/releases)
 - [Alpha Testing](docs/ALPHA_TESTING.md)
 - [Phone Setup](docs/PHONE_SETUP.md)
 - [Release And Signing](docs/RELEASE.md)

@@ -1,7 +1,11 @@
 # Alpha Testing
 
-This guide is for testing unsigned alpha builds from GitHub Actions or draft
-release assets.
+This guide is for testing unsigned alpha builds from GitHub Actions or
+[GitHub Releases](https://github.com/Talen-520/Listency/releases).
+
+Use GitHub Releases for normal alpha testing. GitHub Actions artifacts are still
+useful when validating a specific CI run before publishing or updating a
+pre-release.
 
 ## Artifact Types
 
