@@ -8,44 +8,47 @@
 - Rust and Cargo for Tauri
 - PyInstaller when building distributable backend sidecars
 
-## One-Command App Development
+## Recommended Local Development
 
 ```bash
 corepack enable
-pnpm dev
+pnpm run dev:web
 ```
 
-`pnpm dev` runs the developer setup first, then starts the Tauri development
-app. On the first run it:
+`pnpm run dev:web` runs the developer setup first, then starts the browser-based
+development loop. On the first run it:
 
 - creates `app/backend/.venv` when missing;
 - installs Python dependencies from `app/backend/requirements.txt`;
 - installs desktop dependencies in `app/desktop`;
-- starts `pnpm run tauri:dev`;
-- lets the Tauri shell start the local backend automatically.
+- starts the FastAPI backend on `127.0.0.1:8765`;
+- starts the Vite frontend on `127.0.0.1:5173`.
 
-After the first run, unchanged dependencies are skipped.
+After the first run, unchanged dependencies are skipped. Use this mode for most
+React, shadcn, Tailwind, and page-level UI work because browser DevTools and
+Vite HMR are faster than the full Tauri shell loop.
+
+## Full Desktop App Verification
+
+```bash
+pnpm dev
+```
+
+`pnpm dev` uses the same setup step, then starts the Tauri development app.
+Use it when you need to verify desktop behavior:
+
+- backend autostart and shutdown;
+- microphone permissions;
+- app data paths;
+- native window, app icon, and dock behavior;
+- phone tunnel sidecar behavior;
+- packaged-app parity.
 
 ## Backend Tests
 
 ```bash
 pnpm run test:backend
 ```
-
-## Browser-Only Frontend
-
-```bash
-pnpm run dev:web
-```
-
-This starts both:
-
-- FastAPI backend on `127.0.0.1:8765`
-- Vite frontend on `127.0.0.1:5173`
-
-Use this mode when you only need browser UI iteration. The Tauri path remains
-the primary development mode because it matches packaged app behavior more
-closely.
 
 ## Manual Backend
 

@@ -89,11 +89,12 @@ For developers:
 
 ```bash
 corepack enable
-pnpm dev
+pnpm run dev:web
 ```
 
 The first run creates the backend virtual environment, installs Python and
-desktop dependencies, then starts the Tauri development app.
+desktop dependencies, then starts the FastAPI backend and Vite frontend.
+Open `http://127.0.0.1:5173/` for local UI development.
 
 See [Development](docs/DEVELOPMENT.md) for the full local workflow.
 

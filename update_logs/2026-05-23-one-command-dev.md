@@ -17,7 +17,8 @@
 - Added developer scripts that create the backend virtualenv, install backend
   requirements, install desktop dependencies when needed, and start Tauri dev.
 - Added a browser-only helper that runs the backend and Vite together.
-- Updated README, development docs, and Makefile entries.
+- Updated README to recommend browser-based local development by default.
+- Updated development docs and Makefile entries.
 
 ## Verification
 
