@@ -5,7 +5,7 @@
 <h1 align="center">Listency</h1>
 
 <p align="center">
-  Local-first desktop app for building and testing AI voice agents for small businesses.
+Local-first desktop app for running an AI phone assistant for small businesses.
 </p>
 
 <p align="center">
@@ -27,25 +27,31 @@
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
 </p>
 
-Listency gives a small business owner a local control panel for voice agents:
-save provider keys, enter business information, choose a voice, enable tools,
-test with a microphone, connect a phone number, and review transcripts or tool
-calls afterward.
 
 ## What Is Listency?
 
-Listency is a local-first Tauri desktop app with a thin Python backend. Packaged
-builds start the backend sidecar automatically and stop it when the app closes.
-No hosted Listency server is required for the current alpha.
+Listency helps small businesses run an AI phone assistant from a local desktop app.
 
-The current realtime path supports:
+With Listency, a shop, hotel, restaurant, salon, clinic, or service business can connect a phone number to an AI voice agent that answers customer calls, explains business information, collects booking details, handles common requests, transfers calls when needed, and saves conversation records for later review.
 
-- OpenAI Realtime with `gpt-realtime-2`
-- Gemini Live with `gemini-3.1-flash-live-preview`
-- Twilio inbound phone calls through an automatic cloudflared tunnel
-- Local tools for business lookup, booking capture, transfer requests, customer
-  request logging, and AI-ended calls
+It is built for non-technical business owners who want a simple control panel instead of a custom backend, cloud dashboard, or call center setup.
 
+Listency runs locally on macOS and Windows. API keys, business information, transcripts, tool calls, and logs stay on the user’s machine. When phone support is enabled, Listency creates a temporary secure tunnel so Twilio can send inbound calls to the local app.
+
+## Key Features
+
+- AI phone assistant for inbound customer calls
+- Run voice agent on your own machine, no need to host elsewhere, stop anytime.
+- Microphone test mode before connecting a real phone number
+- Multilingual voice conversations, depending on the selected AI provider and model
+- Local business knowledge base for hours, services, pricing, policies, FAQs, and booking rules
+- Booking detail collection for hotels, restaurants, salons, clinics, and other service businesses
+- Call transfer support for conversations that need a human
+- AI-ended calls when the conversation is complete
+- Conversation transcripts, tool call history, phone call history, and runtime logs
+- Local-first storage for API keys, business data, logs, and transcripts
+- Desktop app experience for macOS and Windows
+- Twilio phone number connection with automatic secure tunnel setup
 ## Interface Preview
 
 <details open>
@@ -64,29 +70,6 @@ The current realtime path supports:
   </a>
 </details>
 
-## Current Status
-
-Listency is in early alpha.
-
-What works today:
-
-- Local packaged macOS and Windows desktop builds
-- Auto-started backend sidecar in packaged builds
-- OpenAI Realtime and Gemini Live microphone test calls
-- Provider voice selection and cached voice previews
-- Local `.env` configuration and SQLite logs
-- 24h / 7 days / 30 days logs, session detail, JSON export, prune, and clear
-- Twilio paid-account inbound call testing through automatic tunnel provisioning
-- Release Draft workflow with artifacts, checksums, and optional signing gates
-
-Still in progress:
-
-- Public signed macOS and Windows releases
-- Longer phone-provider stability testing
-- Production-ready phone failure recovery
-- Pipeline mode with separate STT, LLM, and TTS providers
-- More complete booking workflows
-
 ## Quick Start
 
 For alpha users:
@@ -94,17 +77,13 @@ For alpha users:
 1. Download a packaged Listency build from
    [GitHub Releases](https://github.com/Talen-520/Listency/releases).
 2. Open the desktop app.
-3. Add OpenAI and/or Gemini API keys in Settings.
+3. Add OpenAI and/or Gemini API keys in Settings hit save.
 4. Choose a provider, model, and voice.
-5. Fill in Business Info and Agent prompt.
-6. Enable the tools the agent should use.
-7. Start Runtime, then use Test Call to speak with the agent.
-8. Optional: configure Twilio in Settings, choose Connect Phone, and call the
+5. Fill in Business Info and Agent prompt, there's template for you, ask AI to generate business info for you if you dont have one.
+6. Start Runtime by click the top right corner "Start" and the button will turn to "Stop".
+7. Optional: configure [Twilio](https://www.twilio.com) or [Telnyx](https://www.telnyx.com) in Settings, click "Connect Phone" to connect a number, then call the
    configured number.
-9. Review transcripts, tool calls, phone outcomes, and app events in Logs.
 
-Packaged builds include the backend sidecar and cloudflared connector, so users
-do not need Python, Node, pnpm, Rust, cloudflared, or a terminal.
 
 For developers:
 
@@ -121,6 +100,10 @@ pnpm run tauri:dev
 ```
 
 See [Development](docs/DEVELOPMENT.md) for the full local workflow.
+
+## Current Status
+
+Listency is currently in the early stages of rapid development; commits will be frequent, so please ensure you are using the latest release version.
 
 ## Features
 
