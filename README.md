@@ -27,6 +27,23 @@ Local-first desktop app for running an AI phone assistant for small businesses.
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
 </p>
 
+## Interface Preview
+
+<details open>
+  <summary><strong>Dark Theme</strong></summary>
+  <br />
+  <a href="assets/dark.png">
+    <img src="assets/dark.png" alt="Listency dark theme dashboard" width="100%" />
+  </a>
+</details>
+
+<details>
+  <summary><strong>Light Theme</strong></summary>
+  <br />
+  <a href="assets/light.png">
+    <img src="assets/light.png" alt="Listency light theme dashboard" width="100%" />
+  </a>
+</details>
 
 ## What Is Listency?
 
@@ -52,23 +69,6 @@ Listency runs locally on macOS and Windows. API keys, business information, tran
 - Local-first storage for API keys, business data, logs, and transcripts
 - Desktop app experience for macOS and Windows
 - Twilio phone number connection with automatic secure tunnel setup
-## Interface Preview
-
-<details open>
-  <summary><strong>Dark Theme</strong></summary>
-  <br />
-  <a href="assets/dark.png">
-    <img src="assets/dark.png" alt="Listency dark theme dashboard" width="100%" />
-  </a>
-</details>
-
-<details>
-  <summary><strong>Light Theme</strong></summary>
-  <br />
-  <a href="assets/light.png">
-    <img src="assets/light.png" alt="Listency light theme dashboard" width="100%" />
-  </a>
-</details>
 
 ## Quick Start
 
