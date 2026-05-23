@@ -127,3 +127,15 @@ Also verify:
 - Runtime Start/Stop works
 - Test Call works
 - Twilio Connect Phone and inbound call flow still work
+
+## Unsigned macOS Alpha Note
+
+If macOS shows `"Listency" is damaged and can't be opened`, Gatekeeper is
+blocking the unsigned downloaded app. For local alpha testing only, remove the
+download quarantine flag after extracting or installing the app:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/Listency.app
+```
+
+Signed and notarized public releases should not require this workaround.

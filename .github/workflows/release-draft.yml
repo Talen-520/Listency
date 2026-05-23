@@ -520,6 +520,16 @@ jobs:
             echo "## Signing"
             echo
             echo "Each platform artifact includes SIGNING_STATUS.txt. If signing secrets were not configured, this draft is an unsigned alpha build."
+            echo
+            echo "## macOS unsigned alpha note"
+            echo
+            echo 'If macOS shows `"Listency" is damaged and can'\''t be opened`, Gatekeeper is blocking the unsigned downloaded app. For local alpha testing only, remove the quarantine flag after extracting or installing the app:'
+            echo
+            echo '```bash'
+            echo 'xattr -dr com.apple.quarantine /path/to/Listency.app'
+            echo '```'
+            echo
+            echo "Signed and notarized public releases should not require this workaround."
           } > RELEASE_NOTES.md
 
           for artifact_dir in release-artifacts/*; do
