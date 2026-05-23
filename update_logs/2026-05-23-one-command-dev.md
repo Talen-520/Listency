@@ -19,6 +19,10 @@
 - Added a browser-only helper that runs the backend and Vite together.
 - Updated README to recommend browser-based local development by default.
 - Updated development docs and Makefile entries.
+- Updated `pnpm run dev:web` to reuse an already-running healthy backend
+  instead of starting a second uvicorn process on port `8765`.
+- Added backend port checks and a clearer stale-process message before starting
+  the browser frontend.
 
 ## Verification
 

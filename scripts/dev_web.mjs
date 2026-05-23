@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import net from "node:net";
 import {
   backendDir,
   desktopDir,
@@ -6,6 +7,87 @@ import {
   isWindows,
   venvPython,
 } from "./dev_setup.mjs";
+
+const backendHealthUrl = "http://127.0.0.1:8765/health";
+const backendHost = "127.0.0.1";
+const backendPort = 8765;
+
+async function isBackendHealthy() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 500);
+  try {
+    const response = await fetch(backendHealthUrl, { signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function isBackendPortOpen() {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host: backendHost, port: backendPort });
+    const done = (open) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(open);
+    };
+    socket.setTimeout(500);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+}
+
+async function waitForBackendHealthy(timeoutMs = 8000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await isBackendHealthy()) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return false;
+}
+
+async function ensureBackendStarted() {
+  if (await isBackendHealthy()) {
+    console.log(`Backend is already healthy at ${backendHealthUrl}; reusing it.`);
+    return;
+  }
+
+  if (await isBackendPortOpen()) {
+    throw new Error(
+      [
+        `Port ${backendPort} is already in use, but ${backendHealthUrl} is not responding.`,
+        "Stop the stale backend process, then run `pnpm run dev:web` again.",
+        `macOS/Linux: lsof -ti tcp:${backendPort} | xargs kill`,
+        `Windows: netstat -ano | findstr :${backendPort}`,
+      ].join("\n"),
+    );
+  }
+
+  spawnChild(
+    "Backend",
+    venvPython,
+    [
+      "-m",
+      "uvicorn",
+      "voice_agent.main:app",
+      "--host",
+      backendHost,
+      "--port",
+      String(backendPort),
+      "--reload",
+    ],
+    backendDir,
+  );
+
+  if (!(await waitForBackendHealthy())) {
+    throw new Error(`Backend did not become healthy at ${backendHealthUrl}.`);
+  }
+}
 
 function spawnChild(name, command, args, cwd) {
   console.log(`> ${[command, ...args].join(" ")}`);
@@ -61,21 +143,7 @@ let shuttingDown = false;
 
 try {
   ensureDevEnvironment();
-  spawnChild(
-    "Backend",
-    venvPython,
-    [
-      "-m",
-      "uvicorn",
-      "voice_agent.main:app",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      "8765",
-      "--reload",
-    ],
-    backendDir,
-  );
+  await ensureBackendStarted();
   spawnChild("Desktop web", "pnpm", ["run", "dev"], desktopDir);
 
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
