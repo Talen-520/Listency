@@ -155,7 +155,7 @@ class SessionManager:
         timeout_at = started_at + timedelta(seconds=self.session_limit_seconds)
         provider_events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
-        agent = self.db.get_default_agent()
+        agent = self.db.get_active_agent()
         profile = self.db.get_business_profile()
         instructions = str(agent.get("system_prompt") or "").strip()
         business_content = str(profile.get("content") or "").strip()

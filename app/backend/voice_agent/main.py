@@ -742,12 +742,52 @@ async def save_business_profile(update: BusinessProfileUpdate) -> dict[str, Any]
 
 @app.get("/agent")
 async def get_agent() -> dict[str, Any]:
-    return db.get_default_agent()
+    return db.get_active_agent()
 
 
 @app.put("/agent")
 async def save_agent(update: AgentUpdate) -> dict[str, Any]:
-    return db.upsert_default_agent(update.system_prompt, update.name)
+    return db.upsert_active_agent(update.system_prompt, update.name)
+
+
+@app.get("/agents")
+async def list_agents() -> dict[str, Any]:
+    return {"agents": db.list_agents(), "active_agent_id": db.get_active_agent_id()}
+
+
+@app.post("/agents")
+async def create_agent(update: AgentUpdate) -> dict[str, Any]:
+    agent = db.create_agent(update.system_prompt, update.name)
+    db.set_active_agent(agent["id"])
+    return agent
+
+
+@app.put("/agents/{agent_id}")
+async def save_agent_by_id(agent_id: str, update: AgentUpdate) -> dict[str, Any]:
+    agent = db.upsert_agent(agent_id, update.system_prompt, update.name)
+    if db.get_active_agent_id() == agent_id:
+        db.set_active_agent(agent_id)
+    return agent
+
+
+@app.delete("/agents/{agent_id}")
+async def delete_agent(agent_id: str) -> dict[str, Any]:
+    try:
+        deleted = db.delete_agent(agent_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"deleted": deleted, "active_agent_id": db.get_active_agent_id()}
+
+
+@app.post("/agents/{agent_id}/select")
+async def select_agent(agent_id: str) -> dict[str, Any]:
+    try:
+        agent = db.set_active_agent(agent_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return agent
 
 
 @app.get("/tools")

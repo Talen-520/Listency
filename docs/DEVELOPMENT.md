@@ -28,6 +28,11 @@ After the first run, unchanged dependencies are skipped. Use this mode for most
 React, shadcn, Tailwind, and page-level UI work because browser DevTools and
 Vite HMR are faster than the full Tauri shell loop.
 
+If a compatible backend is already healthy on `127.0.0.1:8765`, the helper
+reuses it. If the port is occupied by an older backend that is missing current
+API routes, the helper stops with a stale-process message so you can restart the
+current backend cleanly.
+
 ## Full Desktop App Verification
 
 ```bash

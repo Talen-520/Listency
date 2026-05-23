@@ -79,7 +79,7 @@ For alpha users:
 2. Open the desktop app.
 3. Add OpenAI and/or Gemini API keys in Settings hit save.
 4. Choose a provider, model, and voice.
-5. Fill in Business Info and Agent prompt, there's template for you, ask AI to generate business info for you if you dont have one.
+5. Fill in Business Info, then choose or edit an Agent prompt. You can save multiple agents for different call flows.
 6. Start Runtime by click the top right corner "Start" and the button will turn to "Stop".
 7. Optional: configure [Twilio](https://www.twilio.com) or [Telnyx](https://www.telnyx.com) in Settings, click "Connect Phone" to connect a number, then call the
    configured number.
@@ -107,7 +107,7 @@ Listency is currently in the early stages of rapid development; commits will be 
 - Local-first desktop runtime with a lightweight FastAPI backend.
 - OpenAI Realtime and Gemini Live realtime voice sessions.
 - Provider-specific voices and local voice preview cache.
-- Business profile, editable agent prompt, and tool toggles.
+- Business profile, multiple saved agent prompts, and tool toggles.
 - Built-in tools for common small-business call flows.
 - Five-minute maximum duration per active AI conversation.
 - Twilio phone setup alpha with automatic public tunnel and webhook provisioning.

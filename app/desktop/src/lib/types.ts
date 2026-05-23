@@ -133,6 +133,11 @@ export type AgentProfile = {
   updated_at: string | null;
 };
 
+export type AgentList = {
+  agents: AgentProfile[];
+  active_agent_id: string;
+};
+
 export type SessionRecord = {
   id: string;
   provider: string;

@@ -119,6 +119,46 @@ textarea {
   }
 }
 
+@keyframes sheet-overlay-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-overlay-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes sheet-slide-out-right {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @layer utilities {
   .shimmer-text {
     animation: text-shimmer 1.7s linear infinite;
@@ -135,11 +175,34 @@ textarea {
     background-clip: text;
     color: transparent;
   }
+
+  .animate-sheet-overlay-in {
+    animation: sheet-overlay-in 180ms ease-out;
+  }
+
+  .animate-sheet-overlay-out {
+    animation: sheet-overlay-out 180ms ease-in forwards;
+  }
+
+  .animate-sheet-slide-in-right {
+    animation: sheet-slide-in-right 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-sheet-slide-out-right {
+    animation: sheet-slide-out-right 180ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .shimmer-text {
     animation: none;
     color: hsl(var(--muted-foreground));
+  }
+
+  .animate-sheet-overlay-in,
+  .animate-sheet-overlay-out,
+  .animate-sheet-slide-in-right,
+  .animate-sheet-slide-out-right {
+    animation: none;
   }
 }

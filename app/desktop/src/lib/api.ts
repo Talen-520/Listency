@@ -1,5 +1,6 @@
 import type {
   AgentProfile,
+  AgentList,
   AppLogRecord,
   BusinessProfile,
   LogClearResult,
@@ -166,4 +167,30 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+  agents: async () => {
+    try {
+      return await request<AgentList>("/agents");
+    } catch (err) {
+      if (err instanceof Error && /404|not found/i.test(err.message)) {
+        const agent = await request<AgentProfile>("/agent");
+        return { agents: [agent], active_agent_id: agent.id };
+      }
+      throw err;
+    }
+  },
+  createAgent: (payload: { name: string; system_prompt: string }) =>
+    request<AgentProfile>("/agents", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateAgent: (id: string, payload: { name: string; system_prompt: string }) =>
+    request<AgentProfile>(`/agents/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  deleteAgent: (id: string) =>
+    request<{ deleted: AgentProfile; active_agent_id: string }>(`/agents/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  selectAgent: (id: string) => request<AgentProfile>(`/agents/${encodeURIComponent(id)}/select`, { method: "POST" }),
 };

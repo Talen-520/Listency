@@ -176,6 +176,8 @@ export function useAppData() {
   const [twilioDebuggerLoading, setTwilioDebuggerLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessProfile>(defaultBusiness);
+  const [agents, setAgents] = useState<AgentProfile[]>([defaultAgent]);
+  const [activeAgentId, setActiveAgentId] = useState(defaultAgent.id);
   const [agent, setAgent] = useState<AgentProfile>(defaultAgent);
   const [openAiKey, setOpenAiKey] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
@@ -334,7 +336,7 @@ export function useAppData() {
         appLogList,
         phoneCallList,
         businessProfile,
-        agentProfile,
+        agentList,
         previewCache,
       ] = await Promise.all([
         api.health(),
@@ -348,9 +350,12 @@ export function useAppData() {
         api.appLogs(undefined, 300, since),
         api.phoneCalls(undefined, 200, since),
         api.businessProfile(),
-        api.agent(),
+        api.agents(),
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
       ]);
+      const loadedAgents = agentList.agents.length ? agentList.agents : [defaultAgent];
+      const activeAgent =
+        loadedAgents.find((loadedAgent) => loadedAgent.id === agentList.active_agent_id) ?? loadedAgents[0] ?? defaultAgent;
       setBackendHealth({
         available: true,
         checking: false,
@@ -369,7 +374,9 @@ export function useAppData() {
       setPhoneCalls(phoneCallList.phone_calls);
       setVoicePreviewCache(previewCache);
       setBusiness(businessProfile);
-      setAgent(agentProfile);
+      setAgents(loadedAgents);
+      setActiveAgentId(activeAgent.id);
+      setAgent(activeAgent);
       setProviderChoice(cfg.DEFAULT_REALTIME_PROVIDER || "openai");
       setOpenAiModel(cfg.OPENAI_REALTIME_MODEL || DEFAULT_OPENAI_REALTIME_MODEL);
       setGeminiModel(isSupportedGeminiLiveModel(cfg.GEMINI_LIVE_MODEL) ? cfg.GEMINI_LIVE_MODEL : DEFAULT_GEMINI_LIVE_MODEL);
@@ -478,6 +485,39 @@ export function useAppData() {
     },
     [loadAll],
   );
+
+  const updateAgentDraft = useCallback((nextAgent: AgentProfile) => {
+    setAgent(nextAgent);
+    setAgents((current) =>
+      current.some((storedAgent) => storedAgent.id === nextAgent.id)
+        ? current.map((storedAgent) => (storedAgent.id === nextAgent.id ? nextAgent : storedAgent))
+        : [...current, nextAgent],
+    );
+  }, []);
+
+  const createAgent = useCallback(async () => {
+    await api.createAgent({
+      name: `Agent ${agents.length + 1}`,
+      system_prompt: defaultAgent.system_prompt,
+    });
+  }, [agents.length]);
+
+  const saveAgent = useCallback(async () => {
+    await api.updateAgent(agent.id, {
+      name: agent.name,
+      system_prompt: agent.system_prompt,
+    });
+  }, [agent.id, agent.name, agent.system_prompt]);
+
+  const selectAgent = useCallback(async (agentId: string) => {
+    const selected = await api.selectAgent(agentId);
+    setActiveAgentId(selected.id);
+    setAgent(selected);
+  }, []);
+
+  const deleteAgent = useCallback(async (agentId: string) => {
+    await api.deleteAgent(agentId);
+  }, []);
 
   const saveSettings = useCallback(async () => {
     await api.saveConfig({
@@ -617,6 +657,8 @@ export function useAppData() {
     selectedSession,
     selectedSessionDetailId,
     business,
+    agents,
+    activeAgentId,
     agent,
     openAiKey,
     geminiKey,
@@ -646,6 +688,10 @@ export function useAppData() {
     readinessChecks,
     loadAll,
     runAction,
+    createAgent,
+    saveAgent,
+    selectAgent,
+    deleteAgent,
     saveSettings,
     connectPhone,
     stopPhoneConnection,
@@ -660,7 +706,7 @@ export function useAppData() {
     setLogWindow,
     setSelectedSessionId,
     setBusiness,
-    setAgent,
+    setAgent: updateAgentDraft,
     setOpenAiKey,
     setGeminiKey,
     setProviderChoice,

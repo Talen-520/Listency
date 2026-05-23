@@ -115,14 +115,14 @@ export function App() {
       case "agent":
         return (
           <AgentView
+            agents={data.agents}
+            activeAgentId={data.activeAgentId}
             agent={data.agent}
             onAgentChange={data.setAgent}
-            onSave={() =>
-              void data.runAction(
-                () => api.saveAgent({ name: data.agent.name, system_prompt: data.agent.system_prompt }),
-                "Agent saved",
-              )
-            }
+            onAddAgent={() => void data.runAction(data.createAgent, "Agent added")}
+            onSelectAgent={(agentId) => void data.runAction(() => data.selectAgent(agentId), "Agent selected")}
+            onDeleteAgent={(agentId) => void data.runAction(() => data.deleteAgent(agentId), "Agent deleted")}
+            onSave={() => void data.runAction(data.saveAgent, "Agent saved")}
           />
         );
       case "voice":

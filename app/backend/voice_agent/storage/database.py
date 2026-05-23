@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -221,31 +222,104 @@ class Database:
         return dict(row)
 
     def upsert_default_agent(self, system_prompt: str, name: str = "Default Agent") -> dict[str, Any]:
+        return self.upsert_agent("default", system_prompt, name)
+
+    def upsert_active_agent(self, system_prompt: str, name: str = "Default Agent") -> dict[str, Any]:
+        active_agent_id = self.get_active_agent_id()
+        return self.upsert_agent(active_agent_id, system_prompt, name)
+
+    def upsert_agent(self, agent_id: str, system_prompt: str, name: str = "Default Agent") -> dict[str, Any]:
+        agent_id = agent_id.strip() or "default"
+        name = name.strip() or "Untitled Agent"
         now = utc_now()
         with self.open_connection() as connection:
             connection.execute(
                 """
                 INSERT INTO agents (id, name, system_prompt, updated_at)
-                VALUES ('default', ?, ?, ?)
+                VALUES (?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET name = excluded.name, system_prompt = excluded.system_prompt, updated_at = excluded.updated_at
                 """,
-                (name, system_prompt, now),
+                (agent_id, name, system_prompt, now),
             )
-        return self.get_default_agent()
+        return self.get_agent(agent_id) or self.get_default_agent()
+
+    def create_agent(self, system_prompt: str, name: str = "New Agent") -> dict[str, Any]:
+        if self._stored_agent_count() == 0:
+            self.upsert_default_agent(DEFAULT_AGENT_SYSTEM_PROMPT, "Default Agent")
+        agent_id = f"agent_{uuid.uuid4().hex}"
+        return self.upsert_agent(agent_id, system_prompt or DEFAULT_AGENT_SYSTEM_PROMPT, name)
 
     def get_default_agent(self) -> dict[str, Any]:
+        return self.get_agent("default") or {
+            "id": "default",
+            "name": "Default Agent",
+            "system_prompt": DEFAULT_AGENT_SYSTEM_PROMPT,
+            "updated_at": None,
+        }
+
+    def get_agent(self, agent_id: str) -> dict[str, Any] | None:
         with self.open_connection() as connection:
             row = connection.execute(
-                "SELECT id, name, system_prompt, updated_at FROM agents WHERE id = 'default'"
+                "SELECT id, name, system_prompt, updated_at FROM agents WHERE id = ?",
+                (agent_id,),
             ).fetchone()
-        if not row:
-            return {
-                "id": "default",
-                "name": "Default Agent",
-                "system_prompt": DEFAULT_AGENT_SYSTEM_PROMPT,
-                "updated_at": None,
-            }
-        return dict(row)
+        return dict(row) if row else None
+
+    def list_agents(self) -> list[dict[str, Any]]:
+        with self.open_connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, name, system_prompt, updated_at
+                FROM agents
+                ORDER BY CASE WHEN id = 'default' THEN 0 ELSE 1 END, updated_at DESC, name COLLATE NOCASE
+                """
+            ).fetchall()
+        if not rows:
+            return [self.get_default_agent()]
+        return [dict(row) for row in rows]
+
+    def _stored_agent_count(self) -> int:
+        with self.open_connection() as connection:
+            row = connection.execute("SELECT COUNT(*) AS count FROM agents").fetchone()
+        return int(row["count"]) if row else 0
+
+    def get_active_agent_id(self) -> str:
+        active_agent_id = self.get_setting("active_agent_id", "default").strip() or "default"
+        if self.get_agent(active_agent_id):
+            return active_agent_id
+        agents = self.list_agents()
+        return str(agents[0]["id"]) if agents else "default"
+
+    def get_active_agent(self) -> dict[str, Any]:
+        agent = self.get_agent(self.get_active_agent_id())
+        return agent or self.get_default_agent()
+
+    def set_active_agent(self, agent_id: str) -> dict[str, Any]:
+        agent = self.get_agent(agent_id)
+        if not agent and agent_id == "default":
+            agent = self.upsert_default_agent(DEFAULT_AGENT_SYSTEM_PROMPT, "Default Agent")
+        if not agent:
+            raise KeyError(f"Agent not found: {agent_id}")
+        self.set_setting("active_agent_id", agent_id)
+        return agent
+
+    def delete_agent(self, agent_id: str) -> dict[str, Any]:
+        agent = self.get_agent(agent_id)
+        if not agent:
+            raise KeyError(f"Agent not found: {agent_id}")
+
+        agents = self.list_agents()
+        if len(agents) <= 1:
+            raise ValueError("At least one agent is required.")
+
+        active_agent_id = self.get_active_agent_id()
+        with self.open_connection() as connection:
+            connection.execute("DELETE FROM agents WHERE id = ?", (agent_id,))
+
+        if active_agent_id == agent_id:
+            remaining = self.list_agents()
+            self.set_setting("active_agent_id", str(remaining[0]["id"]))
+        return agent
 
     def create_session(self, session_id: str, provider: str, mode: str, status: str, timeout_at: str) -> None:
         with self.open_connection() as connection:
