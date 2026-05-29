@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, KeyRound, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
+import { BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, ExternalLink, LifeBuoy, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
@@ -18,6 +18,8 @@ import { isSupportedVoice, type VoiceOption, voiceOptionsForProvider } from "@/l
 
 const OPENAI_API_KEYS_URL = "https://platform.openai.com/settings/organization/api-keys";
 const GEMINI_API_KEYS_URL = "https://aistudio.google.com/app/api-keys?project=stock-agent-f54f1";
+const DEVELOPER_CONTACT_URL = "https://x.com/Momo_tao205";
+const LISTENCY_ISSUES_URL = "https://github.com/Talen-520/Listency/issues";
 const PROVIDER_DEFAULT_VOICE = "__provider_default__";
 const PHONE_PROVIDER_LABELS: Record<string, string> = {
   none: "Off",
@@ -638,6 +640,7 @@ export function SettingsView({
       <div>
         <h2 className="text-lg font-semibold">API Keys</h2>
         <p className="text-sm text-muted-foreground">Provider keys stored locally in your .env file.</p>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{config.env_path || ".env"}</p>
       </div>
       <Separator />
       <div className="grid gap-6 md:grid-cols-2">
@@ -651,7 +654,12 @@ export function SettingsView({
             />
           }
         >
-          <Input type="password" placeholder={config.OPENAI_API_KEY || "sk-..."} value={openAiKey} onChange={(event) => onOpenAiKeyChange(event.target.value)} />
+          <InlineSaveInput
+            placeholder={config.OPENAI_API_KEY || "sk-..."}
+            value={openAiKey}
+            onChange={onOpenAiKeyChange}
+            onSave={onSave}
+          />
         </Field>
         <Field
           label="Gemini API Key"
@@ -663,7 +671,12 @@ export function SettingsView({
             />
           }
         >
-          <Input type="password" placeholder={config.GEMINI_API_KEY || "AIza..."} value={geminiKey} onChange={(event) => onGeminiKeyChange(event.target.value)} />
+          <InlineSaveInput
+            placeholder={config.GEMINI_API_KEY || "AIza..."}
+            value={geminiKey}
+            onChange={onGeminiKeyChange}
+            onSave={onSave}
+          />
         </Field>
       </div>
 
@@ -930,15 +943,39 @@ export function SettingsView({
         </Card>
       </div>
 
-      {/* Save Section */}
-      <Separator />
-      <div className="flex items-center justify-between gap-4">
-        <p className="truncate text-sm text-muted-foreground">{config.env_path || ".env"}</p>
-        <Button onClick={onSave}>
-          <KeyRound className="h-4 w-4" />
-          Save
-        </Button>
+      {/* Support Section */}
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">Support</h2>
+        <p className="text-sm text-muted-foreground">Contact the developer or report a Listency issue.</p>
       </div>
+      <Separator />
+      <Card className="space-y-4 rounded-lg p-5">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+            <LifeBuoy className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold">Need help?</h3>
+            <p className="text-sm text-muted-foreground">
+              For setup help, early feedback, or bug reports, use one of the links below.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild type="button" variant="outline">
+            <a href={DEVELOPER_CONTACT_URL} target="_blank" rel="noreferrer">
+              Contact Developer
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+          <Button asChild type="button" variant="outline">
+            <a href={LISTENCY_ISSUES_URL} target="_blank" rel="noreferrer">
+              Report Issue
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -983,6 +1020,39 @@ function VoiceSelect({
       </Select>
       <Button type="button" variant="outline" size="icon" disabled={!value || previewing} onClick={onPreview} aria-label="Play voice preview">
         {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+      </Button>
+    </div>
+  );
+}
+
+function InlineSaveInput({
+  onChange,
+  onSave,
+  placeholder,
+  value,
+}: {
+  onChange: (value: string) => void;
+  onSave: () => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <div className="relative">
+      <Input
+        type="password"
+        className="pr-20"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="absolute right-1 top-1 h-8 px-3"
+        onClick={onSave}
+      >
+        Save
       </Button>
     </div>
   );
