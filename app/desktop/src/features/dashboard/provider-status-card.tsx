@@ -1,8 +1,11 @@
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/lib/i18n";
 import type { ProviderInfo } from "@/lib/types";
 
 export function ProviderStatusCard({ provider }: { provider: ProviderInfo }) {
+  const { t } = useI18n();
+
   return (
     <div className="group flex items-center justify-between gap-4 rounded-lg bg-muted/40 p-4 transition-colors">
       <div className="flex min-w-0 items-center gap-4">
@@ -15,7 +18,7 @@ export function ProviderStatusCard({ provider }: { provider: ProviderInfo }) {
         </div>
       </div>
       <Badge className="shrink-0" tone={provider.ready ? "green" : "yellow"}>
-        {provider.ready ? "ready" : "missing key"}
+        {provider.ready ? t("status.ready") : t("status.missingKey")}
       </Badge>
     </div>
   );

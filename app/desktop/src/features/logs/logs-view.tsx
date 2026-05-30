@@ -12,13 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogRecordDialog, type LogDetailRecord } from "@/features/logs/log-record-dialog";
 import { SessionTable } from "@/features/logs/session-table";
 import { formatDate } from "@/lib/format";
-import { formatLifecycleLabel } from "@/lib/lifecycle";
+import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
 import type { AppLogRecord, LogTimeWindow, PhoneCallRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
-const logWindowLabels: Record<LogTimeWindow, string> = {
-  "24h": "Last 24 hours",
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
+const logWindowLabelKeys: Record<LogTimeWindow, string> = {
+  "24h": "logs.window.24h",
+  "7d": "logs.window.7d",
+  "30d": "logs.window.30d",
 };
 
 type ActivityColumn<T> = {
@@ -163,66 +163,70 @@ export function LogsView({
   phoneCalls: PhoneCallRecord[];
   onDownloadLogs: () => void;
 }) {
+  const { t } = useI18n();
   const [detail, setDetail] = useState<LogDetailRecord | null>(null);
   const phoneSummary = phoneCallSummary(phoneCalls);
+  const currentWindowLabel = t(logWindowLabelKeys[logWindow]);
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-col gap-4 space-y-0 md:flex-row md:items-start md:justify-between">
           <div>
-            <CardTitle>Logs</CardTitle>
-            <CardDescription>Filter local sessions, transcripts, tool calls, and app logs by time range.</CardDescription>
+            <CardTitle>{t("logs.title")}</CardTitle>
+            <CardDescription>{t("logs.description")}</CardDescription>
           </div>
           <Button type="button" variant="outline" onClick={onDownloadLogs}>
             <Download className="h-4 w-4" />
-            Download JSON
+            {t("action.downloadJson")}
           </Button>
         </CardHeader>
         <CardContent className="grid gap-5 xl:grid-cols-[minmax(18rem,0.8fr)_1fr]">
           <div className="space-y-2">
-            <Label htmlFor="log-time-window">Time range</Label>
+            <Label htmlFor="log-time-window">{t("logs.timeRange")}</Label>
             <Select value={logWindow} onValueChange={(value) => onLogWindowChange(value as LogTimeWindow)}>
               <SelectTrigger id="log-time-window">
                 <SelectValue placeholder="Select range" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(logWindowLabels).map(([value, label]) => (
+                {Object.entries(logWindowLabelKeys).map(([value, labelKey]) => (
                   <SelectItem key={value} value={value}>
-                    {label}
+                    {t(labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-sm text-muted-foreground">Showing records from {logWindowLabels[logWindow].toLowerCase()}.</p>
+            <p className="text-sm text-muted-foreground">
+              {formatMessage(t("logs.showingRecords"), { range: currentWindowLabel.toLowerCase() })}
+            </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-5">
-            <SummaryField label="Sessions" value={sessions.length} />
-            <SummaryField label="Transcripts" value={transcripts.length} />
-            <SummaryField label="Tool calls" value={toolCalls.length} />
-            <SummaryField label="App logs" value={appLogs.length} />
-            <SummaryField label="Phone calls" value={phoneCalls.length} />
+            <SummaryField label={t("common.sessions")} value={sessions.length} />
+            <SummaryField label={t("common.transcripts")} value={transcripts.length} />
+            <SummaryField label={t("common.toolCalls")} value={toolCalls.length} />
+            <SummaryField label={t("logs.appLogs")} value={appLogs.length} />
+            <SummaryField label={t("common.phoneCalls")} value={phoneCalls.length} />
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Phone Stability</CardTitle>
-          <CardDescription>Use this after repeated real inbound calls to spot duration and failure patterns.</CardDescription>
+          <CardTitle>{t("logs.phoneStability")}</CardTitle>
+          <CardDescription>{t("logs.phoneStabilityDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-4">
-          <SummaryField label="Long calls" value={phoneSummary.longCalls.length} />
-          <SummaryField label="Failures" value={phoneSummary.failures.length} />
-          <SummaryField label="Longest" value={formatDuration(phoneSummary.maxDuration)} />
-          <SummaryField label="Average" value={formatDuration(phoneSummary.averageDuration)} />
+          <SummaryField label={t("common.longCalls")} value={phoneSummary.longCalls.length} />
+          <SummaryField label={t("common.failures")} value={phoneSummary.failures.length} />
+          <SummaryField label={t("common.longest")} value={formatDuration(phoneSummary.maxDuration)} />
+          <SummaryField label={t("common.average")} value={formatDuration(phoneSummary.averageDuration)} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Sessions</CardTitle>
-          <CardDescription>Click a session to open full conversation, tool calls, and event detail.</CardDescription>
+          <CardTitle>{t("common.sessions")}</CardTitle>
+          <CardDescription>{t("logs.sessionsDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <SessionTable
@@ -236,36 +240,36 @@ export function LogsView({
 
       <Tabs defaultValue="transcripts">
         <TabsList className="grid w-full grid-cols-4 md:w-auto">
-          <TabsTrigger value="transcripts">Transcripts</TabsTrigger>
-          <TabsTrigger value="tools">Tool Calls</TabsTrigger>
-          <TabsTrigger value="phone">Phone Calls</TabsTrigger>
-          <TabsTrigger value="logs">App Logs</TabsTrigger>
+          <TabsTrigger value="transcripts">{t("common.transcripts")}</TabsTrigger>
+          <TabsTrigger value="tools">{t("common.toolCalls")}</TabsTrigger>
+          <TabsTrigger value="phone">{t("common.phoneCalls")}</TabsTrigger>
+          <TabsTrigger value="logs">{t("logs.appLogs")}</TabsTrigger>
         </TabsList>
         <TabsContent value="transcripts">
           <ActivityTable
-            title="Recent Transcripts"
-            description="User and agent transcript records."
+            title={t("logs.recentTranscripts")}
+            description={t("logs.transcriptDescription")}
             items={transcripts.slice(0, 30)}
-            empty="No transcripts in this range."
+            empty={t("logs.noTranscripts")}
             getKey={(item, index) => `${item.session_id}-${item.created_at}-${index}`}
             onInspect={(record) => setDetail({ kind: "transcript", record })}
             columns={[
               {
-                heading: "Time",
+                heading: t("common.time"),
                 className: "whitespace-nowrap",
                 cell: (item) => formatDate(item.created_at),
               },
               {
-                heading: "Speaker",
-                cell: (item) => <Badge tone="neutral">{item.speaker}</Badge>,
+                heading: t("common.speaker"),
+                cell: (item) => <Badge tone="neutral">{translateStatus(item.speaker, t)}</Badge>,
               },
               {
-                heading: "Content",
+                heading: t("common.content"),
                 className: "min-w-[24rem] max-w-[36rem] truncate",
                 cell: (item) => item.content,
               },
               {
-                heading: "Session",
+                heading: t("common.session"),
                 className: "max-w-[12rem] truncate text-muted-foreground",
                 cell: (item) => item.session_id,
               },
@@ -274,34 +278,34 @@ export function LogsView({
         </TabsContent>
         <TabsContent value="tools">
           <ActivityTable
-            title="Recent Tool Calls"
-            description="Tool invocation input, output, and status."
+            title={t("logs.recentToolCalls")}
+            description={t("logs.toolDescription")}
             items={toolCalls.slice(0, 30)}
-            empty="No tool calls in this range."
+            empty={t("logs.noToolCalls")}
             getKey={(item) => item.id}
             onInspect={(record) => setDetail({ kind: "tool", record })}
             columns={[
               {
-                heading: "Time",
+                heading: t("common.time"),
                 className: "whitespace-nowrap",
                 cell: (item) => formatDate(item.started_at),
               },
               {
-                heading: "Tool",
+                heading: t("common.tool"),
                 className: "font-medium",
                 cell: (item) => item.tool_name,
               },
               {
-                heading: "Status",
-                cell: (item) => <Badge tone={item.status === "error" ? "red" : "neutral"}>{item.status}</Badge>,
+                heading: t("common.status"),
+                cell: (item) => <Badge tone={item.status === "error" ? "red" : "neutral"}>{translateStatus(item.status, t)}</Badge>,
               },
               {
-                heading: "Session",
+                heading: t("common.session"),
                 className: "max-w-[14rem] truncate text-muted-foreground",
                 cell: (item) => item.session_id ?? "-",
               },
               {
-                heading: "Error",
+                heading: t("common.error"),
                 className: "max-w-[18rem] truncate",
                 cell: (item) => item.error_message ?? "-",
               },
@@ -310,41 +314,41 @@ export function LogsView({
         </TabsContent>
         <TabsContent value="phone">
           <ActivityTable
-            title="Phone Calls"
-            description="Inbound provider call records, duration, and failure reason."
+            title={t("common.phoneCalls")}
+            description={t("logs.phoneDescription")}
             items={phoneCalls.slice(0, 30)}
-            empty="No phone calls in this range."
+            empty={t("logs.noPhoneCalls")}
             getKey={(item) => item.id}
             onInspect={(record) => setDetail({ kind: "phone", record })}
             columns={[
               {
-                heading: "Started",
+                heading: t("common.started"),
                 className: "whitespace-nowrap",
                 cell: (item) => formatDate(item.started_at),
               },
               {
-                heading: "Provider",
+                heading: t("common.provider"),
                 cell: (item) => providerLabel(item.provider),
               },
               {
-                heading: "Duration",
+                heading: t("common.duration"),
                 cell: (item) => formatDuration(phoneCallDurationSeconds(item)),
               },
               {
-                heading: "Status",
-                cell: (item) => <Badge tone={item.status === "failed" ? "red" : "neutral"}>{formatLifecycleLabel(item.status)}</Badge>,
+                heading: t("common.status"),
+                cell: (item) => <Badge tone={item.status === "failed" ? "red" : "neutral"}>{translateStatus(item.status, t)}</Badge>,
               },
               {
-                heading: "End reason",
-                cell: (item) => formatLifecycleLabel(item.ended_reason),
+                heading: t("common.endReason"),
+                cell: (item) => translateStatus(item.ended_reason, t),
               },
               {
-                heading: "Route",
+                heading: t("common.route"),
                 className: "max-w-[18rem] truncate text-muted-foreground",
                 cell: (item) => `${item.from_number || "-"} -> ${item.to_number || "-"}`,
               },
               {
-                heading: "Error",
+                heading: t("common.error"),
                 className: "max-w-[18rem] truncate",
                 cell: (item) => item.error_message ?? "-",
               },
@@ -353,29 +357,29 @@ export function LogsView({
         </TabsContent>
         <TabsContent value="logs">
           <ActivityTable
-            title="App Logs"
-            description="Runtime events and local backend notices."
+            title={t("logs.appLogs")}
+            description={t("logs.appLogsDescription")}
             items={appLogs.slice(0, 30)}
-            empty="No app logs in this range."
+            empty={t("logs.noAppLogs")}
             getKey={(item) => item.id}
             onInspect={(record) => setDetail({ kind: "app-log", record })}
             columns={[
               {
-                heading: "Time",
+                heading: t("common.time"),
                 className: "whitespace-nowrap",
                 cell: (item) => formatDate(item.created_at),
               },
               {
-                heading: "Level",
-                cell: (item) => <Badge tone={item.level === "error" ? "red" : "neutral"}>{item.level}</Badge>,
+                heading: t("common.level"),
+                cell: (item) => <Badge tone={item.level === "error" ? "red" : "neutral"}>{translateStatus(item.level, t)}</Badge>,
               },
               {
-                heading: "Event",
+                heading: t("common.event"),
                 className: "font-medium",
                 cell: (item) => item.event,
               },
               {
-                heading: "Message",
+                heading: t("common.message"),
                 className: "min-w-[24rem] max-w-[38rem] truncate",
                 cell: (item) => item.message,
               },

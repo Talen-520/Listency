@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { motion } from "framer-motion";
 import { Play, Square } from "lucide-react";
 
+import { LanguageToggle } from "@/components/language-toggle";
 import { ModeToggle } from "@/components/mode-toggle";
 import { useTheme } from "@/components/theme-provider";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,8 @@ import appIconStartingDark from "@/assets/app-icon-starting-dark.mp4";
 import appIconStartingLight from "@/assets/app-icon-starting-light.mp4";
 import appIconStoppingDark from "@/assets/app-icon-stopping-dark.mp4";
 import appIconStoppingLight from "@/assets/app-icon-stopping-light.mp4";
-import { formatRuntimeStatus, isRuntimeRunning } from "@/lib/runtime";
+import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
+import { isRuntimeRunning } from "@/lib/runtime";
 import type { ActiveSession, BackendHealth, RuntimeStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -50,15 +52,16 @@ export function AppShell({
   onStopRuntime: () => void;
   children: ReactNode;
 }) {
-  const runtimeLabel = formatRuntimeStatus(status.background_status);
+  const { t } = useI18n();
+  const runtimeLabel = translateStatus(status.background_status, t);
   const runtimeRunning = isRuntimeRunning(status.background_status);
   const backendLabel = backendHealth.available
-    ? "backend online"
+    ? t("shell.backendOnline")
     : backendHealth.checking
-      ? "checking backend"
-      : "backend offline";
+      ? t("shell.backendChecking")
+      : t("shell.backendOffline");
   const RuntimeToggleIcon = runtimeRunning ? Square : Play;
-  const runtimeToggleLabel = runtimeRunning ? "Stop" : "Start";
+  const runtimeToggleLabel = runtimeRunning ? t("action.stop") : t("action.start");
 
   return (
     <main className="h-screen bg-background text-foreground overflow-hidden">
@@ -68,7 +71,7 @@ export function AppShell({
             <AppIcon className="h-12 w-12" graphicClassName="h-10 w-10" running={runtimeRunning} />
             <div className="min-w-0">
               <div className="font-display text-xl font-semibold leading-tight tracking-normal">Listency</div>
-              <div className="mt-0.5 text-sm text-muted-foreground">Local voice runtime</div>
+              <div className="mt-0.5 text-sm text-muted-foreground">{t("shell.subtitle")}</div>
             </div>
           </div>
 
@@ -77,10 +80,10 @@ export function AppShell({
           </nav>
 
           <div className="space-y-3 p-4">
-            <StatusRow label="Backend" value={backendHealth.available ? "online" : "offline"} />
-            <StatusRow label="Runtime" value={runtimeLabel} />
-            <StatusRow label="Session" value={activeSession ? activeSession.provider : "idle"} />
-            {remainingSeconds !== null && <StatusRow label="Limit" value={`${remainingSeconds}s`} />}
+            <StatusRow label={t("common.backend")} value={backendHealth.available ? t("status.online") : t("status.offline")} />
+            <StatusRow label={t("common.runtime")} value={runtimeLabel} />
+            <StatusRow label={t("common.session")} value={activeSession ? activeSession.provider : t("status.idle")} />
+            {remainingSeconds !== null && <StatusRow label={t("common.limit")} value={`${remainingSeconds}s`} />}
           </div>
         </aside>
 
@@ -91,21 +94,26 @@ export function AppShell({
                 <div className="flex items-center gap-3">
                   <AppIcon className="md:hidden" running={runtimeRunning} />
                   <div>
-                    <h1 className="font-display text-2xl font-semibold tracking-normal">{currentNav.label}</h1>
+                    <h1 className="font-display text-2xl font-semibold tracking-normal">{t(`nav.${currentNav.id}`, currentNav.label)}</h1>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Badge tone={runtimeRunning ? "green" : "neutral"} className="gap-1.5">
                         {runtimeRunning && <Spinner />}
                         {runtimeLabel}
                       </Badge>
                       <Badge tone={backendHealth.available ? "green" : "red"}>{backendLabel}</Badge>
-                      <Badge tone={activeSession ? "cyan" : "neutral"}>{activeSession ? "session active" : "no active session"}</Badge>
-                      {remainingSeconds !== null && <Badge tone={remainingSeconds < 30 ? "yellow" : "cyan"}>{remainingSeconds}s left</Badge>}
+                      <Badge tone={activeSession ? "cyan" : "neutral"}>{activeSession ? t("shell.sessionActive") : t("shell.noActiveSession")}</Badge>
+                      {remainingSeconds !== null && (
+                        <Badge tone={remainingSeconds < 30 ? "yellow" : "cyan"}>
+                          {formatMessage(t("shell.secondsLeft"), { seconds: remainingSeconds })}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <ModeToggle />
+                <LanguageToggle />
                 <Button
                   variant="outline"
                   disabled={!backendHealth.available}
@@ -139,6 +147,7 @@ function NavList({
   onViewChange: (view: View) => void;
   view: View;
 }) {
+  const { t } = useI18n();
   const reduceMotion = useReducedMotion();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef(new Map<View, HTMLButtonElement>());
@@ -225,7 +234,7 @@ function NavList({
             onClick={() => onViewChange(item.id)}
           >
             <Icon className="h-4 w-4 shrink-0" />
-            <span>{item.label}</span>
+            <span>{t(`nav.${item.id}`, item.label)}</span>
           </button>
         );
       })}

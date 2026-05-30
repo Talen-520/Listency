@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SessionDetailContent } from "@/features/logs/session-detail-panel";
 import { formatDate } from "@/lib/format";
-import { formatLifecycleLabel } from "@/lib/lifecycle";
+import { translateStatus, useI18n } from "@/lib/i18n";
 import type { AppLogRecord, PhoneCallRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
 export type LogDetailRecord =
@@ -43,22 +43,25 @@ function formatDuration(startedAt: string, endedAt: string | null) {
   return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }
 
-function detailRows(detail: LogDetailRecord): { title: string; description: string; badge: string; rows: DetailRow[] } {
+function detailRows(
+  detail: LogDetailRecord,
+  t: (key: string, fallback?: string) => string,
+): { title: string; description: string; badge: string; rows: DetailRow[] } {
   if (detail.kind === "session") {
     const { record } = detail;
     return {
-      title: "Session",
+      title: t("common.session"),
       description: record.id,
-      badge: record.status,
+      badge: translateStatus(record.status, t),
       rows: [
-        { label: "Provider", value: record.provider },
-        { label: "Mode", value: record.mode },
-        { label: "Status", value: formatLifecycleLabel(record.status) },
-        { label: "Started", value: formatDate(record.started_at) },
-        { label: "Ended", value: formatDate(record.ended_at) },
-        { label: "End reason", value: formatLifecycleLabel(record.ended_reason) },
-        { label: "Timeout", value: formatDate(record.timeout_at) },
-        { label: "Error", value: record.error_message ?? "-" },
+        { label: t("common.provider"), value: record.provider },
+        { label: t("common.mode"), value: record.mode },
+        { label: t("common.status"), value: translateStatus(record.status, t) },
+        { label: t("common.started"), value: formatDate(record.started_at) },
+        { label: t("common.ended"), value: formatDate(record.ended_at) },
+        { label: t("common.endReason"), value: translateStatus(record.ended_reason, t) },
+        { label: t("common.timeout"), value: formatDate(record.timeout_at) },
+        { label: t("common.error"), value: record.error_message ?? "-" },
       ],
     };
   }
@@ -66,15 +69,15 @@ function detailRows(detail: LogDetailRecord): { title: string; description: stri
   if (detail.kind === "transcript") {
     const { record } = detail;
     return {
-      title: "Transcript",
+      title: t("common.transcripts"),
       description: record.session_id,
       badge: record.speaker,
       rows: [
-        { label: "Session", value: record.session_id },
-        { label: "Speaker", value: record.speaker },
-        { label: "Created", value: formatDate(record.created_at) },
-        { label: "Final", value: record.is_final ? "yes" : "no" },
-        { label: "Content", value: record.content, code: true },
+        { label: t("common.session"), value: record.session_id },
+        { label: t("common.speaker"), value: record.speaker },
+        { label: t("common.created"), value: formatDate(record.created_at) },
+        { label: t("common.final"), value: record.is_final ? t("status.yes") : t("status.no") },
+        { label: t("common.content"), value: record.content, code: true },
       ],
     };
   }
@@ -82,18 +85,18 @@ function detailRows(detail: LogDetailRecord): { title: string; description: stri
   if (detail.kind === "tool") {
     const { record } = detail;
     return {
-      title: "Tool Call",
-      description: record.session_id ?? "No session",
-      badge: record.status,
+      title: t("common.toolCalls"),
+      description: record.session_id ?? t("shell.noActiveSession"),
+      badge: translateStatus(record.status, t),
       rows: [
-        { label: "Tool", value: record.tool_name },
-        { label: "Session", value: record.session_id ?? "-" },
-        { label: "Status", value: record.status },
-        { label: "Started", value: formatDate(record.started_at) },
-        { label: "Ended", value: formatDate(record.ended_at) },
-        { label: "Error", value: record.error_message ?? "-" },
-        { label: "Input", value: formatJson(record.input_json), code: true },
-        { label: "Output", value: formatJson(record.output_json), code: true },
+        { label: t("common.tool"), value: record.tool_name },
+        { label: t("common.session"), value: record.session_id ?? "-" },
+        { label: t("common.status"), value: translateStatus(record.status, t) },
+        { label: t("common.started"), value: formatDate(record.started_at) },
+        { label: t("common.ended"), value: formatDate(record.ended_at) },
+        { label: t("common.error"), value: record.error_message ?? "-" },
+        { label: t("common.input"), value: formatJson(record.input_json), code: true },
+        { label: t("common.output"), value: formatJson(record.output_json), code: true },
       ],
     };
   }
@@ -101,37 +104,37 @@ function detailRows(detail: LogDetailRecord): { title: string; description: stri
   if (detail.kind === "phone") {
     const { record } = detail;
     return {
-      title: "Phone Call",
+      title: t("common.phoneCalls"),
       description: record.provider_call_id,
-      badge: record.status,
+      badge: translateStatus(record.status, t),
       rows: [
-        { label: "Provider", value: record.provider },
+        { label: t("common.provider"), value: record.provider },
         { label: "Provider call id", value: record.provider_call_id },
         { label: "Stream id", value: record.provider_stream_id ?? "-" },
-        { label: "Session", value: record.session_id ?? "-" },
-        { label: "Route", value: `${record.from_number || "-"} -> ${record.to_number || "-"}` },
-        { label: "Status", value: formatLifecycleLabel(record.status) },
-        { label: "End reason", value: formatLifecycleLabel(record.ended_reason) },
-        { label: "Duration", value: formatDuration(record.started_at, record.ended_at) },
-        { label: "Started", value: formatDate(record.started_at) },
-        { label: "Answered", value: formatDate(record.answered_at) },
-        { label: "Ended", value: formatDate(record.ended_at) },
-        { label: "Error", value: record.error_message ?? "-" },
+        { label: t("common.session"), value: record.session_id ?? "-" },
+        { label: t("common.route"), value: `${record.from_number || "-"} -> ${record.to_number || "-"}` },
+        { label: t("common.status"), value: translateStatus(record.status, t) },
+        { label: t("common.endReason"), value: translateStatus(record.ended_reason, t) },
+        { label: t("common.duration"), value: formatDuration(record.started_at, record.ended_at) },
+        { label: t("common.started"), value: formatDate(record.started_at) },
+        { label: t("common.answered"), value: formatDate(record.answered_at) },
+        { label: t("common.ended"), value: formatDate(record.ended_at) },
+        { label: t("common.error"), value: record.error_message ?? "-" },
       ],
     };
   }
 
   const { record } = detail;
   return {
-    title: "App Log",
+    title: t("logs.appLogs"),
     description: record.event,
-    badge: record.level,
+    badge: translateStatus(record.level, t),
     rows: [
-      { label: "Level", value: record.level },
-      { label: "Event", value: record.event },
-      { label: "Created", value: formatDate(record.created_at) },
-      { label: "Message", value: record.message, code: true },
-      { label: "Metadata", value: formatJson(record.metadata_json), code: true },
+      { label: t("common.level"), value: record.level },
+      { label: t("common.event"), value: record.event },
+      { label: t("common.created"), value: formatDate(record.created_at) },
+      { label: t("common.message"), value: record.message, code: true },
+      { label: t("common.metadata"), value: formatJson(record.metadata_json), code: true },
     ],
   };
 }
@@ -153,6 +156,8 @@ export function LogRecordDialog({
   sessionDetailLoading: boolean;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
+
   useEffect(() => {
     if (!detail) return;
 
@@ -168,7 +173,7 @@ export function LogRecordDialog({
 
   if (!detail) return null;
 
-  const view = detailRows(detail);
+  const view = detailRows(detail, t);
   const isSession = detail.kind === "session";
 
   return (
@@ -191,7 +196,7 @@ export function LogRecordDialog({
             </div>
             <CardDescription className="break-all">{view.description}</CardDescription>
           </div>
-          <Button type="button" variant="ghost" size="icon" aria-label="Close detail" onClick={onClose}>
+          <Button type="button" variant="ghost" size="icon" aria-label={t("action.close", "Close detail")} onClick={onClose}>
             <X />
           </Button>
         </CardHeader>

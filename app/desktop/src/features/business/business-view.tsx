@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/lib/i18n";
 import type { BusinessProfile } from "@/lib/types";
 
 export function BusinessView({
@@ -16,18 +17,20 @@ export function BusinessView({
   onBusinessChange: (business: BusinessProfile) => void;
   onSave: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Business Profile</h2>
-        <p className="text-sm text-muted-foreground">Local text used by business lookup tools and session instructions.</p>
+        <h2 className="text-lg font-semibold">{t("business.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("business.description")}</p>
       </div>
       <Separator />
       <div className="space-y-4">
-        <Field label="Business Name">
+        <Field label={t("business.name")}>
           <Input value={business.name} onChange={(event) => onBusinessChange({ ...business, name: event.target.value })} />
         </Field>
-        <Field label="Profile Content">
+        <Field label={t("business.content")}>
           <Textarea
             className="min-h-96"
             value={business.content}
@@ -39,7 +42,7 @@ export function BusinessView({
       <div className="flex justify-end">
         <Button onClick={onSave}>
           <Database className="h-4 w-4" />
-          Save
+          {t("action.save")}
         </Button>
       </div>
     </div>

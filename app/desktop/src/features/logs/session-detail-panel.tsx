@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TranscriptBubble } from "@/features/logs/transcript-bubble";
 import { compareCreatedAt, formatDate } from "@/lib/format";
-import { formatLifecycleLabel } from "@/lib/lifecycle";
+import { translateStatus, useI18n } from "@/lib/i18n";
 import type { AppLogRecord, PhoneCallRecord, SessionRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
 function formatJsonPreview(value: string | null) {
@@ -54,6 +54,7 @@ export function SessionDetailContent({
   phoneCalls: PhoneCallRecord[];
   loading: boolean;
 }) {
+  const { t } = useI18n();
   const orderedTranscripts = [...transcripts].sort(compareCreatedAt);
   const orderedLogs = [...appLogs].sort(compareCreatedAt);
   const orderedToolCalls = [...toolCalls].sort((left, right) => new Date(left.started_at).getTime() - new Date(right.started_at).getTime());
@@ -63,20 +64,20 @@ export function SessionDetailContent({
   return (
     <div className="space-y-5">
       {!session ? (
-        <div className="rounded-md border bg-muted/30 p-6 text-sm text-muted-foreground">No session selected.</div>
+        <div className="rounded-md border bg-muted/30 p-6 text-sm text-muted-foreground">{t("shell.noActiveSession")}</div>
       ) : (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-medium text-muted-foreground">Provider</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("common.provider")}</p>
                 <ProviderBrandIcon provider={session.provider} className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{session.provider}</p>
             </div>
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-medium text-muted-foreground">Duration</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("common.duration")}</p>
                 <Timer className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatDuration(session.started_at, session.ended_at)}</p>
@@ -95,30 +96,30 @@ export function SessionDetailContent({
                 <p className="text-sm font-medium text-muted-foreground">Token cost</p>
                 <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">Not tracked</p>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{t("status.notTracked", "Not tracked")}</p>
             </div>
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-medium text-muted-foreground">Reason</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("common.reason")}</p>
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatLifecycleLabel(session.ended_reason)}</p>
+              <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{translateStatus(session.ended_reason, t)}</p>
             </div>
             {phoneCall && (
               <div className="rounded-lg bg-muted/30 p-4">
                 <div className="flex items-center justify-between pb-2">
-                  <p className="text-sm font-medium text-muted-foreground">Phone end</p>
+                  <p className="text-sm font-medium text-muted-foreground">{t("common.phoneEnd")}</p>
                   <Phone className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">
-                  {formatLifecycleLabel(phoneCall.ended_reason ?? phoneCall.status)}
+                  {translateStatus(phoneCall.ended_reason ?? phoneCall.status, t)}
                 </p>
               </div>
             )}
             {phoneCall && (
               <div className="rounded-lg bg-muted/30 p-4">
                 <div className="flex items-center justify-between pb-2">
-                  <p className="text-sm font-medium text-muted-foreground">Call route</p>
+                  <p className="text-sm font-medium text-muted-foreground">{t("common.callRoute")}</p>
                   <Phone className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <p className="break-words font-display text-sm font-semibold leading-snug tracking-normal">
@@ -128,47 +129,47 @@ export function SessionDetailContent({
             )}
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-medium text-muted-foreground">Started</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("common.started")}</p>
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatDate(session.started_at)}</p>
             </div>
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-medium text-muted-foreground">Ended</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("common.ended")}</p>
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{formatDate(session.ended_at)}</p>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Estimated text tokens are based on transcript length. Provider token cost requires usage metadata and is not tracked for this session yet.
+            {t("logs.tokenEstimateNote", "Estimated text tokens are based on transcript length. Provider token cost requires usage metadata and is not tracked for this session yet.")}
           </p>
           {session.error_message && (
             <Alert variant="destructive">
-              <AlertTitle>Session Error</AlertTitle>
+              <AlertTitle>{t("logs.sessionError", "Session Error")}</AlertTitle>
               <AlertDescription>{session.error_message}</AlertDescription>
             </Alert>
           )}
 
           <Tabs defaultValue="conversation">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="conversation">Conversation</TabsTrigger>
-              <TabsTrigger value="tools">Tools</TabsTrigger>
-              <TabsTrigger value="events">Events</TabsTrigger>
+              <TabsTrigger value="conversation">{t("logs.conversation", "Conversation")}</TabsTrigger>
+              <TabsTrigger value="tools">{t("common.tools")}</TabsTrigger>
+              <TabsTrigger value="events">{t("common.events")}</TabsTrigger>
             </TabsList>
             <TabsContent value="conversation">
               <Card className="shadow-none">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="text-sm">Conversation</CardTitle>
-                    {loading && <span className="text-xs text-muted-foreground">Loading</span>}
+                    <CardTitle className="text-sm">{t("logs.conversation", "Conversation")}</CardTitle>
+                    {loading && <span className="text-xs text-muted-foreground">{t("common.loading")}</span>}
                   </div>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[28rem] pr-3">
                     {orderedTranscripts.length === 0 ? (
-                      <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">No transcript for this session.</div>
+                      <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">{t("logs.noSessionTranscript", "No transcript for this session.")}</div>
                     ) : (
                       <div className="space-y-3">
                         {orderedTranscripts.map((item, index) => (
@@ -183,22 +184,22 @@ export function SessionDetailContent({
             <TabsContent value="tools">
               <Card className="shadow-none">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Tool Calls</CardTitle>
+                  <CardTitle className="text-sm">{t("common.toolCalls")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {orderedToolCalls.length === 0 ? (
-                    <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">No tool calls for this session.</div>
+                    <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">{t("logs.noSessionToolCalls", "No tool calls for this session.")}</div>
                   ) : (
                     <ScrollArea className="h-[28rem]">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Time</TableHead>
-                            <TableHead>Tool</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Input</TableHead>
-                            <TableHead>Output</TableHead>
-                            <TableHead>Error</TableHead>
+                            <TableHead>{t("common.time")}</TableHead>
+                            <TableHead>{t("common.tool")}</TableHead>
+                            <TableHead>{t("common.status")}</TableHead>
+                            <TableHead>{t("common.input")}</TableHead>
+                            <TableHead>{t("common.output")}</TableHead>
+                            <TableHead>{t("common.error")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -206,7 +207,7 @@ export function SessionDetailContent({
                             <TableRow key={item.id}>
                               <TableCell className="whitespace-nowrap">{formatDate(item.started_at)}</TableCell>
                               <TableCell className="font-medium">{item.tool_name}</TableCell>
-                              <TableCell>{item.status}</TableCell>
+                              <TableCell>{translateStatus(item.status, t)}</TableCell>
                               <TableCell className="max-w-[18rem] truncate font-mono text-xs">{formatJsonPreview(item.input_json)}</TableCell>
                               <TableCell className="max-w-[18rem] truncate font-mono text-xs">{formatJsonPreview(item.output_json)}</TableCell>
                               <TableCell className="max-w-[16rem] truncate">{item.error_message ?? "-"}</TableCell>
@@ -222,27 +223,27 @@ export function SessionDetailContent({
             <TabsContent value="events">
               <Card className="shadow-none">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Session Events</CardTitle>
+                  <CardTitle className="text-sm">{t("logs.sessionEvents", "Session Events")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {orderedLogs.length === 0 ? (
-                    <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">No events for this session.</div>
+                    <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">{t("logs.noSessionEvents", "No events for this session.")}</div>
                   ) : (
                     <ScrollArea className="h-[28rem]">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Time</TableHead>
-                            <TableHead>Level</TableHead>
-                            <TableHead>Event</TableHead>
-                            <TableHead>Message</TableHead>
+                            <TableHead>{t("common.time")}</TableHead>
+                            <TableHead>{t("common.level")}</TableHead>
+                            <TableHead>{t("common.event")}</TableHead>
+                            <TableHead>{t("common.message")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {orderedLogs.map((item) => (
                             <TableRow key={item.id}>
                               <TableCell className="whitespace-nowrap">{formatDate(item.created_at)}</TableCell>
-                              <TableCell>{item.level}</TableCell>
+                              <TableCell>{translateStatus(item.level, t)}</TableCell>
                               <TableCell className="font-medium">{item.event}</TableCell>
                               <TableCell className="max-w-[28rem] truncate">{item.message}</TableCell>
                             </TableRow>
@@ -269,17 +270,19 @@ export function SessionDetailPanel(props: {
   phoneCalls: PhoneCallRecord[];
   loading: boolean;
 }) {
+  const { t } = useI18n();
+
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Session Detail</CardTitle>
-            <CardDescription>{props.session ? props.session.id : "No session selected"}</CardDescription>
+            <CardTitle>{t("logs.sessionDetail", "Session Detail")}</CardTitle>
+            <CardDescription>{props.session ? props.session.id : t("shell.noActiveSession")}</CardDescription>
           </div>
           {props.session && (
             <Badge tone={props.session.status === "error" ? "red" : props.session.status === "stopped" ? "neutral" : "cyan"}>
-              {formatLifecycleLabel(props.session.status)}
+              {translateStatus(props.session.status, t)}
             </Badge>
           )}
         </div>

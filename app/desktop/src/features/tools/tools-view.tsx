@@ -1,5 +1,6 @@
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { useI18n } from "@/lib/i18n";
 import type { ToolInfo } from "@/lib/types";
 
 export function ToolsView({
@@ -9,11 +10,13 @@ export function ToolsView({
   tools: ToolInfo[];
   onToolEnabledChange: (toolName: string, enabled: boolean) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Tools</h2>
-        <p className="text-sm text-muted-foreground">Enable or disable tools available to the agent during sessions.</p>
+        <h2 className="text-lg font-semibold">{t("tools.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("tools.description")}</p>
       </div>
       <Separator />
       <div className="space-y-1">

@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
-import { formatLifecycleLabel } from "@/lib/lifecycle";
+import { translateStatus, useI18n } from "@/lib/i18n";
 import type { SessionRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -15,19 +15,21 @@ export function SessionTable({
   onSelect?: (sessionId: string) => void;
   onInspect?: (session: SessionRecord) => void;
 }) {
+  const { t } = useI18n();
+
   if (sessions.length === 0) {
-    return <div className="rounded-md border bg-muted/30 p-6 text-sm text-muted-foreground">No sessions yet.</div>;
+    return <div className="rounded-md border bg-muted/30 p-6 text-sm text-muted-foreground">{t("logs.noSessions")}</div>;
   }
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Provider</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Started</TableHead>
-          <TableHead>Ended</TableHead>
-          <TableHead>Reason</TableHead>
+          <TableHead>{t("common.provider")}</TableHead>
+          <TableHead>{t("common.status")}</TableHead>
+          <TableHead>{t("common.started")}</TableHead>
+          <TableHead>{t("common.ended")}</TableHead>
+          <TableHead>{t("common.reason")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody className="divide-y divide-border">
@@ -41,10 +43,10 @@ export function SessionTable({
             }}
           >
             <TableCell className="font-medium">{session.provider}</TableCell>
-            <TableCell>{formatLifecycleLabel(session.status)}</TableCell>
+            <TableCell>{translateStatus(session.status, t)}</TableCell>
             <TableCell>{formatDate(session.started_at)}</TableCell>
             <TableCell>{formatDate(session.ended_at)}</TableCell>
-            <TableCell>{formatLifecycleLabel(session.ended_reason)}</TableCell>
+            <TableCell>{translateStatus(session.ended_reason, t)}</TableCell>
           </TableRow>
         ))}
       </TableBody>

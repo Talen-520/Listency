@@ -1,14 +1,17 @@
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useI18n } from "@/lib/i18n";
 import type { ProviderInfo } from "@/lib/types";
 
 export function VoiceView({ providers }: { providers: ProviderInfo[] }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Voice Providers</h2>
-        <p className="text-sm text-muted-foreground">Available Realtime providers and their voice options.</p>
+        <h2 className="text-lg font-semibold">{t("voice.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("voice.description")}</p>
       </div>
       <Separator />
       <div className="space-y-1">
@@ -23,12 +26,12 @@ export function VoiceView({ providers }: { providers: ProviderInfo[] }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium">{provider.display_name}</p>
                     <Badge tone={provider.ready ? "green" : "yellow"}>
-                      {provider.ready ? "ready" : "missing key"}
+                      {provider.ready ? t("status.ready") : t("status.missingKey")}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{provider.name}</p>
                   {provider.voices.length > 0 && (
-                    <p className="text-sm text-muted-foreground">Voices: {provider.voices.join(", ")}</p>
+                    <p className="text-sm text-muted-foreground">{t("voice.voices")}: {provider.voices.join(", ")}</p>
                   )}
                 </div>
               </div>

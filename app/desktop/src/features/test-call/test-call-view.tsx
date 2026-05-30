@@ -6,6 +6,7 @@ import { ProviderBrandIcon } from "@/components/provider-brand-icon";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBytes } from "@/lib/format";
+import { translateStatus, useI18n } from "@/lib/i18n";
 import type { ActiveSession, TranscriptRecord } from "@/lib/types";
 
 const providerDisplayNames: Record<string, string> = {
@@ -54,58 +55,60 @@ export function TestCallView({
   onStartTest: () => void;
   onStopSession: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Test Call</h2>
-        <p className="text-sm text-muted-foreground">Local microphone to selected Realtime provider.</p>
+        <h2 className="text-lg font-semibold">{t("test.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("test.description")}</p>
       </div>
       <Separator />
       <div className="grid gap-4 md:grid-cols-3">
-        <TestCallStatusCard icon={<Mic className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />} label="Mic" value={formatStatusValue(micReady ? "ready" : "not checked")} />
+        <TestCallStatusCard icon={<Mic className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />} label={t("common.mic")} value={micReady ? t("status.ready") : translateStatus("not_checked", t)} />
         <TestCallStatusCard
           icon={<ProviderBrandIcon provider={providerChoice} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-          label="Provider"
+          label={t("common.provider")}
           value={formatStatusValue(providerChoice)}
         />
-        <TestCallStatusCard icon={<Activity className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />} label="Stream" value={formatStatusValue(streamStatus)} />
+        <TestCallStatusCard icon={<Activity className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />} label={t("common.stream")} value={translateStatus(streamStatus, t)} />
         <TestCallStatusCard
           icon={<Timer className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-          label="Timer"
-          value={remainingSeconds === null ? formatStatusValue("idle") : `${remainingSeconds}s`}
+          label={t("common.timer")}
+          value={remainingSeconds === null ? t("status.idle") : `${remainingSeconds}s`}
         />
         <TestCallStatusCard
           icon={<Radio className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-          label="Chunks"
+          label={t("common.chunks")}
           value={formatStatusValue(activeSession ? String(activeSession.audio_chunks) : "0")}
         />
         <TestCallStatusCard
           icon={<Database className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-          label="Bytes"
+          label={t("common.bytes")}
           value={formatStatusValue(activeSession ? formatBytes(activeSession.audio_bytes) : "0 B")}
         />
       </div>
       <div className="flex flex-wrap gap-3">
         <Button variant="outline" onClick={onRequestMic}>
           <Mic className="h-4 w-4" />
-          Check Mic
+          {t("action.checkMic")}
         </Button>
         <Button disabled={!selectedProviderReady || Boolean(activeSession)} onClick={onStartTest}>
           <Play className="h-4 w-4" />
-          Start Test
+          {t("action.startTest")}
         </Button>
         <Button variant="destructive" disabled={!activeSession} onClick={onStopSession}>
           <Square className="h-4 w-4" />
-          Stop Session
+          {t("action.stopSession")}
         </Button>
       </div>
       <Separator />
       <div className="grid gap-4 lg:grid-cols-2">
-        <LivePanel title="Live Events" items={liveEvents} empty="No stream events yet." />
+        <LivePanel title={t("test.liveEvents")} items={liveEvents} empty={t("test.noEvents")} />
         <LivePanel
-          title="Session Transcript"
+          title={t("test.sessionTranscript")}
           items={transcripts.slice(0, 8).map((item) => `${item.speaker}: ${item.content}`)}
-          empty="No transcript events yet."
+          empty={t("test.noTranscript")}
         />
       </div>
     </div>

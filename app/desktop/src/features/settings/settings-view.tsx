@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
+import { formatMessage, useI18n } from "@/lib/i18n";
 import { DEFAULT_OPENAI_REALTIME_MODEL, geminiLiveModelOptions } from "@/lib/models";
 import type { PhoneStatus, PublicConfig, TwilioDebuggerAlert, VoicePreviewCache } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -139,6 +140,7 @@ function phoneNotice({
   twilioAuthToken,
   twilioPhoneNumber,
   twilioPhoneNumberSid,
+  t,
 }: {
   config: PublicConfig;
   phoneAction: PhoneActionState;
@@ -154,6 +156,7 @@ function phoneNotice({
   twilioAuthToken: string;
   twilioPhoneNumber: string;
   twilioPhoneNumberSid: string;
+  t: (key: string, fallback?: string) => string;
 }): PhoneNoticeInfo | null {
   if (phoneProvider === "none") {
     return null;
@@ -162,8 +165,8 @@ function phoneNotice({
   if (phoneAction === "connecting") {
     return {
       blocking: true,
-      detail: "Starting the local secure connection for inbound phone webhooks.",
-      title: "Creating secure connection",
+      detail: t("phone.startingConnection"),
+      title: t("phone.secureConnection"),
       tone: "info",
     };
   }
@@ -171,8 +174,8 @@ function phoneNotice({
   if (phoneAction === "provisioning") {
     return {
       blocking: true,
-      detail: `Configuring ${providerLabel(phoneProvider)} webhooks to point at Listency.`,
-      title: "Configuring provider webhooks",
+      detail: formatMessage(t("phone.configuringProvider"), { provider: providerLabel(phoneProvider) }),
+      title: t("phone.configuringWebhooks"),
       tone: "info",
     };
   }
@@ -180,8 +183,8 @@ function phoneNotice({
   if (phoneAction === "stopping") {
     return {
       blocking: true,
-      detail: "Stopping the public connection used for inbound phone webhooks.",
-      title: "Stopping phone connection",
+      detail: t("phone.stopConnectionDetail"),
+      title: t("phone.stopConnection"),
       tone: "info",
     };
   }
@@ -200,8 +203,8 @@ function phoneNotice({
   if (missing.length > 0) {
     return {
       blocking: true,
-      detail: `Missing ${missing.join(", ")}.`,
-      title: `Add ${providerLabel(phoneProvider)} settings`,
+      detail: formatMessage(t("phone.missing"), { fields: missing.join(", ") }),
+      title: formatMessage(t("phone.addSettings"), { provider: providerLabel(phoneProvider) }),
       tone: "warning",
     };
   }
@@ -210,7 +213,7 @@ function phoneNotice({
     return {
       blocking: true,
       detail: "Advanced Custom URL mode needs a public HTTPS URL before provider webhooks can be configured.",
-      title: "Add Custom Public URL",
+      title: t("phone.addCustomUrl"),
       tone: "warning",
     };
   }
@@ -219,7 +222,7 @@ function phoneNotice({
     return {
       blocking: false,
       detail: phoneStatus.provider_error,
-      title: `${providerLabel(phoneProvider)} needs attention`,
+      title: formatMessage(t("phone.needsAttention"), { provider: providerLabel(phoneProvider) }),
       tone: "error",
     };
   }
@@ -228,7 +231,7 @@ function phoneNotice({
     return {
       blocking: false,
       detail: phoneStatus.last_call_error,
-      title: "Latest phone call failed",
+      title: t("phone.latestFailed"),
       tone: "error",
     };
   }
@@ -246,7 +249,7 @@ function phoneNotice({
     return {
       blocking: false,
       detail: phoneStatus.reprovision_reason || "The public tunnel URL changed. Click Connect Phone to update provider webhooks.",
-      title: "Webhook update needed",
+      title: t("phone.webhookUpdateNeeded"),
       tone: "warning",
     };
   }
@@ -254,16 +257,16 @@ function phoneNotice({
   if (selectedPhoneProviderConfigured) {
     return {
       blocking: false,
-      detail: "Inbound calls are connected to the selected phone provider.",
-      title: "Inbound calls ready",
+      detail: t("phone.inboundReadyDetail"),
+      title: t("phone.inboundReady"),
       tone: "info",
     };
   }
 
   return {
     blocking: false,
-    detail: "Click Connect Phone to create the secure connection and configure provider webhooks.",
-    title: "Ready to connect",
+    detail: t("phone.readyToConnectDetail"),
+    title: t("phone.readyToConnect"),
     tone: "info",
   };
 }
@@ -301,6 +304,8 @@ function hasUnsavedPhoneSettings({
   twilioPhoneNumber: string;
   twilioPhoneNumberSid: string;
 }) {
+  const { t } = useI18n();
+
   return (
     phoneProvider !== (config.PHONE_PROVIDER || "none") ||
     phoneConnectionMode !== (config.PHONE_CONNECTION_MODE || "automatic") ||
@@ -501,6 +506,7 @@ export function SettingsView({
   onClearLogs: () => void;
   hasActiveSession: boolean;
 }) {
+  const { t } = useI18n();
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
   const [phoneAction, setPhoneAction] = useState<PhoneActionState>("idle");
   const openAiVoiceOptions = voiceOptionsForProvider("openai");
@@ -525,7 +531,7 @@ export function SettingsView({
     if (hasActiveSession) {
       return;
     }
-    if (window.confirm("Clear all local sessions, transcripts, tool calls, and app logs? This cannot be undone.")) {
+    if (window.confirm(t("settings.clearConfirm"))) {
       onClearLogs();
     }
   }
@@ -566,22 +572,23 @@ export function SettingsView({
     twilioAuthToken,
     twilioPhoneNumber,
     twilioPhoneNumberSid,
+    t,
   });
   const canConnectPhone = !phoneActionBusy && !notice?.blocking;
   const canTogglePhoneConnection = canStopPhoneConnection ? !phoneActionBusy : canConnectPhone;
   const connectPhoneLabel =
     phoneAction === "connecting"
-      ? "Connecting..."
+      ? t("phone.connecting")
       : phoneAction === "provisioning"
-        ? "Configuring Webhooks..."
+        ? t("phone.configuringWebhooks")
         : phoneStatus.provider === phoneProvider && phoneStatus.reprovision_required
-          ? "Update Webhooks"
-          : "Connect Phone";
+          ? t("action.updateWebhooks")
+          : t("action.connectPhone");
   const phoneConnectionToggleLabel =
     phoneAction === "stopping"
-      ? "Stopping..."
+      ? t("phone.stopping")
       : canStopPhoneConnection
-        ? "Stop Connection"
+        ? t("action.stopConnection")
         : connectPhoneLabel;
   const PhoneConnectionToggleIcon =
     phoneActionBusy ? Loader2 : canStopPhoneConnection ? Square : PlugZap;
@@ -638,19 +645,19 @@ export function SettingsView({
     <div className="space-y-6">
       {/* API Keys Section */}
       <div>
-        <h2 className="text-lg font-semibold">API Keys</h2>
-        <p className="text-sm text-muted-foreground">Provider keys stored locally in your .env file.</p>
+        <h2 className="text-lg font-semibold">{t("settings.apiKeys")}</h2>
+        <p className="text-sm text-muted-foreground">{t("settings.apiKeysDescription")}</p>
         <p className="mt-1 truncate text-xs text-muted-foreground">{config.env_path || ".env"}</p>
       </div>
       <Separator />
       <div className="grid gap-6 md:grid-cols-2">
         <Field
-          label="OpenAI API Key"
+          label={t("settings.openAiKey")}
           action={
             <ApiKeyHelp
               provider="OpenAI"
               href={OPENAI_API_KEYS_URL}
-              description="Create or copy an OpenAI API key from your organization settings."
+              description={t("settings.openAiHelp")}
             />
           }
         >
@@ -662,12 +669,12 @@ export function SettingsView({
           />
         </Field>
         <Field
-          label="Gemini API Key"
+          label={t("settings.geminiKey")}
           action={
             <ApiKeyHelp
               provider="Gemini"
               href={GEMINI_API_KEYS_URL}
-              description="Create or copy a Gemini API key from Google AI Studio."
+              description={t("settings.geminiHelp")}
             />
           }
         >
@@ -682,22 +689,22 @@ export function SettingsView({
 
       {/* Runtime Section */}
       <div className="pt-2">
-        <h2 className="text-lg font-semibold">Runtime</h2>
-        <p className="text-sm text-muted-foreground">Default provider and model configuration.</p>
+        <h2 className="text-lg font-semibold">{t("common.runtime")}</h2>
+        <p className="text-sm text-muted-foreground">{t("settings.runtimeDescription")}</p>
       </div>
       <Separator />
       <div className="grid gap-4 lg:grid-cols-2">
         <ProviderPanel
           active={providerChoice === "openai"}
-          description="Realtime speech with OpenAI."
+          description={t("settings.providerOpenAiDescription")}
           provider="openai"
           title="OpenAI Realtime"
           onSelect={() => onProviderChoiceChange("openai")}
         >
-          <Field label="Model">
+          <Field label={t("common.model")}>
             <Input value={openAiModel} onChange={(event) => onOpenAiModelChange(event.target.value)} placeholder={DEFAULT_OPENAI_REALTIME_MODEL} />
           </Field>
-          <Field label="Voice" action={<VoiceHelp />}>
+          <Field label={t("common.voice")} action={<VoiceHelp />}>
             <VoiceSelect
               cachedVoices={cachedOpenAiVoices}
               onPreview={() => handlePreviewVoice("openai", openAiVoice)}
@@ -714,8 +721,8 @@ export function SettingsView({
                 <SelectValue placeholder="Mock mode" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="false">Off</SelectItem>
-                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">{t("status.off")}</SelectItem>
+                <SelectItem value="true">{t("status.on")}</SelectItem>
               </SelectContent>
             </Select>
           </Field>
@@ -723,12 +730,12 @@ export function SettingsView({
 
         <ProviderPanel
           active={providerChoice === "gemini"}
-          description="Native audio dialogue with Gemini Live."
+          description={t("settings.providerGeminiDescription")}
           provider="gemini"
           title="Gemini Live"
           onSelect={() => onProviderChoiceChange("gemini")}
         >
-          <Field label="Model">
+          <Field label={t("common.model")}>
             <Select value={geminiModel} onValueChange={onGeminiModelChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Gemini Live model" />
@@ -742,7 +749,7 @@ export function SettingsView({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Voice" action={<VoiceHelp />}>
+          <Field label={t("common.voice")} action={<VoiceHelp />}>
             <VoiceSelect
               cachedVoices={cachedGeminiVoices}
               onPreview={() => handlePreviewVoice("gemini", geminiVoice)}
@@ -758,28 +765,28 @@ export function SettingsView({
 
       {/* Phone Section */}
       <div className="pt-2">
-        <h2 className="text-lg font-semibold">Phone</h2>
-        <p className="text-sm text-muted-foreground">Connect inbound calls without exposing technical webhook settings.</p>
+        <h2 className="text-lg font-semibold">{t("phone.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("phone.connectDescription")}</p>
       </div>
       <Separator />
       <div className="space-y-4">
         <div className="grid gap-4 lg:grid-cols-3">
           <PhoneProviderCard
             active={phoneProvider === "none"}
-            title="Off"
-            description="Use local Test Call only."
+            title={t("status.off")}
+            description={t("phone.descriptionOff")}
             onSelect={() => onPhoneProviderChange("none")}
           />
           <PhoneProviderCard
             active={phoneProvider === "twilio"}
             title="Twilio"
-            description="Connect Twilio inbound calls."
+            description={t("phone.descriptionTwilio")}
             onSelect={() => onPhoneProviderChange("twilio")}
           />
           <PhoneProviderCard
             active={phoneProvider === "telnyx"}
             title="Telnyx"
-            description="Prepare Telnyx Call Control."
+            description={t("phone.descriptionTelnyx")}
             onSelect={() => onPhoneProviderChange("telnyx")}
           />
         </div>
@@ -790,9 +797,9 @@ export function SettingsView({
           <Card className="space-y-5 rounded-lg p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">
-                <h3 className="text-base font-semibold">Phone Connection</h3>
+                <h3 className="text-base font-semibold">{t("phone.phoneConnection")}</h3>
                 <p className="text-sm text-muted-foreground">
-                  Automatic mode creates a secure public connection and configures provider webhooks for you.
+                  {t("phone.automaticDetail")}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -817,24 +824,24 @@ export function SettingsView({
             {notice && <PhoneNotice notice={notice} />}
 
             <div className="grid gap-4 md:grid-cols-3">
-              <StatusTile label="Provider" value={providerLabel(phoneProvider)} tone={phoneProvider === "none" ? "neutral" : "ok"} />
-              <StatusTile label="Connection" value={connectionLabel(phoneConnectionStatus)} tone={connectionTone(phoneConnectionStatus)} />
-              <StatusTile label="Inbound Calls" value={selectedPhoneProviderConfigured ? "Ready" : "Not Connected"} tone={selectedPhoneProviderConfigured ? "ok" : "warning"} />
+              <StatusTile label={t("common.provider")} value={providerLabel(phoneProvider)} tone={phoneProvider === "none" ? "neutral" : "ok"} />
+              <StatusTile label={t("common.connection")} value={connectionLabel(phoneConnectionStatus)} tone={connectionTone(phoneConnectionStatus)} />
+              <StatusTile label={t("phone.inboundCalls")} value={selectedPhoneProviderConfigured ? t("phone.ready") : t("phone.notConnected")} tone={selectedPhoneProviderConfigured ? "ok" : "warning"} />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Connection Mode">
+              <Field label={t("phone.connectionMode")}>
                 <Select value={phoneConnectionMode} onValueChange={onPhoneConnectionModeChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Connection mode" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="automatic">Automatic Secure Connection</SelectItem>
-                    <SelectItem value="manual">Advanced Custom URL</SelectItem>
+                    <SelectItem value="automatic">{t("phone.automatic")}</SelectItem>
+                    <SelectItem value="manual">{t("phone.advancedCustomUrl")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="AI Provider For Calls">
+              <Field label={t("phone.aiProvider")}>
                 <Select value={phoneRealtimeProvider || "default"} onValueChange={(next) => onPhoneRealtimeProviderChange(next === "default" ? "" : next)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Use runtime default" />
@@ -848,23 +855,23 @@ export function SettingsView({
               </Field>
             </div>
 
-            <Field label="Transfer Target Number">
+            <Field label={t("phone.transferTarget")}>
               <Input placeholder="+15551234567" value={phoneTransferTarget} onChange={(event) => onPhoneTransferTargetChange(event.target.value)} />
             </Field>
 
             {phoneProvider === "twilio" && (
               <>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Twilio Account SID">
+                  <Field label={t("phone.accountSid")}>
                     <Input type="password" placeholder={config.TWILIO_ACCOUNT_SID || "AC..."} value={twilioAccountSid} onChange={(event) => onTwilioAccountSidChange(event.target.value)} />
                   </Field>
-                  <Field label="Twilio Auth Token">
+                  <Field label={t("phone.authToken")}>
                     <Input type="password" placeholder={config.TWILIO_AUTH_TOKEN || "auth token"} value={twilioAuthToken} onChange={(event) => onTwilioAuthTokenChange(event.target.value)} />
                   </Field>
-                  <Field label="Twilio Phone Number">
+                  <Field label={t("phone.number")}>
                     <Input placeholder="+15551234567" value={twilioPhoneNumber} onChange={(event) => onTwilioPhoneNumberChange(event.target.value)} />
                   </Field>
-                  <Field label="Phone Number SID">
+                  <Field label={t("phone.numberSid")}>
                     <Input type="password" placeholder={config.TWILIO_PHONE_NUMBER_SID || "optional"} value={twilioPhoneNumberSid} onChange={(event) => onTwilioPhoneNumberSidChange(event.target.value)} />
                   </Field>
                 </div>
@@ -880,13 +887,13 @@ export function SettingsView({
 
             {phoneProvider === "telnyx" && (
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Telnyx API Key">
+                <Field label={t("phone.apiKey")}>
                   <Input type="password" placeholder={config.TELNYX_API_KEY || "KEY..."} value={telnyxApiKey} onChange={(event) => onTelnyxApiKeyChange(event.target.value)} />
                 </Field>
-                <Field label="Call Control App ID">
+                <Field label={t("phone.callControlAppId")}>
                   <Input value={telnyxCallControlAppId} onChange={(event) => onTelnyxCallControlAppIdChange(event.target.value)} />
                 </Field>
-                <Field label="Application Name">
+                <Field label={t("common.applicationName")}>
                   <Input value={telnyxApplicationName} onChange={(event) => onTelnyxApplicationNameChange(event.target.value)} />
                 </Field>
                 <Field label="Telnyx Phone Number">
@@ -896,14 +903,14 @@ export function SettingsView({
             )}
 
             <details className="rounded-lg bg-muted/40 p-4">
-              <summary className="cursor-pointer text-sm font-medium">Advanced</summary>
+              <summary className="cursor-pointer text-sm font-medium">{t("common.advanced")}</summary>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <Field label="Custom Public URL">
+                <Field label={t("phone.customUrl")}>
                   <Input placeholder="https://voice.example.com" value={phonePublicBaseUrl} onChange={(event) => onPhonePublicBaseUrlChange(event.target.value)} />
                 </Field>
-                <Field label="Connector Path">
+                <Field label={t("phone.connectorPath")}>
                   <Input placeholder="Bundled automatically" value={cloudflaredBin} onChange={(event) => onCloudflaredBinChange(event.target.value)} />
-                  <p className="text-xs text-muted-foreground">Packaged builds provide this automatically. Use a custom path only for development.</p>
+                  <p className="text-xs text-muted-foreground">{t("phone.connectorHint")}</p>
                 </Field>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">{phoneStatus.connection.message}</p>
@@ -914,39 +921,39 @@ export function SettingsView({
 
       {/* Data Section */}
       <div className="pt-2">
-        <h2 className="text-lg font-semibold">Data</h2>
-        <p className="text-sm text-muted-foreground">Manage local session history and log storage.</p>
+        <h2 className="text-lg font-semibold">{t("settings.dataTitle")}</h2>
+        <p className="text-sm text-muted-foreground">{t("settings.dataDescription")}</p>
       </div>
       <Separator />
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="space-y-3 rounded-lg p-5">
           <div>
-            <h3 className="text-base font-semibold">Retention Cleanup</h3>
-            <p className="text-sm text-muted-foreground">Delete sessions, transcripts, tool calls, and app logs older than 30 days.</p>
+            <h3 className="text-base font-semibold">{t("settings.retentionTitle")}</h3>
+            <p className="text-sm text-muted-foreground">{t("settings.retentionDescription")}</p>
           </div>
           <Button type="button" variant="outline" onClick={onPruneLogs}>
             <RotateCcw className="h-4 w-4" />
-            Clean 30+ Days
+            {t("action.clean30Days")}
           </Button>
         </Card>
         <Card className="space-y-3 rounded-lg p-5">
           <div>
-            <h3 className="text-base font-semibold">Clear Logs</h3>
+            <h3 className="text-base font-semibold">{t("settings.clearLogsTitle")}</h3>
             <p className="text-sm text-muted-foreground">
-              Remove all local sessions, transcripts, tool calls, and app logs. Active calls must be stopped first.
+              {t("settings.clearLogsDescription")}
             </p>
           </div>
           <Button type="button" variant="destructive" disabled={hasActiveSession} onClick={handleClearLogs}>
             <Trash2 className="h-4 w-4" />
-            Clear Logs
+            {t("action.clearLogs")}
           </Button>
         </Card>
       </div>
 
       {/* Support Section */}
       <div className="pt-2">
-        <h2 className="text-lg font-semibold">Support</h2>
-        <p className="text-sm text-muted-foreground">Contact the developer or report a Listency issue.</p>
+        <h2 className="text-lg font-semibold">{t("settings.supportTitle")}</h2>
+        <p className="text-sm text-muted-foreground">{t("settings.supportDescription")}</p>
       </div>
       <Separator />
       <Card className="space-y-4 rounded-lg p-5">
@@ -955,22 +962,22 @@ export function SettingsView({
             <LifeBuoy className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-semibold">Need help?</h3>
+            <h3 className="text-base font-semibold">{t("settings.supportHelpTitle")}</h3>
             <p className="text-sm text-muted-foreground">
-              For setup help, early feedback, or bug reports, use one of the links below.
+              {t("settings.supportHelpDescription")}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild type="button" variant="outline">
             <a href={DEVELOPER_CONTACT_URL} target="_blank" rel="noreferrer">
-              Contact Developer
+              {t("action.contactDeveloper")}
               <ExternalLink className="h-4 w-4" />
             </a>
           </Button>
           <Button asChild type="button" variant="outline">
             <a href={LISTENCY_ISSUES_URL} target="_blank" rel="noreferrer">
-              Report Issue
+              {t("action.reportIssue")}
               <ExternalLink className="h-4 w-4" />
             </a>
           </Button>
@@ -997,14 +1004,16 @@ function VoiceSelect({
   provider: string;
   value: string;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex gap-2">
       <Select value={value || PROVIDER_DEFAULT_VOICE} onValueChange={(next) => onValueChange(next === PROVIDER_DEFAULT_VOICE ? "" : next)}>
         <SelectTrigger className="min-w-0 flex-1">
-          <SelectValue placeholder="Provider default" />
+          <SelectValue placeholder={t("voice.providerDefault", "Provider default")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={PROVIDER_DEFAULT_VOICE}>Provider default</SelectItem>
+          <SelectItem value={PROVIDER_DEFAULT_VOICE}>{t("voice.providerDefault", "Provider default")}</SelectItem>
           {value.length > 0 && !isSupportedVoice(provider, value) && (
             <SelectItem value={value}>{value} - saved custom value</SelectItem>
           )}
@@ -1018,7 +1027,7 @@ function VoiceSelect({
           ))}
         </SelectContent>
       </Select>
-      <Button type="button" variant="outline" size="icon" disabled={!value || previewing} onClick={onPreview} aria-label="Play voice preview">
+      <Button type="button" variant="outline" size="icon" disabled={!value || previewing} onClick={onPreview} aria-label={t("action.playVoicePreview")}>
         {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
       </Button>
     </div>
@@ -1036,6 +1045,8 @@ function InlineSaveInput({
   placeholder: string;
   value: string;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="relative">
       <Input
@@ -1052,7 +1063,7 @@ function InlineSaveInput({
         className="absolute right-1 top-1 h-8 px-3"
         onClick={onSave}
       >
-        Save
+        {t("action.save")}
       </Button>
     </div>
   );
@@ -1166,12 +1177,14 @@ function PhoneProviderCard({
 }
 
 function UnsavedPhoneSettingsNotice() {
+  const { t } = useI18n();
+
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4">
       <CircleDashed className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="space-y-1">
-        <p className="text-sm font-medium">Unsaved phone settings</p>
-        <p className="text-sm text-muted-foreground">Save settings or Connect Phone to apply these changes to the local backend.</p>
+        <p className="text-sm font-medium">{t("phone.unsaved")}</p>
+        <p className="text-sm text-muted-foreground">{t("phone.unsavedDetail")}</p>
       </div>
     </div>
   );
@@ -1201,16 +1214,18 @@ function TwilioDebuggerPanel({
   loading: boolean;
   onRefresh: () => Promise<void>;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-3 rounded-lg bg-muted/30 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h4 className="text-sm font-medium">Twilio Debugger</h4>
-          <p className="text-sm text-muted-foreground">Recent Twilio webhook and API alerts from the last 24 hours.</p>
+          <h4 className="text-sm font-medium">{t("phone.twilioDebugger")}</h4>
+          <p className="text-sm text-muted-foreground">{t("phone.twilioDebuggerDescription")}</p>
         </div>
         <Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void onRefresh()}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-          Refresh
+          {t("action.refresh")}
         </Button>
       </div>
 
@@ -1222,7 +1237,7 @@ function TwilioDebuggerPanel({
 
       {!error && alerts.length === 0 && (
         <p className="rounded-lg bg-background/60 p-3 text-sm text-muted-foreground">
-          No recent Twilio Debugger alerts loaded. Refresh after a failed inbound call.
+          {t("phone.noDebuggerAlerts", "No recent Twilio Debugger alerts loaded. Refresh after a failed inbound call.")}
         </p>
       )}
 
@@ -1243,7 +1258,7 @@ function TwilioDebuggerPanel({
               )}
               {alert.more_info && (
                 <a className="text-xs text-muted-foreground underline underline-offset-4" href={alert.more_info} target="_blank" rel="noreferrer">
-                  Twilio error reference
+                  {t("phone.twilioErrorReference")}
                 </a>
               )}
             </div>
@@ -1255,11 +1270,13 @@ function TwilioDebuggerPanel({
 }
 
 function PhoneTestChecklist({ items }: { items: ChecklistItemInfo[] }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-3 rounded-lg bg-muted/30 p-4">
       <div>
-        <h4 className="text-sm font-medium">Twilio Test Prep</h4>
-        <p className="text-sm text-muted-foreground">Use this before a real inbound call test.</p>
+        <h4 className="text-sm font-medium">{t("phone.twilioTestPrep")}</h4>
+        <p className="text-sm text-muted-foreground">{t("phone.twilioTestPrepDescription")}</p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         {items.map((item) => {

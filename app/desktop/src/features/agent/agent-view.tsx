@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, Sele
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/lib/i18n";
 import type { AgentProfile } from "@/lib/types";
 
 const ADD_AGENT_VALUE = "__add_agent__";
@@ -31,20 +32,21 @@ export function AgentView({
   onDeleteAgent: (agentId: string) => void;
   onSave: () => void;
 }) {
+  const { t } = useI18n();
   const [manageOpen, setManageOpen] = useState(false);
   const canDelete = agents.length > 1;
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Agents</h2>
-        <p className="text-sm text-muted-foreground">Create reusable agent prompts and switch the active voice agent anytime.</p>
+        <h2 className="text-lg font-semibold">{t("agent.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("agent.description")}</p>
       </div>
       <Separator />
 
       <div className="space-y-4">
         <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-          <Field label="Agent Name">
+          <Field label={t("agent.agentName")}>
             <Select
               value={activeAgentId}
               onValueChange={(nextAgentId) => {
@@ -58,19 +60,19 @@ export function AgentView({
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select agent" />
+                <SelectValue placeholder={t("agent.selectPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {agents.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
-                    {item.name || "Untitled Agent"}
+                    {item.name || t("agent.untitled")}
                   </SelectItem>
                 ))}
                 <SelectSeparator />
                 <SelectItem value={ADD_AGENT_VALUE}>
                   <span className="flex items-center gap-2">
                     <Plus className="h-4 w-4" />
-                    Add Agent
+                    {t("action.addAgent")}
                   </span>
                 </SelectItem>
               </SelectContent>
@@ -79,7 +81,7 @@ export function AgentView({
 
           <Button variant="outline" onClick={() => setManageOpen(true)}>
             <Settings2 className="h-4 w-4" />
-            Manage Agent
+            {t("action.manageAgent")}
           </Button>
         </div>
 
@@ -89,15 +91,15 @@ export function AgentView({
               <Bot className="h-4 w-4" />
             </div>
             <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium">{agent.name || "Untitled Agent"}</p>
+              <p className="text-sm font-medium">{agent.name || t("agent.untitled")}</p>
               <p className="line-clamp-2 text-sm text-muted-foreground">
-                {agent.system_prompt.trim() || "No system prompt yet."}
+                {agent.system_prompt.trim() || t("agent.activeSummaryEmpty")}
               </p>
             </div>
           </div>
         </div>
 
-        <Field label="System Prompt">
+        <Field label={t("agent.systemPrompt")}>
           <Textarea
             className="min-h-[28rem]"
             value={agent.system_prompt}
@@ -110,20 +112,20 @@ export function AgentView({
       <div className="flex justify-end">
         <Button onClick={onSave}>
           <Save className="h-4 w-4" />
-          Save Agent
+          {t("action.saveAgent")}
         </Button>
       </div>
 
       <Sheet open={manageOpen} onOpenChange={setManageOpen}>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>Edit Agent</SheetTitle>
-            <SheetDescription>Make changes to this agent here. Click save when you're done.</SheetDescription>
+            <SheetTitle>{t("agent.editTitle")}</SheetTitle>
+            <SheetDescription>{t("agent.editDescription")}</SheetDescription>
           </SheetHeader>
 
           <div className="mt-10 space-y-2">
             <label className="text-sm font-medium" htmlFor="agent-sheet-name">
-              Name
+              {t("agent.name")}
             </label>
             <Input
               id="agent-sheet-name"
@@ -141,7 +143,7 @@ export function AgentView({
                 setManageOpen(false);
               }}
             >
-              Save
+              {t("action.save")}
             </Button>
             <Button
               variant="ghost"
@@ -152,7 +154,7 @@ export function AgentView({
                 setManageOpen(false);
               }}
             >
-              Delete
+              {t("action.delete")}
             </Button>
           </SheetFooter>
         </SheetContent>
