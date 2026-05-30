@@ -9,6 +9,10 @@ Local-first desktop app for running an AI phone assistant for small businesses.
 </p>
 
 <p align="center">
+  <a href="README.md">English</a> · <a href="readme_cn.md">简体中文</a>
+</p>
+
+<p align="center">
   <img alt="Tests" src="https://img.shields.io/badge/tests-unittest%20passing-brightgreen" />
   <a href="https://github.com/Talen-520/Listency/actions/workflows/windows-packaged-smoke.yml">
     <img alt="Windows packaged smoke" src="https://github.com/Talen-520/Listency/actions/workflows/windows-packaged-smoke.yml/badge.svg" />
