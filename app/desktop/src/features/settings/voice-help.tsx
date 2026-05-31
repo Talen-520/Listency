@@ -2,11 +2,14 @@ import { CircleHelp, ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { useI18n } from "@/lib/i18n";
 
 const OPENAI_VOICE_URL = "https://platform.openai.com/docs/guides/realtime-conversations#audio-inputs-and-outputs";
 const GEMINI_LIVE_VOICE_URL = "https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api/configure-language-voice";
 
 export function VoiceHelp() {
+  const { t } = useI18n();
+
   return (
     <HoverCard openDelay={100} closeDelay={150}>
       <HoverCardTrigger asChild>
@@ -15,17 +18,16 @@ export function VoiceHelp() {
           variant="ghost"
           size="icon"
           className="h-5 w-5 rounded-full text-muted-foreground hover:text-foreground"
-          aria-label="Default voice help"
+          aria-label={t("voice.helpAria")}
         >
           <CircleHelp className="h-3.5 w-3.5" />
         </Button>
       </HoverCardTrigger>
       <HoverCardContent side="top" align="start" className="w-96">
         <div className="space-y-3">
-          <div className="text-sm font-medium">Default voice</div>
+          <div className="text-sm font-medium">{t("voice.helpTitle")}</div>
           <p className="text-sm leading-6 text-muted-foreground">
-            Choose Provider default to let the selected provider decide. OpenAI Realtime recommends <code>marin</code> or <code>cedar</code>.
-            Gemini Live supports TTS voices such as <code>Kore</code>.
+            {t("voice.helpDescription")}
           </p>
           <div className="flex flex-wrap gap-3">
             <a
@@ -34,7 +36,7 @@ export function VoiceHelp() {
               target="_blank"
               rel="noreferrer"
             >
-              OpenAI voices
+              {t("voice.openAiVoices")}
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
             <a
@@ -43,7 +45,7 @@ export function VoiceHelp() {
               target="_blank"
               rel="noreferrer"
             >
-              Gemini voices
+              {t("voice.geminiVoices")}
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>

@@ -186,7 +186,7 @@ export function LogsView({
             <Label htmlFor="log-time-window">{t("logs.timeRange")}</Label>
             <Select value={logWindow} onValueChange={(value) => onLogWindowChange(value as LogTimeWindow)}>
               <SelectTrigger id="log-time-window">
-                <SelectValue placeholder="Select range" />
+                <SelectValue placeholder={t("logs.selectRange")} />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(logWindowLabelKeys).map(([value, labelKey]) => (

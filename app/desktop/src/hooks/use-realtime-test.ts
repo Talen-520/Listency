@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { decodeBase64Pcm16, floatToPcm16, resampleMono } from "@/lib/audio";
+import { formatMessage, useI18n } from "@/lib/i18n";
 import type { ActiveSession, AppLogRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
 const OPENAI_PCM_SAMPLE_RATE = 24000;
@@ -42,6 +43,7 @@ export function useRealtimeTest({
   setToolCalls: Dispatch<SetStateAction<ToolCallRecord[]>>;
   setAppLogs: Dispatch<SetStateAction<AppLogRecord[]>>;
 }) {
+  const { t } = useI18n();
   const [micReady, setMicReady] = useState(false);
   const [streamStatus, setStreamStatus] = useState("idle");
   const [liveEvents, setLiveEvents] = useState<string[]>([]);
@@ -129,7 +131,7 @@ export function useRealtimeTest({
     const audioContext = outputAudioContextRef.current;
     const queuedAudioMs = audioContext ? Math.max(0, outputPlaybackTimeRef.current - audioContext.currentTime) * 1000 : 0;
     const delayMs = Math.max(900, queuedAudioMs + 500);
-    toast.info("AI will end the call after goodbye");
+    toast.info(t("realtime.agentEndingAfterGoodbye"));
     agentHangupTimerRef.current = window.setTimeout(() => {
       agentHangupTimerRef.current = null;
       const socket = socketRef.current;
@@ -137,24 +139,24 @@ export function useRealtimeTest({
         socket.send(JSON.stringify({ type: "session.agent_hangup_complete" }));
       }
     }, delayMs);
-  }, []);
+  }, [t]);
 
   const requestMic = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((track) => track.stop());
       setMicReady(true);
-      toast.success("Microphone ready");
+      toast.success(t("realtime.microphoneReady"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Microphone permission failed");
+      toast.error(err instanceof Error ? err.message : t("realtime.microphonePermissionFailed"));
     }
-  }, []);
+  }, [t]);
 
   const startLiveTest = useCallback(async () => {
     const inputSampleRate = providerChoice === "gemini" ? GEMINI_PCM_SAMPLE_RATE : OPENAI_PCM_SAMPLE_RATE;
 
     setLiveEvents([]);
-    setStreamStatus("requesting mic");
+    setStreamStatus("requesting_mic");
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     streamRef.current = stream;
@@ -168,7 +170,7 @@ export function useRealtimeTest({
 
     try {
       const session = await api.startTestSession(providerChoice);
-      appendEvent(`session ${session.id.slice(0, 8)} started`);
+      appendEvent(formatMessage(t("realtime.sessionStartedEvent", "session {session} started"), { session: session.id.slice(0, 8) }));
 
       const socket = new WebSocket(api.sessionStreamUrl(session.id));
       socketRef.current = socket;
@@ -176,7 +178,7 @@ export function useRealtimeTest({
 
       socket.onmessage = (event) => {
         const payload = JSON.parse(event.data) as RealtimeStreamEvent;
-        appendEvent(formatStreamEvent(payload));
+        appendEvent(formatStreamEvent(payload, t));
         if (payload.type === "provider.output_audio.delta" && typeof payload.audio === "string") {
           playPcm16Audio(payload.audio, typeof payload.sample_rate === "number" ? payload.sample_rate : 24000);
         }
@@ -188,13 +190,13 @@ export function useRealtimeTest({
           scheduleAgentHangupComplete();
         }
         if (payload.type === "provider.error") {
-          const message = String(payload.message ?? "Realtime provider returned an error.");
+          const message = String(payload.message ?? t("realtime.providerError"));
           toast.error(message);
           setTranscripts((current) => [
             {
               session_id: session.id,
               speaker: "system",
-              content: `Provider error: ${message}`,
+              content: `${t("realtime.providerErrorPrefix")}: ${message}`,
               is_final: 1,
               created_at: new Date().toISOString(),
             },
@@ -203,14 +205,14 @@ export function useRealtimeTest({
         }
         if (payload.type === "provider.reconnecting") {
           setStreamStatus("reconnecting");
-          toast.warning(String(payload.message ?? "Provider connection lost. Reconnecting."));
+          toast.warning(String(payload.message ?? t("realtime.providerReconnecting")));
         }
         if (payload.type === "provider.reconnected") {
           setStreamStatus("streaming");
-          toast.success(String(payload.message ?? "Provider connection recovered."));
+          toast.success(String(payload.message ?? t("realtime.providerReconnected")));
         }
         if (payload.type === "session.ended") {
-          const message = payload.message ? String(payload.message) : "Session ended.";
+          const message = payload.message ? String(payload.message) : t("realtime.sessionEnded");
           toast.info(message);
         }
         if (payload.transcript) {
@@ -243,13 +245,13 @@ export function useRealtimeTest({
       };
 
       socket.onclose = () => {
-        appendEvent("stream closed");
+        appendEvent(t("realtime.streamClosed"));
         setStreamStatus("idle");
       };
 
       await new Promise<void>((resolve, reject) => {
         socket.onopen = () => resolve();
-        socket.onerror = () => reject(new Error("WebSocket connection failed"));
+        socket.onerror = () => reject(new Error(t("realtime.websocketFailed")));
       });
 
       socket.send(JSON.stringify({ type: "audio.start", format: "pcm16", sample_rate: inputSampleRate, channels: 1 }));
@@ -279,14 +281,14 @@ export function useRealtimeTest({
       processor.connect(silentGain);
       silentGain.connect(audioContext.destination);
       setStreamStatus("streaming");
-      toast.success("Local PCM16 audio stream started");
+      toast.success(t("realtime.audioStreamStarted"));
       await loadAll();
     } catch (err) {
       cleanupLocalStream();
       setStreamStatus("idle");
       throw err;
     }
-  }, [appendEvent, cleanupLocalStream, loadAll, playPcm16Audio, providerChoice, scheduleAgentHangupComplete, setAppLogs, setToolCalls, setTranscripts]);
+  }, [appendEvent, cleanupLocalStream, loadAll, playPcm16Audio, providerChoice, scheduleAgentHangupComplete, setAppLogs, setToolCalls, setTranscripts, t]);
 
   const stopLiveTest = useCallback(async () => {
     const sessionId = activeSession?.id;
@@ -310,16 +312,16 @@ export function useRealtimeTest({
   };
 }
 
-function formatStreamEvent(payload: RealtimeStreamEvent) {
+function formatStreamEvent(payload: RealtimeStreamEvent, t: (key: string, fallback?: string) => string) {
   if (payload.type === "provider.error" && payload.message) {
     return `${payload.type}: ${payload.message}`;
   }
   if (payload.type === "tool.call" && payload.tool_name) {
     const ok = payload.output?.ok;
-    return `${payload.type}: ${payload.tool_name} ${ok === false ? "failed" : "completed"}`;
+    return `${payload.type}: ${payload.tool_name} ${ok === false ? t("status.failed") : t("status.completed")}`;
   }
   if (payload.type === "session.agent_hangup_ready") {
-    return "AI goodbye complete, ending call";
+    return t("realtime.agentGoodbyeComplete");
   }
   if (payload.type === "provider.reconnecting" && payload.message) {
     return `provider.reconnecting: ${payload.message}`;

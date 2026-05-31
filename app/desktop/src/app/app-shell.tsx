@@ -252,6 +252,7 @@ function AppIcon({
   running: boolean;
 }) {
   const { resolvedTheme } = useTheme();
+  const { t } = useI18n();
   const reduceMotion = useReducedMotion();
   const [phase, setPhase] = useState<"idle" | "starting" | "running" | "stopping">(
     running ? "running" : "idle",
@@ -292,7 +293,7 @@ function AppIcon({
       {showVideo ? (
         <video
           key={`${resolvedTheme}-${phase}`}
-          aria-label={phase === "running" ? "Listency running" : "Listency changing runtime state"}
+          aria-label={phase === "running" ? t("appIcon.running", "Listency running") : t("appIcon.changing", "Listency changing runtime state")}
           autoPlay
           className={cn("h-7 w-7 object-contain", graphicClassName)}
           loop={phase === "running"}

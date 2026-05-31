@@ -14,8 +14,10 @@ import { useAppData } from "@/hooks/use-app-data";
 import { useRealtimeTest } from "@/hooks/use-realtime-test";
 import { useSessionDetail } from "@/hooks/use-session-detail";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export function App() {
+  const { t } = useI18n();
   const [view, setView] = useState<View>("dashboard");
   const data = useAppData();
   const realtime = useRealtimeTest({
@@ -104,11 +106,11 @@ export function App() {
             onTelnyxPhoneNumberChange={data.setTelnyxPhoneNumber}
             onPreviewVoice={data.previewVoice}
             onRefreshTwilioDebugger={data.refreshTwilioDebugger}
-            onConnectPhone={() => data.runAction(data.connectPhone, "Phone connected")}
-            onStopPhoneConnection={() => data.runAction(data.stopPhoneConnection, "Phone connection stopped")}
-            onSave={() => void data.runAction(data.saveSettings, ".env saved")}
-            onPruneLogs={() => void data.runAction(data.pruneOldLogs, "Old logs cleaned")}
-            onClearLogs={() => void data.runAction(data.clearLogs, "Logs cleared")}
+            onConnectPhone={() => data.runAction(data.connectPhone, t("toast.phoneConnected"))}
+            onStopPhoneConnection={() => data.runAction(data.stopPhoneConnection, t("toast.phoneConnectionStopped"))}
+            onSave={() => void data.runAction(data.saveSettings, t("toast.envSaved"))}
+            onPruneLogs={() => void data.runAction(data.pruneOldLogs, t("toast.oldLogsCleaned"))}
+            onClearLogs={() => void data.runAction(data.clearLogs, t("toast.logsCleared"))}
             hasActiveSession={Boolean(data.activeSession)}
           />
         );
@@ -119,10 +121,10 @@ export function App() {
             activeAgentId={data.activeAgentId}
             agent={data.agent}
             onAgentChange={data.setAgent}
-            onAddAgent={() => void data.runAction(data.createAgent, "Agent added")}
-            onSelectAgent={(agentId) => void data.runAction(() => data.selectAgent(agentId), "Agent selected")}
-            onDeleteAgent={(agentId) => void data.runAction(() => data.deleteAgent(agentId), "Agent deleted")}
-            onSave={() => void data.runAction(data.saveAgent, "Agent saved")}
+            onAddAgent={() => void data.runAction(data.createAgent, t("toast.agentAdded"))}
+            onSelectAgent={(agentId) => void data.runAction(() => data.selectAgent(agentId), t("toast.agentSelected"))}
+            onDeleteAgent={(agentId) => void data.runAction(() => data.deleteAgent(agentId), t("toast.agentDeleted"))}
+            onSave={() => void data.runAction(data.saveAgent, t("toast.agentSaved"))}
           />
         );
       case "voice":
@@ -135,7 +137,7 @@ export function App() {
             onSave={() =>
               void data.runAction(
                 () => api.saveBusinessProfile({ name: data.business.name, content: data.business.content }),
-                "Business profile saved",
+                t("toast.businessProfileSaved"),
               )
             }
           />
@@ -145,7 +147,7 @@ export function App() {
           <ToolsView
             tools={data.tools}
             onToolEnabledChange={(toolName, enabled) =>
-              void data.runAction(() => api.setToolEnabled(toolName, enabled), "Tool updated")
+              void data.runAction(() => api.setToolEnabled(toolName, enabled), t("toast.toolUpdated"))
             }
           />
         );
@@ -161,10 +163,10 @@ export function App() {
             liveEvents={realtime.liveEvents}
             transcripts={data.transcripts}
             onRequestMic={() => void realtime.requestMic()}
-            onStartTest={() => void data.runAction(realtime.startLiveTest, "Session started")}
+            onStartTest={() => void data.runAction(realtime.startLiveTest, t("toast.sessionStarted"))}
             onStopSession={() => {
               if (data.activeSession) {
-                void data.runAction(realtime.stopLiveTest, "Session stopped");
+                void data.runAction(realtime.stopLiveTest, t("toast.sessionStopped"));
               }
             }}
           />
@@ -186,7 +188,7 @@ export function App() {
             toolCalls={data.toolCalls}
             appLogs={data.appLogs}
             phoneCalls={data.phoneCalls}
-            onDownloadLogs={() => void data.runAction(data.downloadLogs, "Logs downloaded")}
+            onDownloadLogs={() => void data.runAction(data.downloadLogs, t("toast.logsDownloaded"))}
           />
         );
       default:
@@ -204,8 +206,8 @@ export function App() {
       activeSession={data.activeSession}
       remainingSeconds={data.remainingSeconds}
       onViewChange={setView}
-      onStartRuntime={() => void data.runAction(api.startRuntime, "Runtime started")}
-      onStopRuntime={() => void data.runAction(api.stopRuntime, "Runtime stopped")}
+      onStartRuntime={() => void data.runAction(api.startRuntime, t("toast.runtimeStarted"))}
+      onStopRuntime={() => void data.runAction(api.stopRuntime, t("toast.runtimeStopped"))}
     >
       {renderView()}
     </AppShell>

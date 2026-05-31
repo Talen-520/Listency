@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import type { AppLogRecord, PhoneCallRecord, ToolCallRecord, TranscriptRecord } from "@/lib/types";
 
 export function useSessionDetail(sessionId: string | null) {
+  const { t } = useI18n();
   const [transcripts, setTranscripts] = useState<TranscriptRecord[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCallRecord[]>([]);
   const [appLogs, setAppLogs] = useState<AppLogRecord[]>([]);
@@ -41,7 +43,7 @@ export function useSessionDetail(sessionId: string | null) {
       })
       .catch((err) => {
         if (isCurrent) {
-          toast.error(err instanceof Error ? err.message : "Session detail unavailable");
+          toast.error(err instanceof Error ? err.message : t("logs.sessionDetailUnavailable", "Session detail unavailable"));
         }
       })
       .finally(() => {
@@ -53,7 +55,7 @@ export function useSessionDetail(sessionId: string | null) {
     return () => {
       isCurrent = false;
     };
-  }, [sessionId]);
+  }, [sessionId, t]);
 
   return {
     transcripts,

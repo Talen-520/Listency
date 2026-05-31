@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
-import { formatMessage, useI18n } from "@/lib/i18n";
+import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
 import { DEFAULT_OPENAI_REALTIME_MODEL, geminiLiveModelOptions } from "@/lib/models";
 import type { PhoneStatus, PublicConfig, TwilioDebuggerAlert, VoicePreviewCache } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -23,16 +23,8 @@ const DEVELOPER_CONTACT_URL = "https://x.com/Momo_tao205";
 const LISTENCY_ISSUES_URL = "https://github.com/Talen-520/Listency/issues";
 const PROVIDER_DEFAULT_VOICE = "__provider_default__";
 const PHONE_PROVIDER_LABELS: Record<string, string> = {
-  none: "Off",
   telnyx: "Telnyx",
   twilio: "Twilio",
-};
-const PHONE_CONNECTION_LABELS: Record<string, string> = {
-  missing_connector: "Missing Connector",
-  not_configured: "Needs Public URL",
-  running: "Running",
-  starting: "Starting",
-  stopped: "Stopped",
 };
 type StatusTone = "neutral" | "ok" | "warning";
 type PhoneActionState = "idle" | "connecting" | "provisioning" | "stopping";
@@ -58,12 +50,22 @@ function titleCaseStatus(value: string) {
     .join(" ");
 }
 
-function providerLabel(value: string) {
+function providerLabel(value: string, t: (key: string, fallback?: string) => string) {
+  if (value === "none") {
+    return t("status.off");
+  }
   return PHONE_PROVIDER_LABELS[value] ?? titleCaseStatus(value || "none");
 }
 
-function connectionLabel(value: string) {
-  return PHONE_CONNECTION_LABELS[value] ?? titleCaseStatus(value || "stopped");
+function connectionLabel(value: string, t: (key: string, fallback?: string) => string) {
+  const labels: Record<string, string> = {
+    missing_connector: t("status.missingConnector", "Missing Connector"),
+    not_configured: t("phone.notConfigured"),
+    running: t("status.running"),
+    starting: t("status.starting", "Starting"),
+    stopped: t("status.stopped"),
+  };
+  return labels[value] ?? titleCaseStatus(value || "stopped");
 }
 
 function connectionTone(value: string): StatusTone {
@@ -74,6 +76,19 @@ function connectionTone(value: string): StatusTone {
     return "warning";
   }
   return "neutral";
+}
+
+function translatePhoneConnectionMessage(message: string, t: (key: string, fallback?: string) => string) {
+  const messageKeyMap: Record<string, string> = {
+    "Automatic secure connection is stopped.": "phone.automaticConnectionStopped",
+    "Automatic secure connection stopped.": "phone.automaticConnectionStopped",
+    "Starting automatic secure connection...": "phone.startingConnection",
+    "Automatic connection needs cloudflared bundled with the app or installed on PATH.": "phone.missingCloudflared",
+    "Automatic connection stopped before it became ready.": "phone.connectionStoppedBeforeReady",
+    "Automatic connection did not publish a URL in time.": "phone.connectionTimedOut",
+  };
+  const key = messageKeyMap[message];
+  return key ? t(key) : message;
 }
 
 function hasValue(value: string | boolean) {
@@ -89,6 +104,7 @@ function missingPhoneFields({
   twilioAuthToken,
   twilioPhoneNumber,
   twilioPhoneNumberSid,
+  t,
 }: {
   config: PublicConfig;
   phoneProvider: string;
@@ -98,6 +114,7 @@ function missingPhoneFields({
   twilioAuthToken: string;
   twilioPhoneNumber: string;
   twilioPhoneNumberSid: string;
+  t: (key: string, fallback?: string) => string;
 }) {
   const missing: string[] = [];
 
@@ -109,7 +126,7 @@ function missingPhoneFields({
       missing.push("Auth Token");
     }
     if (!hasValue(twilioPhoneNumber) && !hasValue(twilioPhoneNumberSid) && !hasValue(config.TWILIO_PHONE_NUMBER_SID)) {
-      missing.push("Phone Number");
+      missing.push(t("phone.missingPhoneNumber", "Phone Number"));
     }
   }
 
@@ -118,7 +135,7 @@ function missingPhoneFields({
       missing.push("API Key");
     }
     if (!hasValue(telnyxCallControlAppId)) {
-      missing.push("Call Control App ID");
+      missing.push(t("phone.callControlAppId"));
     }
   }
 
@@ -174,7 +191,7 @@ function phoneNotice({
   if (phoneAction === "provisioning") {
     return {
       blocking: true,
-      detail: formatMessage(t("phone.configuringProvider"), { provider: providerLabel(phoneProvider) }),
+      detail: formatMessage(t("phone.configuringProvider"), { provider: providerLabel(phoneProvider, t) }),
       title: t("phone.configuringWebhooks"),
       tone: "info",
     };
@@ -198,13 +215,14 @@ function phoneNotice({
     twilioAuthToken,
     twilioPhoneNumber,
     twilioPhoneNumberSid,
+    t,
   });
 
   if (missing.length > 0) {
     return {
       blocking: true,
       detail: formatMessage(t("phone.missing"), { fields: missing.join(", ") }),
-      title: formatMessage(t("phone.addSettings"), { provider: providerLabel(phoneProvider) }),
+      title: formatMessage(t("phone.addSettings"), { provider: providerLabel(phoneProvider, t) }),
       tone: "warning",
     };
   }
@@ -212,7 +230,7 @@ function phoneNotice({
   if (phoneConnectionMode === "manual" && !phonePublicBaseUrl.trim()) {
     return {
       blocking: true,
-      detail: "Advanced Custom URL mode needs a public HTTPS URL before provider webhooks can be configured.",
+      detail: t("phone.customUrlRequiredDetail"),
       title: t("phone.addCustomUrl"),
       tone: "warning",
     };
@@ -222,7 +240,7 @@ function phoneNotice({
     return {
       blocking: false,
       detail: phoneStatus.provider_error,
-      title: formatMessage(t("phone.needsAttention"), { provider: providerLabel(phoneProvider) }),
+      title: formatMessage(t("phone.needsAttention"), { provider: providerLabel(phoneProvider, t) }),
       tone: "error",
     };
   }
@@ -239,8 +257,8 @@ function phoneNotice({
   if (phoneConnectionStatus === "missing_connector" || phoneConnectionStatus === "not_configured") {
     return {
       blocking: false,
-      detail: phoneStatus.connection.message || "Phone connection is not ready yet.",
-      title: connectionLabel(phoneConnectionStatus),
+      detail: translatePhoneConnectionMessage(phoneStatus.connection.message, t) || t("phone.connectionNotReady"),
+      title: connectionLabel(phoneConnectionStatus, t),
       tone: "warning",
     };
   }
@@ -248,7 +266,7 @@ function phoneNotice({
   if (phoneStatus.provider === phoneProvider && phoneStatus.reprovision_required) {
     return {
       blocking: false,
-      detail: phoneStatus.reprovision_reason || "The public tunnel URL changed. Click Connect Phone to update provider webhooks.",
+      detail: phoneStatus.reprovision_reason || t("phone.webhookUpdateNeededDetail"),
       title: t("phone.webhookUpdateNeeded"),
       tone: "warning",
     };
@@ -304,8 +322,6 @@ function hasUnsavedPhoneSettings({
   twilioPhoneNumber: string;
   twilioPhoneNumberSid: string;
 }) {
-  const { t } = useI18n();
-
   return (
     phoneProvider !== (config.PHONE_PROVIDER || "none") ||
     phoneConnectionMode !== (config.PHONE_CONNECTION_MODE || "automatic") ||
@@ -332,6 +348,7 @@ function twilioChecklist({
   twilioAuthToken,
   twilioPhoneNumber,
   twilioPhoneNumberSid,
+  t,
 }: {
   config: PublicConfig;
   phoneConnectionMode: string;
@@ -343,6 +360,7 @@ function twilioChecklist({
   twilioAuthToken: string;
   twilioPhoneNumber: string;
   twilioPhoneNumberSid: string;
+  t: (key: string, fallback?: string) => string;
 }) {
   const missing = missingPhoneFields({
     config,
@@ -353,6 +371,7 @@ function twilioChecklist({
     twilioAuthToken,
     twilioPhoneNumber,
     twilioPhoneNumberSid,
+    t,
   });
   const connectionReady =
     phoneConnectionStatus === "running" ||
@@ -360,29 +379,29 @@ function twilioChecklist({
 
   return [
     {
-      detail: missing.length > 0 ? `Missing ${missing.join(", ")}.` : "Twilio account and phone number settings are available.",
+      detail: missing.length > 0 ? formatMessage(t("phone.missing"), { fields: missing.join(", ") }) : t("phone.twilioCredentialsReady"),
       ready: missing.length === 0,
-      title: "Twilio credentials",
+      title: t("phone.twilioCredentials"),
     },
     {
       detail:
         phoneConnectionMode === "manual"
-          ? "Advanced Custom URL is ready for provider webhooks."
+          ? t("phone.secureConnectionCustomReady")
           : connectionReady
-            ? "Automatic secure connection is running."
-            : "Connect Phone will create the secure public connection.",
+            ? t("phone.secureConnectionAutomaticReady")
+            : t("phone.secureConnectionPending"),
       ready: connectionReady,
-      title: "Secure connection",
+      title: t("phone.secureConnection"),
     },
     {
-      detail: phoneStatus.configured && phoneStatus.provider === "twilio" ? "Twilio webhooks point at the active Listency URL." : "Connect Phone will configure Twilio webhooks.",
+      detail: phoneStatus.configured && phoneStatus.provider === "twilio" ? t("phone.twilioWebhooksReady") : t("phone.webhookProvisioningPending"),
       ready: phoneStatus.configured && phoneStatus.provider === "twilio",
-      title: "Webhook provisioning",
+      title: t("phone.webhookProvisioning"),
     },
     {
-      detail: phoneUnsaved ? "Save or Connect Phone to apply the current phone settings." : "Saved settings match the current form.",
+      detail: phoneUnsaved ? t("phone.unsavedDetail") : t("phone.savedSettingsApplied"),
       ready: !phoneUnsaved,
-      title: "Saved settings",
+      title: t("phone.savedSettings"),
     },
   ] satisfies ChecklistItemInfo[];
 }
@@ -603,6 +622,7 @@ export function SettingsView({
     twilioAuthToken,
     twilioPhoneNumber,
     twilioPhoneNumberSid,
+    t,
   });
 
   async function handleConnectPhone() {
@@ -715,10 +735,10 @@ export function SettingsView({
               value={openAiVoice}
             />
           </Field>
-          <Field label="Mock Mode">
+          <Field label={t("settings.mockMode")}>
             <Select value={openAiMock} onValueChange={onOpenAiMockChange}>
               <SelectTrigger>
-                <SelectValue placeholder="Mock mode" />
+                <SelectValue placeholder={t("settings.mockModePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="false">{t("status.off")}</SelectItem>
@@ -738,7 +758,7 @@ export function SettingsView({
           <Field label={t("common.model")}>
             <Select value={geminiModel} onValueChange={onGeminiModelChange}>
               <SelectTrigger>
-                <SelectValue placeholder="Select Gemini Live model" />
+                <SelectValue placeholder={t("settings.selectGeminiModel", "Select Gemini Live model")} />
               </SelectTrigger>
               <SelectContent>
                 {geminiLiveModelOptions.map((option) => (
@@ -824,8 +844,8 @@ export function SettingsView({
             {notice && <PhoneNotice notice={notice} />}
 
             <div className="grid gap-4 md:grid-cols-3">
-              <StatusTile label={t("common.provider")} value={providerLabel(phoneProvider)} tone={phoneProvider === "none" ? "neutral" : "ok"} />
-              <StatusTile label={t("common.connection")} value={connectionLabel(phoneConnectionStatus)} tone={connectionTone(phoneConnectionStatus)} />
+              <StatusTile label={t("common.provider")} value={providerLabel(phoneProvider, t)} tone={phoneProvider === "none" ? "neutral" : "ok"} />
+              <StatusTile label={t("common.connection")} value={connectionLabel(phoneConnectionStatus, t)} tone={connectionTone(phoneConnectionStatus)} />
               <StatusTile label={t("phone.inboundCalls")} value={selectedPhoneProviderConfigured ? t("phone.ready") : t("phone.notConnected")} tone={selectedPhoneProviderConfigured ? "ok" : "warning"} />
             </div>
 
@@ -833,7 +853,7 @@ export function SettingsView({
               <Field label={t("phone.connectionMode")}>
                 <Select value={phoneConnectionMode} onValueChange={onPhoneConnectionModeChange}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Connection mode" />
+                    <SelectValue placeholder={t("phone.connectionModePlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="automatic">{t("phone.automatic")}</SelectItem>
@@ -844,10 +864,10 @@ export function SettingsView({
               <Field label={t("phone.aiProvider")}>
                 <Select value={phoneRealtimeProvider || "default"} onValueChange={(next) => onPhoneRealtimeProviderChange(next === "default" ? "" : next)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Use runtime default" />
+                    <SelectValue placeholder={t("phone.useRuntimeDefault", "Use runtime default")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">Use Runtime Default</SelectItem>
+                    <SelectItem value="default">{t("phone.useRuntimeDefault", "Use Runtime Default")}</SelectItem>
                     <SelectItem value="openai">OpenAI Realtime</SelectItem>
                     <SelectItem value="gemini">Gemini Live</SelectItem>
                   </SelectContent>
@@ -866,13 +886,13 @@ export function SettingsView({
                     <Input type="password" placeholder={config.TWILIO_ACCOUNT_SID || "AC..."} value={twilioAccountSid} onChange={(event) => onTwilioAccountSidChange(event.target.value)} />
                   </Field>
                   <Field label={t("phone.authToken")}>
-                    <Input type="password" placeholder={config.TWILIO_AUTH_TOKEN || "auth token"} value={twilioAuthToken} onChange={(event) => onTwilioAuthTokenChange(event.target.value)} />
+                    <Input type="password" placeholder={config.TWILIO_AUTH_TOKEN || t("placeholder.authToken")} value={twilioAuthToken} onChange={(event) => onTwilioAuthTokenChange(event.target.value)} />
                   </Field>
                   <Field label={t("phone.number")}>
                     <Input placeholder="+15551234567" value={twilioPhoneNumber} onChange={(event) => onTwilioPhoneNumberChange(event.target.value)} />
                   </Field>
                   <Field label={t("phone.numberSid")}>
-                    <Input type="password" placeholder={config.TWILIO_PHONE_NUMBER_SID || "optional"} value={twilioPhoneNumberSid} onChange={(event) => onTwilioPhoneNumberSidChange(event.target.value)} />
+                    <Input type="password" placeholder={config.TWILIO_PHONE_NUMBER_SID || t("placeholder.optional")} value={twilioPhoneNumberSid} onChange={(event) => onTwilioPhoneNumberSidChange(event.target.value)} />
                   </Field>
                 </div>
                 <PhoneTestChecklist items={twilioTestChecklist} />
@@ -896,7 +916,7 @@ export function SettingsView({
                 <Field label={t("common.applicationName")}>
                   <Input value={telnyxApplicationName} onChange={(event) => onTelnyxApplicationNameChange(event.target.value)} />
                 </Field>
-                <Field label="Telnyx Phone Number">
+                <Field label={t("phone.telnyxPhoneNumber", "Telnyx Phone Number")}>
                   <Input placeholder="+15551234567" value={telnyxPhoneNumber} onChange={(event) => onTelnyxPhoneNumberChange(event.target.value)} />
                 </Field>
               </div>
@@ -909,11 +929,13 @@ export function SettingsView({
                   <Input placeholder="https://voice.example.com" value={phonePublicBaseUrl} onChange={(event) => onPhonePublicBaseUrlChange(event.target.value)} />
                 </Field>
                 <Field label={t("phone.connectorPath")}>
-                  <Input placeholder="Bundled automatically" value={cloudflaredBin} onChange={(event) => onCloudflaredBinChange(event.target.value)} />
+                  <Input placeholder={t("placeholder.bundledAutomatically")} value={cloudflaredBin} onChange={(event) => onCloudflaredBinChange(event.target.value)} />
                   <p className="text-xs text-muted-foreground">{t("phone.connectorHint")}</p>
                 </Field>
               </div>
-              <p className="mt-3 text-sm text-muted-foreground">{phoneStatus.connection.message}</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {translatePhoneConnectionMessage(phoneStatus.connection.message, t)}
+              </p>
             </details>
           </Card>
         )}
@@ -1015,7 +1037,7 @@ function VoiceSelect({
         <SelectContent>
           <SelectItem value={PROVIDER_DEFAULT_VOICE}>{t("voice.providerDefault", "Provider default")}</SelectItem>
           {value.length > 0 && !isSupportedVoice(provider, value) && (
-            <SelectItem value={value}>{value} - saved custom value</SelectItem>
+            <SelectItem value={value}>{value} - {t("voice.customSavedValue")}</SelectItem>
           )}
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
@@ -1246,11 +1268,11 @@ function TwilioDebuggerPanel({
           {alerts.map((alert) => (
             <div key={alert.sid || `${alert.date_created}-${alert.error_code}`} className="space-y-2 rounded-lg bg-background/60 p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={debuggerTone(alert.log_level)}>{titleCaseStatus(alert.log_level || "alert")}</Badge>
+                <Badge tone={debuggerTone(alert.log_level)}>{translateStatus(alert.log_level || "alert", t)}</Badge>
                 {alert.error_code && <Badge tone="neutral">{alert.error_code}</Badge>}
                 <span className="text-xs text-muted-foreground">{formatAlertTime(alert.date_generated || alert.date_created)}</span>
               </div>
-              <p className="text-sm font-medium">{alert.alert_text || "Twilio alert"}</p>
+              <p className="text-sm font-medium">{alert.alert_text || t("phone.twilioAlert")}</p>
               {(alert.request_method || alert.request_url) && (
                 <p className="break-all text-xs text-muted-foreground">
                   {[alert.request_method, alert.request_url].filter(Boolean).join(" ")}

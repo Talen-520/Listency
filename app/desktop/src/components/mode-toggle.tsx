@@ -7,10 +7,10 @@ import { useI18n } from "@/lib/i18n";
 
 export function ModeToggle() {
   const { resolvedTheme, toggleTheme } = useTheme();
-  const { language } = useI18n();
+  const { t } = useI18n();
   const isDark = resolvedTheme === "dark";
-  const label = language === "zh" ? (isDark ? "切换到浅色主题" : "切换到深色主题") : isDark ? "Switch to light theme" : "Switch to dark theme";
-  const tooltip = language === "zh" ? (isDark ? "浅色" : "深色") : isDark ? "Light" : "Dark";
+  const label = isDark ? t("language.switchToLightTheme") : t("language.switchToDarkTheme");
+  const tooltip = isDark ? t("language.lightTheme") : t("language.darkTheme");
 
   return (
     <Tooltip>

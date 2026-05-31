@@ -84,7 +84,7 @@ export function SessionDetailContent({
             </div>
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-medium text-muted-foreground">Est. text tokens</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("common.estimatedTextTokens")}</p>
                 <Hash className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">
@@ -93,7 +93,7 @@ export function SessionDetailContent({
             </div>
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-medium text-muted-foreground">Token cost</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("common.tokenCost")}</p>
                 <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="break-words font-display text-lg font-semibold leading-none tracking-normal">{t("status.notTracked", "Not tracked")}</p>

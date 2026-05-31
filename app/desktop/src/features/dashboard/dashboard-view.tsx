@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ProviderStatusCard } from "@/features/dashboard/provider-status-card";
 import { SessionTable } from "@/features/logs/session-table";
 import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
-import { isRuntimeRunning, toTitleCase } from "@/lib/runtime";
+import { isRuntimeRunning } from "@/lib/runtime";
 import type { ActiveSession, BackendHealth, ProviderInfo, ReadinessCheck, RuntimeStatus, SessionRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +89,9 @@ export function DashboardView({
             <Timer className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 space-y-1">
               <p className="text-sm font-medium leading-none">{t("common.limit")}</p>
-              <p className="text-sm text-muted-foreground">{toTitleCase(`${status.session_limit_seconds / 60} min`)}</p>
+              <p className="text-sm text-muted-foreground">
+                {formatMessage(t("common.minutes"), { count: status.session_limit_seconds / 60 })}
+              </p>
             </div>
           </div>
           </div>

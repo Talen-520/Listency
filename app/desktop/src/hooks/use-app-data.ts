@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
+import { formatMessage, useI18n } from "@/lib/i18n";
 import { DEFAULT_GEMINI_LIVE_MODEL, DEFAULT_OPENAI_REALTIME_MODEL, isSupportedGeminiLiveModel } from "@/lib/models";
 import { isRuntimeRunning } from "@/lib/runtime";
 import type {
@@ -158,11 +159,21 @@ function downloadJson(filename: string, payload: unknown) {
 }
 
 export function useAppData() {
+  const { t } = useI18n();
   const [status, setStatus] = useState<RuntimeStatus>(emptyStatus);
-  const [backendHealth, setBackendHealth] = useState<BackendHealth>(emptyBackendHealth);
+  const [backendHealth, setBackendHealth] = useState<BackendHealth>(() => ({
+    ...emptyBackendHealth,
+    message: t("shell.backendChecking"),
+  }));
   const [config, setConfig] = useState<PublicConfig>(emptyConfig);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [phoneStatus, setPhoneStatus] = useState<PhoneStatus>(emptyPhoneStatus);
+  const [phoneStatus, setPhoneStatus] = useState<PhoneStatus>(() => ({
+    ...emptyPhoneStatus,
+    connection: {
+      ...emptyPhoneStatus.connection,
+      message: t("phone.automaticConnectionStopped"),
+    },
+  }));
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [transcripts, setTranscripts] = useState<TranscriptRecord[]>([]);
@@ -224,7 +235,7 @@ export function useAppData() {
       {
         id: "backend",
         label: "Backend health",
-        detail: backendHealth.available ? "Local backend is responding on 127.0.0.1:8765." : backendHealth.message,
+        detail: backendHealth.available ? t("readiness.backendHealthy") : backendHealth.checking ? t("shell.backendChecking") : backendHealth.message,
         ready: backendHealth.available,
       },
       {
@@ -232,10 +243,10 @@ export function useAppData() {
         label: "Runtime",
         detail:
           status.background_status === "degraded"
-            ? status.last_error || "Runtime is degraded. Check the latest provider or phone error."
+            ? status.last_error || t("readiness.runtimeDegraded")
             : isRuntimeRunning(status.background_status)
-              ? "Background runtime is running."
-              : "Click Start to enter standby.",
+              ? t("readiness.runtimeRunning")
+              : t("readiness.clickStart"),
         ready: isRuntimeRunning(status.background_status) && status.background_status !== "degraded",
       },
       {
@@ -243,20 +254,20 @@ export function useAppData() {
         label: "Selected provider",
         detail:
           selectedProviderReady && selectedProviderHasKey
-            ? `${selectedProvider?.display_name ?? providerChoice} is ready.`
-            : `Add a ${providerChoice === "gemini" ? "Gemini" : "OpenAI"} API key in Settings.`,
+            ? formatMessage(t("readiness.providerReady"), { provider: selectedProvider?.display_name ?? providerChoice })
+            : formatMessage(t("readiness.addProviderKey"), { provider: providerChoice === "gemini" ? "Gemini" : "OpenAI" }),
         ready: selectedProviderReady && selectedProviderHasKey,
       },
       {
         id: "business",
         label: "Business profile",
-        detail: business.content.trim() ? "Business information is saved locally." : "Add business details for the lookup tool.",
+        detail: business.content.trim() ? t("readiness.businessSaved") : t("readiness.addBusiness"),
         ready: Boolean(business.content.trim()),
       },
       {
         id: "agent",
         label: "Agent prompt",
-        detail: agent.system_prompt.trim() ? "System prompt is ready." : "Add a system prompt for new sessions.",
+        detail: agent.system_prompt.trim() ? t("readiness.agentReady") : t("readiness.addAgentPrompt"),
         ready: Boolean(agent.system_prompt.trim()),
       },
       {
@@ -264,8 +275,8 @@ export function useAppData() {
         label: "Tools",
         detail:
           enabledToolCount > 0
-            ? `${enabledToolCount} tool${enabledToolCount === 1 ? "" : "s"} enabled.`
-            : "Enable at least one tool.",
+            ? formatMessage(t(enabledToolCount === 1 ? "readiness.toolEnabled" : "readiness.toolsEnabled"), { count: enabledToolCount })
+            : t("readiness.enableTool"),
         ready: enabledToolCount > 0,
       },
       {
@@ -273,12 +284,12 @@ export function useAppData() {
         label: "Phone",
         detail:
           phoneStatus.provider === "none"
-            ? "Phone calls are optional for the current local test flow."
+            ? t("readiness.phoneOptional")
             : phoneStatus.last_call_status === "failed" && phoneStatus.last_call_error
               ? phoneStatus.last_call_error
             : phoneStatus.configured
-              ? `${phoneStatus.provider} inbound calls are connected.`
-              : "Connect phone service from Settings.",
+              ? formatMessage(t("readiness.phoneConnected"), { provider: phoneStatus.provider })
+              : t("readiness.connectPhone"),
         ready: (phoneStatus.provider === "none" || phoneStatus.configured) && phoneStatus.last_call_status !== "failed",
       },
     ];
@@ -297,6 +308,7 @@ export function useAppData() {
     selectedProviderReady,
     status.background_status,
     status.last_error,
+    t,
     tools,
   ]);
 
@@ -359,7 +371,7 @@ export function useAppData() {
       setBackendHealth({
         available: true,
         checking: false,
-        message: "Local backend is healthy.",
+        message: t("readiness.backendHealthy"),
         last_checked_at: new Date().toISOString(),
       });
       setStatus(health.runtime);
@@ -411,14 +423,14 @@ export function useAppData() {
       setBackendHealth({
         available: false,
         checking: false,
-        message: err instanceof Error ? err.message : "Backend unavailable",
+        message: err instanceof Error ? err.message : t("backend.unavailable", "Backend unavailable"),
         last_checked_at: new Date().toISOString(),
       });
       return false;
     } finally {
       isLoadingAllRef.current = false;
     }
-  }, [logWindow]);
+  }, [logWindow, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -442,7 +454,7 @@ export function useAppData() {
           setBackendHealth({
             available: true,
             checking: false,
-            message: "Local backend is healthy.",
+            message: t("readiness.backendHealthy"),
             last_checked_at: new Date().toISOString(),
           });
           if (!hasLoadedAllRef.current && !cancelled) {
@@ -453,7 +465,7 @@ export function useAppData() {
           setBackendHealth({
             available: false,
             checking: false,
-            message: err instanceof Error ? err.message : "Backend unavailable",
+            message: err instanceof Error ? err.message : t("backend.unavailable", "Backend unavailable"),
             last_checked_at: new Date().toISOString(),
           });
         });
@@ -462,16 +474,16 @@ export function useAppData() {
       cancelled = true;
       window.clearInterval(refresh);
     };
-  }, [loadAll]);
+  }, [loadAll, t]);
 
   useEffect(() => {
     if (!hasLoadedAllRef.current) {
       return;
     }
     loadLogData().catch((err) => {
-      toast.error(err instanceof Error ? err.message : "Logs unavailable");
+      toast.error(err instanceof Error ? err.message : t("logs.unavailable", "Logs unavailable"));
     });
-  }, [loadLogData]);
+  }, [loadLogData, t]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, message: string) => {
@@ -480,10 +492,10 @@ export function useAppData() {
         toast.success(message);
         await loadAll();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Action failed");
+        toast.error(err instanceof Error ? err.message : t("toast.actionFailed", "Action failed"));
       }
     },
-    [loadAll],
+    [loadAll, t],
   );
 
   const updateAgentDraft = useCallback((nextAgent: AgentProfile) => {
@@ -594,13 +606,13 @@ export function useAppData() {
       const result = await api.twilioDebugger(10, 24);
       setTwilioDebuggerAlerts(result.alerts);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Twilio Debugger unavailable";
+      const message = err instanceof Error ? err.message : t("phone.twilioDebuggerUnavailable", "Twilio Debugger unavailable");
       setTwilioDebuggerError(message);
       toast.error(message);
     } finally {
       setTwilioDebuggerLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const previewVoice = useCallback(async (provider: string, voice: string) => {
     try {
@@ -616,10 +628,10 @@ export function useAppData() {
         };
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Voice preview failed");
+      toast.error(err instanceof Error ? err.message : t("voice.previewFailed", "Voice preview failed"));
       throw err;
     }
-  }, []);
+  }, [t]);
 
   const downloadLogs = useCallback(async () => {
     const since = logWindowSince(logWindow);

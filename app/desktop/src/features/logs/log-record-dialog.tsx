@@ -71,10 +71,10 @@ function detailRows(
     return {
       title: t("common.transcripts"),
       description: record.session_id,
-      badge: record.speaker,
+      badge: translateStatus(record.speaker, t),
       rows: [
         { label: t("common.session"), value: record.session_id },
-        { label: t("common.speaker"), value: record.speaker },
+        { label: t("common.speaker"), value: translateStatus(record.speaker, t) },
         { label: t("common.created"), value: formatDate(record.created_at) },
         { label: t("common.final"), value: record.is_final ? t("status.yes") : t("status.no") },
         { label: t("common.content"), value: record.content, code: true },
@@ -109,8 +109,8 @@ function detailRows(
       badge: translateStatus(record.status, t),
       rows: [
         { label: t("common.provider"), value: record.provider },
-        { label: "Provider call id", value: record.provider_call_id },
-        { label: "Stream id", value: record.provider_stream_id ?? "-" },
+        { label: t("common.providerCallId"), value: record.provider_call_id },
+        { label: t("common.streamId"), value: record.provider_stream_id ?? "-" },
         { label: t("common.session"), value: record.session_id ?? "-" },
         { label: t("common.route"), value: `${record.from_number || "-"} -> ${record.to_number || "-"}` },
         { label: t("common.status"), value: translateStatus(record.status, t) },
@@ -130,7 +130,7 @@ function detailRows(
     description: record.event,
     badge: translateStatus(record.level, t),
     rows: [
-      { label: t("common.level"), value: record.level },
+      { label: t("common.level"), value: translateStatus(record.level, t) },
       { label: t("common.event"), value: record.event },
       { label: t("common.created"), value: formatDate(record.created_at) },
       { label: t("common.message"), value: record.message, code: true },
