@@ -13,3 +13,12 @@ dependencies = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["voice_agent"]
+
+[tool.coverage.report]
+fail_under = 40
+show_missing = true
+skip_covered = true

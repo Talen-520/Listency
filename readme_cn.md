@@ -26,7 +26,9 @@
   <a href="https://github.com/Talen-520/Listency/releases">
     <img alt="Releases" src="https://img.shields.io/github/v/release/Talen-520/Listency?include_prereleases&label=release" />
   </a>
-  <img alt="Coverage" src="https://img.shields.io/badge/coverage-not%20configured-lightgrey" />
+  <a href="https://github.com/Talen-520/Listency/actions/workflows/coverage.yml">
+    <img alt="Coverage" src="https://github.com/Talen-520/Listency/actions/workflows/coverage.yml/badge.svg" />
+  </a>
   <img alt="Python" src="https://img.shields.io/badge/python-%3E%3D3.11-blue" />
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
 </p>
@@ -85,6 +87,25 @@ Alpha 用户：
 5. 填写 Business Info，然后选择或编辑 Agent prompt。你可以为不同通话流程保存多个 agent。
 6. 点击右上角 `Start` 启动 Runtime，按钮会切换为 `Stop`。
 7. 可选：在 Settings 中配置 [Twilio](https://www.twilio.com) 或 [Telnyx](https://www.telnyx.com)，点击 `Connect Phone` 连接电话号码，然后拨打配置好的号码测试。
+
+### 未签名 Alpha 的信任提示
+
+当前 alpha 构建还没有正式签名。以下命令只应用于从本仓库下载的构建。
+
+如果 macOS 显示 `"Listency" is damaged and can't be opened`，在解压或安装后移除下载隔离标记：
+
+```bash
+xattr -dr com.apple.quarantine /path/to/Listency.app
+```
+
+如果 Windows 阻止下载的安装包或 portable app，在解压后的 release 文件夹中打开 PowerShell，移除 Mark-of-the-Web 标记：
+
+```powershell
+Unblock-File .\Listency_0.1.0_x64-setup.exe
+Get-ChildItem .\portable -Recurse | Unblock-File
+```
+
+正式 code signing 和 notarization 完成后，这些绕过步骤就不应该再需要。
 
 开发者：
 

@@ -54,6 +54,16 @@ offline on a clean machine.
 Unsigned Windows alpha builds may show browser, Defender, or SmartScreen trust
 warnings.
 
+For local alpha testing only, open PowerShell in the extracted release folder
+and remove the Mark-of-the-Web flag from the installer or portable app:
+
+```powershell
+Unblock-File .\Listency_0.1.0_x64-setup.exe
+Get-ChildItem .\portable -Recurse | Unblock-File
+```
+
+Signed public releases should not require this workaround.
+
 ## Checksum Verification
 
 macOS:

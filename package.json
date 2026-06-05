@@ -11,6 +11,7 @@
     "build": "pnpm --dir app/desktop run build",
     "tauri:dev": "node scripts/dev_app.mjs",
     "tauri:build:sidecar": "pnpm --dir app/desktop run tauri:build:sidecar",
-    "test:backend": "node scripts/test_backend.mjs"
+    "test:backend": "node scripts/test_backend.mjs",
+    "test:backend:coverage": "node scripts/test_backend_coverage.mjs"
   }
 }

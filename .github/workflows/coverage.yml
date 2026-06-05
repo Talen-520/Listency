@@ -1,0 +1,62 @@
+name: Coverage
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-coverage:
+    name: Backend coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: |
+            app/backend/requirements.txt
+            app/backend/requirements-dev.txt
+
+      - name: Install backend dependencies
+        working-directory: app/backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run coverage
+        working-directory: app/backend
+        run: |
+          python -m coverage run -m unittest discover -s tests
+          python -m coverage report
+          python -m coverage xml
+
+      - name: Write coverage summary
+        working-directory: app/backend
+        run: |
+          {
+            echo "## Backend coverage"
+            echo
+            echo '```text'
+            python -m coverage report
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-${{ github.sha }}
+          path: app/backend/coverage.xml
+          if-no-files-found: error

@@ -55,6 +55,15 @@ Use it when you need to verify desktop behavior:
 pnpm run test:backend
 ```
 
+Backend coverage:
+
+```bash
+pnpm run test:backend:coverage
+```
+
+The coverage command runs `unittest` under `coverage.py`, fails below the
+configured baseline, and writes `app/backend/coverage.xml`.
+
 ## Manual Backend
 
 ```bash

@@ -26,7 +26,9 @@ Local-first desktop app for running an AI phone assistant for small businesses.
   <a href="https://github.com/Talen-520/Listency/releases">
     <img alt="Releases" src="https://img.shields.io/github/v/release/Talen-520/Listency?include_prereleases&label=release" />
   </a>
-  <img alt="Coverage" src="https://img.shields.io/badge/coverage-not%20configured-lightgrey" />
+  <a href="https://github.com/Talen-520/Listency/actions/workflows/coverage.yml">
+    <img alt="Coverage" src="https://github.com/Talen-520/Listency/actions/workflows/coverage.yml/badge.svg" />
+  </a>
   <img alt="Python" src="https://img.shields.io/badge/python-%3E%3D3.11-blue" />
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/Talen-520/Listency?label=last%20commit" />
 </p>
@@ -88,6 +90,27 @@ For alpha users:
 7. Optional: configure [Twilio](https://www.twilio.com) or [Telnyx](https://www.telnyx.com) in Settings, click "Connect Phone" to connect a number, then call the
    configured number.
 
+### Unsigned Alpha Trust Prompts
+
+Current alpha builds are unsigned. Only use the following commands for builds
+downloaded from this repository.
+
+If macOS shows `"Listency" is damaged and can't be opened`, remove the
+download quarantine flag after extracting or installing the app:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/Listency.app
+```
+
+If Windows blocks the downloaded installer or portable app, open PowerShell in
+the extracted release folder and remove the Mark-of-the-Web flag:
+
+```powershell
+Unblock-File .\Listency_0.1.0_x64-setup.exe
+Get-ChildItem .\portable -Recurse | Unblock-File
+```
+
+These workarounds should go away once the release is code signed and notarized.
 
 For developers:
 

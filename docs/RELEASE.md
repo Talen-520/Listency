@@ -139,3 +139,16 @@ xattr -dr com.apple.quarantine /path/to/Listency.app
 ```
 
 Signed and notarized public releases should not require this workaround.
+
+## Unsigned Windows Alpha Note
+
+Unsigned Windows alpha builds may show browser, Defender, or SmartScreen trust
+warnings. For local alpha testing only, open PowerShell in the extracted release
+folder and remove the Mark-of-the-Web flag:
+
+```powershell
+Unblock-File .\Listency_0.1.0_x64-setup.exe
+Get-ChildItem .\portable -Recurse | Unblock-File
+```
+
+Signed public installers should not require this workaround.
