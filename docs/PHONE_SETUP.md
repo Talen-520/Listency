@@ -1,8 +1,9 @@
 # Phone Setup
 
-Phone support is currently alpha. Twilio inbound calls have been tested through
-the automatic tunnel path. Telnyx Call Control media streaming is present as a
-proof of concept, but real Telnyx inbound call testing is deferred.
+Phone support is required for real inbound calls. Twilio is the recommended
+provider for the first public release and has been tested through the automatic
+tunnel path. Telnyx Call Control media streaming remains experimental and is not
+recommended for production use yet.
 
 ## How Automatic Phone Setup Works
 
@@ -56,10 +57,12 @@ Useful outcomes to confirm during testing:
 
 ## Telnyx Status
 
-Telnyx support is alpha proof of concept:
+Telnyx support is experimental proof of concept:
 
 - Call Control webhook route exists.
 - Media stream websocket route exists.
 - Runtime connection path is wired to the existing realtime session manager.
 
-Real Telnyx inbound call validation is deferred.
+Real Telnyx inbound call validation is deferred. Telnyx may also require
+account, identity, number, or use-case verification depending on region and
+number type, so Twilio remains the public release path for now.

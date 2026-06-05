@@ -1,11 +1,11 @@
-# Alpha Testing
+# Unsigned Build Testing
 
-This guide is for testing unsigned alpha builds from GitHub Actions or
+This guide is for testing unsigned builds from GitHub Actions or
 [GitHub Releases](https://github.com/Talen-520/Listency/releases).
 
-Use GitHub Releases for normal alpha testing. GitHub Actions artifacts are still
+Use GitHub Releases for normal testing. GitHub Actions artifacts are still
 useful when validating a specific CI run before publishing or updating a
-pre-release.
+release.
 
 ## Artifact Types
 
@@ -27,22 +27,23 @@ Windows artifacts usually include:
 - `SIGNING_STATUS.txt`
 - `smoke.log`
 
-## macOS Alpha Builds
+## macOS Unsigned Builds
 
-Unsigned macOS alpha builds may trigger Gatekeeper warnings such as `"Listency"
+Unsigned macOS builds may trigger Gatekeeper warnings such as `"Listency"
 is damaged and can't be opened`.
 
-For local alpha testing only, remove the downloaded quarantine flag:
+For builds downloaded from this repository, remove the downloaded quarantine
+flag:
 
 ```bash
 xattr -dr com.apple.quarantine /path/to/Listency.app
 ```
 
-Signed and notarized public releases should not require this workaround.
+This prompt is expected for unsigned builds.
 
-## Windows Alpha Builds
+## Windows Unsigned Builds
 
-For the most predictable alpha path, use one of:
+For the most predictable path, use one of:
 
 - `Listency_0.1.0_x64-setup.exe`
 - `portable/Listency.exe`
@@ -51,18 +52,19 @@ Do not launch raw `target/release/*.exe` from a build tree by itself. It does
 not carry the backend sidecar next to the executable and can show backend
 offline on a clean machine.
 
-Unsigned Windows alpha builds may show browser, Defender, or SmartScreen trust
+Unsigned Windows builds may show browser, Defender, or SmartScreen trust
 warnings.
 
-For local alpha testing only, open PowerShell in the extracted release folder
-and remove the Mark-of-the-Web flag from the installer or portable app:
+For builds downloaded from this repository, open PowerShell in the extracted
+release folder and remove the Mark-of-the-Web flag from the installer or
+portable app:
 
 ```powershell
 Unblock-File .\Listency_0.1.0_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
-Signed public releases should not require this workaround.
+These warnings are expected for unsigned builds.
 
 ## Checksum Verification
 
@@ -83,7 +85,7 @@ Get-FileHash .\portable\Listency.exe -Algorithm SHA256
 
 ## Smoke Checklist
 
-Use this checklist after opening an alpha build:
+Use this checklist after opening a release build:
 
 1. App opens.
 2. Backend status becomes online.

@@ -78,7 +78,7 @@ Listency runs locally on macOS and Windows. API keys, business information, tran
 
 ## Quick Start
 
-For alpha users:
+For users:
 
 1. Download a packaged Listency build from
    [GitHub Releases](https://github.com/Talen-520/Listency/releases).
@@ -87,13 +87,18 @@ For alpha users:
 4. Choose a provider, model, and voice.
 5. Fill in Business Info, then choose or edit an Agent prompt. You can save multiple agents for different call flows.
 6. Start Runtime by click the top right corner "Start" and the button will turn to "Stop".
-7. Optional: configure [Twilio](https://www.twilio.com) or [Telnyx](https://www.telnyx.com) in Settings, click "Connect Phone" to connect a number, then call the
-   configured number.
+7. Connect a phone provider for real inbound calls. Twilio is the recommended
+   path for the first public release: add your Twilio Account SID, Auth Token,
+   and phone number in Settings, click "Connect Phone", then call the configured
+   number.
 
-### Unsigned Alpha Trust Prompts
+Telnyx remains experimental and is not recommended for production use in the
+first public release.
 
-Current alpha builds are unsigned. Only use the following commands for builds
-downloaded from this repository.
+### Unsigned Release Trust Prompts
+
+Current public builds are unsigned by design. Only use the following commands
+for builds downloaded from this repository.
 
 If macOS shows `"Listency" is damaged and can't be opened`, remove the
 download quarantine flag after extracting or installing the app:
@@ -110,7 +115,7 @@ Unblock-File .\Listency_0.1.0_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
-These workarounds should go away once the release is code signed and notarized.
+These prompts are expected for unsigned builds.
 
 For developers:
 
@@ -127,20 +132,9 @@ See [Development](docs/DEVELOPMENT.md) for the full local workflow.
 
 ## Current Status
 
-Listency is currently in the early stages of rapid development; commits will be frequent, so please ensure you are using the latest release version.
-
-## Features
-
-- Local-first desktop runtime with a lightweight FastAPI backend.
-- OpenAI Realtime and Gemini Live realtime voice sessions.
-- Provider-specific voices and local voice preview cache.
-- Business profile, multiple saved agent prompts, and tool toggles.
-- Built-in tools for common small-business call flows.
-- Five-minute maximum duration per active AI conversation.
-- Twilio phone setup alpha with automatic public tunnel and webhook provisioning.
-- Local transcripts, tool calls, phone calls, and app events.
-- macOS and Windows packaged smoke tests in GitHub Actions.
-- Manual release draft workflow with checksum and signing-readiness support.
+Listency is in its first public unsigned release stage. The recommended phone
+path is Twilio; Telnyx remains experimental and may be removed or redesigned in
+a later release.
 
 ## How It Works
 
@@ -171,7 +165,7 @@ data.
 ## Documentation
 
 - [GitHub Releases](https://github.com/Talen-520/Listency/releases)
-- [Alpha Testing](docs/ALPHA_TESTING.md)
+- [Unsigned Build Testing](docs/ALPHA_TESTING.md)
 - [Phone Setup](docs/PHONE_SETUP.md)
 - [Release And Signing](docs/RELEASE.md)
 - [Development](docs/DEVELOPMENT.md)
