@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from voice_agent.storage.database import DEFAULT_AGENT_SYSTEM_PROMPT, Database
+from voice_agent.storage.database import DEFAULT_AGENT_SYSTEM_PROMPT, LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT, Database
 
 
 class AgentsDatabaseTest(unittest.TestCase):
@@ -51,6 +51,26 @@ class AgentsDatabaseTest(unittest.TestCase):
 
             agents = db.list_agents()
             self.assertEqual({agent["id"] for agent in agents}, {"default", created["id"]})
+
+    def test_legacy_default_prompt_migrates_to_current_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite3"
+            db = Database(db_path)
+            db.upsert_default_agent(LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT, "Default Agent")
+
+            migrated = Database(db_path)
+
+            self.assertEqual(migrated.get_agent("default")["system_prompt"], DEFAULT_AGENT_SYSTEM_PROMPT)
+
+    def test_custom_default_prompt_is_not_migrated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite3"
+            db = Database(db_path)
+            db.upsert_default_agent("Custom prompt", "Default Agent")
+
+            migrated = Database(db_path)
+
+            self.assertEqual(migrated.get_agent("default")["system_prompt"], "Custom prompt")
 
 
 if __name__ == "__main__":

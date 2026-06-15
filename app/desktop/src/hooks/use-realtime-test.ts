@@ -141,16 +141,25 @@ export function useRealtimeTest({
     }, delayMs);
   }, [t]);
 
+  const requestMicrophoneStream = useCallback(async () => {
+    const mediaDevices = typeof navigator === "undefined" ? undefined : navigator.mediaDevices;
+    if (!mediaDevices?.getUserMedia) {
+      throw new Error(t("realtime.microphoneApiUnavailable"));
+    }
+    return mediaDevices.getUserMedia({ audio: true });
+  }, [t]);
+
   const requestMic = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await requestMicrophoneStream();
       stream.getTracks().forEach((track) => track.stop());
       setMicReady(true);
       toast.success(t("realtime.microphoneReady"));
     } catch (err) {
+      setMicReady(false);
       toast.error(err instanceof Error ? err.message : t("realtime.microphonePermissionFailed"));
     }
-  }, [t]);
+  }, [requestMicrophoneStream, t]);
 
   const startLiveTest = useCallback(async () => {
     const inputSampleRate = providerChoice === "gemini" ? GEMINI_PCM_SAMPLE_RATE : OPENAI_PCM_SAMPLE_RATE;
@@ -158,17 +167,17 @@ export function useRealtimeTest({
     setLiveEvents([]);
     setStreamStatus("requesting_mic");
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    streamRef.current = stream;
-    setMicReady(true);
-
-    const AudioContextCtor =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const outputAudioContext = outputAudioContextRef.current ?? new AudioContextCtor();
-    outputAudioContextRef.current = outputAudioContext;
-    void outputAudioContext.resume().catch(() => undefined);
-
     try {
+      const stream = await requestMicrophoneStream();
+      streamRef.current = stream;
+      setMicReady(true);
+
+      const AudioContextCtor =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const outputAudioContext = outputAudioContextRef.current ?? new AudioContextCtor();
+      outputAudioContextRef.current = outputAudioContext;
+      void outputAudioContext.resume().catch(() => undefined);
+
       const session = await api.startTestSession(providerChoice);
       appendEvent(formatMessage(t("realtime.sessionStartedEvent", "session {session} started"), { session: session.id.slice(0, 8) }));
 
@@ -288,7 +297,19 @@ export function useRealtimeTest({
       setStreamStatus("idle");
       throw err;
     }
-  }, [appendEvent, cleanupLocalStream, loadAll, playPcm16Audio, providerChoice, scheduleAgentHangupComplete, setAppLogs, setToolCalls, setTranscripts, t]);
+  }, [
+    appendEvent,
+    cleanupLocalStream,
+    loadAll,
+    playPcm16Audio,
+    providerChoice,
+    requestMicrophoneStream,
+    scheduleAgentHangupComplete,
+    setAppLogs,
+    setToolCalls,
+    setTranscripts,
+    t,
+  ]);
 
   const stopLiveTest = useCallback(async () => {
     const sessionId = activeSession?.id;
