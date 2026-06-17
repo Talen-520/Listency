@@ -204,6 +204,7 @@ cython_debug/
 .agent/
 .agents/
 /agent/
+update_logs/
 data/
 app/desktop/node_modules/
 app/desktop/dist/
