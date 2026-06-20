@@ -169,7 +169,6 @@ data.
 - [Phone Setup](docs/PHONE_SETUP.md)
 - [Release And Signing](docs/RELEASE.md)
 - [Development](docs/DEVELOPMENT.md)
-- [Update Logs](update_logs/)
 
 Agent-facing architecture, design, and development notes are kept locally in the
 ignored `.agent/` directory.
@@ -178,8 +177,7 @@ ignored `.agent/` directory.
 
 This repository is early, so focused issues and small pull requests are easiest
 to review. Please keep the local-first design intact, avoid committing secrets
-or customer data, and update `README.md`, `docs/`, or `update_logs/` when
-behavior changes.
+or customer data, and update `README.md` or `docs/` when behavior changes.
 
 ## License
 

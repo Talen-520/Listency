@@ -151,13 +151,12 @@ Listency 处于第一版 unsigned 公开发布阶段。推荐电话路径是 Twi
 - [Phone Setup](docs/PHONE_SETUP.md)
 - [Release And Signing](docs/RELEASE.md)
 - [Development](docs/DEVELOPMENT.md)
-- [Update Logs](update_logs/)
 
 面向开发 agent 的架构、设计和开发说明保存在本地 ignored `.agent/` 目录中。
 
 ## 贡献
 
-本仓库仍处于早期阶段，聚焦的小 issue 和小型 PR 最容易 review。请保持 local-first 的设计原则，不要提交 secret 或客户数据；当行为发生变化时，请同步更新 `README.md`、`docs/` 或 `update_logs/`。
+本仓库仍处于早期阶段，聚焦的小 issue 和小型 PR 最容易 review。请保持 local-first 的设计原则，不要提交 secret 或客户数据；当行为发生变化时，请同步更新 `README.md` 或 `docs/`。
 
 ## License
 
