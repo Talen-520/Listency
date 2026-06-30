@@ -159,7 +159,7 @@ def _closed_result(config: dict[str, Any], local_now: datetime, reason: str, mes
 
 def _allowed_tools(policy: str) -> list[str]:
     if policy == "open_hours":
-        return ["business_info_lookup", "create_booking", "transfer_call", "log_customer_request", "end_call"]
+        return ["business_info_lookup", "check_availability", "create_booking", "transfer_call", "log_customer_request", "end_call"]
     if policy == "transfer":
         return ["business_info_lookup", "transfer_call", "log_customer_request", "end_call"]
     if policy == "information_only":

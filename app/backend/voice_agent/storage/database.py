@@ -29,7 +29,7 @@ Business Information
 Use business_info_lookup for specific questions about hours, location, services, policies, prices, availability details, or anything that should come from the saved business profile. If the lookup is missing or unclear, say what you can verify and offer to take a message or transfer.
 
 Bookings
-Before create_booking, confirm the customer's name, requested date/time, and any important notes. If the time or customer name is missing, ask one focused follow-up question. After saving, summarize the booking clearly.
+If the caller asks whether a time is available, use check_availability first when enabled. Before create_booking, confirm the customer's name, requested date/time, and any important notes. If the time or customer name is missing, ask one focused follow-up question. After saving, summarize the booking clearly.
 
 Transfers And Escalation
 Use transfer_call when the caller asks for a person, manager, front desk, emergency help, billing dispute, complaint escalation, or anything outside the saved information. Explain that a real phone transfer depends on the configured phone provider.
@@ -49,7 +49,7 @@ Use the caller's language when possible. Keep most replies to one or two short s
 
 Use business_info_lookup before answering questions about hours, location, services, prices, policies, amenities, availability details, or any business-specific fact. If the saved information is missing or unclear, say what you can verify and offer to log the request or transfer the caller.
 
-Use create_booking only after confirming the customer's name and requested date/time. A booking tool call saves a local request; it does not guarantee final availability unless the business information explicitly says so.
+Use check_availability when the caller asks whether a booking, reservation, or appointment time is available. Candidate slots are not final confirmations. Use create_booking only after confirming the customer's name and requested date/time. A booking tool call saves a local request; it does not guarantee final availability unless a future calendar adapter explicitly confirms it.
 
 Use transfer_call when the caller asks for a person, manager, front desk, emergency help, complaint escalation, billing dispute, or anything outside the saved information or enabled tools.
 
@@ -62,7 +62,7 @@ Business type: local service business.
 Tone: warm, calm, concise, and helpful.
 Primary goal: answer common questions from the saved Business Info, collect booking or callback requests, and route complex issues to staff.
 Greeting: Thank the caller for calling the business, then ask how you can help.
-Booking flow: collect customer name, requested date/time, party size or service type, contact details if offered, and any special notes. Do not guarantee final confirmation unless the saved Business Info clearly allows it.
+Booking flow: if the caller asks about availability, check candidate slots first. Then collect customer name, requested date/time, party size or service type, contact details if offered, and any special notes. Do not guarantee final confirmation unless a calendar adapter explicitly confirms it.
 FAQ flow: answer from Business Info first. If the answer is not available, offer to log the question for staff follow-up.
 Transfer flow: if the caller asks for a human or the issue is urgent, sensitive, or outside scope, use transfer_call.
 Closing: when the task is complete, ask if there is anything else. If the caller is done, use end_call and say a short goodbye."""
@@ -314,6 +314,34 @@ class Database:
             if key in sections:
                 normalized[key] = str(sections.get(key) or "")
         self.set_setting("business_info_sections", json.dumps(normalized, ensure_ascii=False))
+        return normalized
+
+    def get_calendar_availability(self) -> dict[str, Any]:
+        raw_value = self.get_setting("calendar_availability", "")
+        empty = {"adapter": "manual", "slots": []}
+        if not raw_value:
+            return empty
+        try:
+            payload = json.loads(raw_value)
+        except json.JSONDecodeError:
+            return empty
+        if isinstance(payload, list):
+            return {"adapter": "manual", "slots": payload}
+        if not isinstance(payload, dict):
+            return empty
+        raw_slots = payload.get("slots", [])
+        return {
+            "adapter": str(payload.get("adapter") or "manual"),
+            "slots": raw_slots if isinstance(raw_slots, list) else [],
+        }
+
+    def set_calendar_availability(self, payload: dict[str, Any]) -> dict[str, Any]:
+        slots = payload.get("slots", [])
+        normalized = {
+            "adapter": str(payload.get("adapter") or "manual"),
+            "slots": slots if isinstance(slots, list) else [],
+        }
+        self.set_setting("calendar_availability", json.dumps(normalized, ensure_ascii=False))
         return normalized
 
     def upsert_business_profile(self, content: str, name: str = "Default Business") -> dict[str, Any]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from voice_agent.calendar import AvailabilityRequest, ManualCalendarAdapter
 from voice_agent.tools.registry import ToolContext, ToolDefinition, ToolRegistry
 
 BOOKING_FIELD_REQUIREMENTS = {
@@ -207,8 +208,50 @@ def _normalize_customer_request_type(value: str) -> str:
     return normalized if normalized in {"callback", "customer_request", "unresolved_question"} else "customer_request"
 
 
+def check_availability(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
+    adapter = ManualCalendarAdapter.from_payload(context.db.get_calendar_availability())
+    limit = _int_from_payload(payload.get("limit"), default=3)
+    request = AvailabilityRequest(
+        requested_date=str(payload.get("requested_date") or "").strip(),
+        requested_time=str(payload.get("requested_time") or "").strip(),
+        service=str(payload.get("service") or "").strip(),
+        party_size=str(payload.get("party_size") or "").strip(),
+        limit=limit,
+    )
+    health = adapter.health()
+    slots = [slot.to_dict() for slot in adapter.list_available_slots(request)]
+    availability_status = "available" if slots else "not_configured" if not health["ready"] else "no_matching_slots"
+    return {
+        "adapter": adapter.name,
+        "adapter_health": health,
+        "availability_status": availability_status,
+        "slots": slots,
+        "confirmation_status": "candidate_slots_only",
+        "requires_staff_confirmation": True,
+        "message": _availability_message(availability_status, len(slots)),
+    }
+
+
 def check_booking_capacity(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
-    return {"message": "5 rooms available"}
+    result = check_availability(payload, context)
+    result["legacy_tool"] = "check_booking_capacity"
+    return result
+
+
+def _int_from_payload(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _availability_message(status: str, slot_count: int) -> str:
+    if status == "available":
+        noun = "slot" if slot_count == 1 else "slots"
+        return f"{slot_count} candidate {noun} found. Staff must confirm final availability before the booking is confirmed."
+    if status == "no_matching_slots":
+        return "No matching candidate slots were found. Capture the booking request for staff review."
+    return "No calendar availability is configured. Capture the booking request for staff review."
 
 
 def end_call(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
@@ -259,6 +302,7 @@ def build_default_registry() -> ToolRegistry:
                 name="create_booking",
                 description=(
                     "Capture a local booking, reservation, or appointment request for staff review. This does not confirm final availability. "
+                    "If the caller asks whether a time is available, use check_availability first when that tool is enabled. "
                     "Use business_type-specific fields when available. If details are missing after one concise follow-up, still save the request and include missing details. "
                     "The tool returns validation_status, missing fields, and confirmation_status so the caller and owner know the request still needs staff review."
                 ),
@@ -376,11 +420,52 @@ def build_default_registry() -> ToolRegistry:
                 handler=log_customer_request,
             ),
             ToolDefinition(
-                name="check_booking_capacity",
-                description="Return the remaining number of bookings available for testing tool calling.",
+                name="check_availability",
+                description=(
+                    "Check locally configured candidate availability slots for a booking, reservation, or appointment request. "
+                    "This does not create or confirm a booking. If no calendar availability is configured or no slot matches, capture the request with create_booking for staff review."
+                ),
                 input_schema={
                     "type": "object",
-                    "properties": {},
+                    "properties": {
+                        "requested_date": {
+                            "type": "string",
+                            "description": "Requested date or date phrase from the caller.",
+                        },
+                        "requested_time": {
+                            "type": "string",
+                            "description": "Requested time or time phrase from the caller.",
+                        },
+                        "service": {
+                            "type": "string",
+                            "description": "Requested service, room, table, or appointment type when relevant.",
+                        },
+                        "party_size": {
+                            "type": "string",
+                            "description": "Party size, guest count, or attendee count when relevant.",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of candidate slots to return.",
+                        },
+                    },
+                },
+                handler=check_availability,
+            ),
+            ToolDefinition(
+                name="check_booking_capacity",
+                description=(
+                    "Compatibility alias for check_availability. Prefer check_availability for new booking, reservation, or appointment availability checks."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "requested_date": {"type": "string"},
+                        "requested_time": {"type": "string"},
+                        "service": {"type": "string"},
+                        "party_size": {"type": "string"},
+                        "limit": {"type": "integer"},
+                    },
                 },
                 handler=check_booking_capacity,
             ),

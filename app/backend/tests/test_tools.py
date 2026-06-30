@@ -9,20 +9,80 @@ from voice_agent.tools import ToolContext, build_default_registry
 
 
 class ToolRegistryTest(unittest.TestCase):
-    def test_check_booking_capacity_returns_fixed_message(self) -> None:
+    def test_check_availability_without_calendar_requires_staff_review(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             registry = build_default_registry()
 
             result = registry.call(
-                "check_booking_capacity",
-                {},
+                "check_availability",
+                {"requested_date": "Friday", "requested_time": "7 PM"},
                 ToolContext(db=db, session_id="session-1"),
             )
 
             calls = db.list_tool_calls()
 
-            self.assertEqual(result, {"message": "5 rooms available"})
+            self.assertEqual(result["availability_status"], "not_configured")
+            self.assertEqual(result["slots"], [])
+            self.assertTrue(result["requires_staff_confirmation"])
+            self.assertIn("Capture the booking request", result["message"])
+            self.assertEqual(calls[0]["tool_name"], "check_availability")
+            self.assertEqual(calls[0]["status"], "completed")
+
+    def test_check_availability_returns_manual_candidate_slots(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+            db.set_calendar_availability(
+                {
+                    "slots": [
+                        {
+                            "id": "slot-1",
+                            "label": "Friday 7 PM haircut",
+                            "start": "2026-07-03T19:00:00",
+                            "end": "2026-07-03T19:30:00",
+                            "capacity": 1,
+                        },
+                        {
+                            "id": "slot-2",
+                            "label": "Saturday 10 AM haircut",
+                            "start": "2026-07-04T10:00:00",
+                            "end": "2026-07-04T10:30:00",
+                            "capacity": 1,
+                        },
+                    ]
+                }
+            )
+            registry = build_default_registry()
+
+            result = registry.call(
+                "check_availability",
+                {"requested_date": "Friday", "requested_time": "7 PM", "service": "haircut"},
+                ToolContext(db=db, session_id="session-1"),
+            )
+
+            self.assertEqual(result["availability_status"], "available")
+            self.assertEqual(result["slots"][0]["id"], "slot-1")
+            self.assertEqual(result["slots"][0]["capacity"], 1)
+            self.assertEqual(result["confirmation_status"], "candidate_slots_only")
+            self.assertTrue(result["requires_staff_confirmation"])
+
+    def test_check_booking_capacity_is_availability_alias(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+            db.set_calendar_availability({"slots": [{"id": "slot-1", "label": "Friday 7 PM table"}]})
+            registry = build_default_registry()
+
+            result = registry.call(
+                "check_booking_capacity",
+                {"requested_date": "Friday", "requested_time": "7 PM", "limit": 1},
+                ToolContext(db=db, session_id="session-1"),
+            )
+
+            calls = db.list_tool_calls()
+
+            self.assertEqual(result["legacy_tool"], "check_booking_capacity")
+            self.assertEqual(result["availability_status"], "available")
+            self.assertEqual(result["slots"][0]["id"], "slot-1")
             self.assertEqual(calls[0]["tool_name"], "check_booking_capacity")
             self.assertEqual(calls[0]["status"], "completed")
 
