@@ -148,6 +148,73 @@ source .venv/bin/activate
 python ../../scripts/smoke_ws.py
 ```
 
+## Required Check Matrix
+
+Choose the smallest check set that covers the behavior changed.
+
+Backend behavior changes:
+
+- Applies to `app/backend/voice_agent/**`, backend tests, prompts, storage,
+  tools, providers, phone, tunnel, config, and regression fixes.
+- Run:
+
+```bash
+cd app/backend
+python -m unittest discover -s tests
+git diff --check
+```
+
+Frontend UI, i18n, or asset changes:
+
+- Applies to `app/desktop/src/**`, `app/desktop/public/**`, and desktop UI
+  assets.
+- Run:
+
+```bash
+pnpm --dir app/desktop run build
+git diff --check
+```
+
+Desktop shell, sidecar, packaging, or Tauri changes:
+
+- Applies to `app/desktop/src-tauri/**`, sidecar scripts, launcher smoke
+  scripts, bundle icons, and release packaging scripts.
+- Run on macOS:
+
+```bash
+pnpm --dir app/desktop run build
+pnpm --dir app/desktop run backend:sidecar:smoke
+pnpm --dir app/desktop run macos:launcher:smoke
+git diff --check
+```
+
+- For Windows-specific behavior, push and verify
+  `.github/workflows/windows-packaged-smoke.yml`.
+
+GitHub Actions or release workflow changes:
+
+- Applies to `.github/workflows/**`, `docs/RELEASE.md`, and release scripts.
+- Run:
+
+```bash
+git diff --check
+```
+
+- After pushing, verify the affected GitHub Actions workflow.
+
+Documentation-only changes:
+
+- Applies to `README.md`, translated README files, `docs/**`, and local
+  agent/update notes.
+- Run:
+
+```bash
+git diff --check
+```
+
+If a required check cannot run locally, include the reason in the PR, commit
+note, or release handoff and rely on the matching CI workflow when available.
+
 ## Project Structure
 
 ```text
