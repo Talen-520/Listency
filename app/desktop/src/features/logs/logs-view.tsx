@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogRecordDialog, type LogDetailRecord } from "@/features/logs/log-record-dialog";
+import { phoneCallOutcome } from "@/features/logs/phone-call-outcome";
 import { SessionTable } from "@/features/logs/session-table";
 import { formatDate } from "@/lib/format";
 import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
@@ -331,34 +332,25 @@ export function LogsView({
                 cell: (item) => providerLabel(item.provider),
               },
               {
+                heading: t("common.caller"),
+                className: "max-w-[12rem] truncate",
+                cell: (item) => item.from_number || "-",
+              },
+              {
                 heading: t("common.duration"),
                 cell: (item) => formatDuration(phoneCallDurationSeconds(item)),
               },
               {
-                heading: t("common.status"),
-                cell: (item) => <Badge tone={item.status === "failed" ? "red" : "neutral"}>{translateStatus(item.status, t)}</Badge>,
+                heading: t("common.outcome"),
+                cell: (item) => {
+                  const outcome = phoneCallOutcome(item, t);
+                  return <Badge tone={outcome.tone}>{outcome.label}</Badge>;
+                },
               },
               {
-                heading: t("businessHours.title", "Business Hours"),
-                cell: (item) => (
-                  <Badge tone={item.business_hours_status === "closed" ? "neutral" : "cyan"}>
-                    {translateStatus(item.business_hours_status || "not_tracked", t)}
-                  </Badge>
-                ),
-              },
-              {
-                heading: t("common.policy", "Policy"),
-                className: "max-w-[14rem] truncate text-muted-foreground",
-                cell: (item) => translateStatus(item.business_hours_policy || item.business_hours_mode, t),
-              },
-              {
-                heading: t("common.endReason"),
-                cell: (item) => translateStatus(item.ended_reason, t),
-              },
-              {
-                heading: t("common.route"),
-                className: "max-w-[18rem] truncate text-muted-foreground",
-                cell: (item) => `${item.from_number || "-"} -> ${item.to_number || "-"}`,
+                heading: t("common.ownerNote"),
+                className: "min-w-[20rem] max-w-[32rem] truncate text-muted-foreground",
+                cell: (item) => phoneCallOutcome(item, t).hint,
               },
               {
                 heading: t("common.error"),

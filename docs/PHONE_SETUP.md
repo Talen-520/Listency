@@ -48,7 +48,7 @@ Use:
 - Settings Phone Setup Guide for the next setup or test step
 - Settings phone outcome summary for the latest call result and recent 24-hour failure count
 - Dashboard readiness for backend/runtime/provider checks
-- Logs for phone call records and linked session detail
+- Logs for owner-readable phone outcomes, suggested next steps, and linked session detail
 - Twilio Debugger panel for recent Twilio webhook/API alerts
 
 Useful outcomes to confirm during testing:

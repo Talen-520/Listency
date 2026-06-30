@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { phoneCallOutcome } from "@/features/logs/phone-call-outcome";
 import { SessionDetailContent } from "@/features/logs/session-detail-panel";
 import { formatDate } from "@/lib/format";
 import { translateStatus, useI18n } from "@/lib/i18n";
@@ -103,15 +104,20 @@ function detailRows(
 
   if (detail.kind === "phone") {
     const { record } = detail;
+    const outcome = phoneCallOutcome(record, t);
     return {
       title: t("common.phoneCalls"),
       description: record.provider_call_id,
-      badge: translateStatus(record.status, t),
+      badge: outcome.label,
       rows: [
+        { label: t("common.outcome"), value: outcome.label },
+        { label: t("common.ownerNote"), value: outcome.hint },
         { label: t("common.provider"), value: record.provider },
         { label: t("common.providerCallId"), value: record.provider_call_id },
         { label: t("common.streamId"), value: record.provider_stream_id ?? "-" },
         { label: t("common.session"), value: record.session_id ?? "-" },
+        { label: t("common.caller"), value: record.from_number || "-" },
+        { label: t("common.businessNumber"), value: record.to_number || "-" },
         { label: t("common.route"), value: `${record.from_number || "-"} -> ${record.to_number || "-"}` },
         { label: t("common.status"), value: translateStatus(record.status, t) },
         { label: t("businessHours.title", "Business Hours"), value: translateStatus(record.business_hours_status || "not_tracked", t) },
