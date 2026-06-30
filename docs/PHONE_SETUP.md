@@ -43,6 +43,7 @@ capabilities are configured.
 Use:
 
 - Settings phone status for connection/provisioning state
+- Settings phone outcome summary for the latest call result and recent 24-hour failure count
 - Dashboard readiness for backend/runtime/provider checks
 - Logs for phone call records and linked session detail
 - Twilio Debugger panel for recent Twilio webhook/API alerts

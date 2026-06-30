@@ -151,6 +151,12 @@ const emptyPhoneStatus: PhoneStatus = {
   last_call_status: "",
   last_call_error: "",
   last_call_ended_reason: "",
+  last_call_outcome: "none",
+  recent_call_summary: {
+    window_hours: 24,
+    total: 0,
+    outcomes: {},
+  },
 };
 
 const defaultBusiness: BusinessProfile = {

@@ -28,6 +28,12 @@ export type PhoneStatus = {
   last_call_status: string;
   last_call_error: string;
   last_call_ended_reason: string;
+  last_call_outcome: string;
+  recent_call_summary: {
+    window_hours: number;
+    total: number;
+    outcomes: Record<string, number>;
+  };
 };
 
 export type TwilioDebuggerAlert = {

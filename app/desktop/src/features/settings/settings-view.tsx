@@ -79,6 +79,51 @@ function connectionTone(value: string): StatusTone {
   return "neutral";
 }
 
+function phoneOutcomeLabel(value: string, t: (key: string, fallback?: string) => string) {
+  if (!value || value === "none") {
+    return t("phone.noRecentCalls");
+  }
+  return translateStatus(value, t);
+}
+
+function phoneOutcomeTone(value: string): StatusTone {
+  if (["provider_error", "network_error", "failed", "unknown"].includes(value)) {
+    return "warning";
+  }
+  if (["agent_hung_up", "caller_hung_up", "completed", "transferred", "timeout_5_minutes"].includes(value)) {
+    return "ok";
+  }
+  return "neutral";
+}
+
+function recentCallSummaryValue(phoneStatus: PhoneStatus, t: (key: string, fallback?: string) => string) {
+  const summary = phoneStatus.recent_call_summary;
+  const total = Number(summary?.total ?? 0);
+  if (total <= 0) {
+    return t("phone.noRecentCalls");
+  }
+  const outcomes = summary?.outcomes ?? {};
+  const failed =
+    Number(outcomes.failed ?? 0)
+    + Number(outcomes.network_error ?? 0)
+    + Number(outcomes.provider_error ?? 0)
+    + Number(outcomes.unknown ?? 0);
+  return formatMessage(t("phone.recentCallSummary"), { failed, total });
+}
+
+function recentCallSummaryTone(phoneStatus: PhoneStatus): StatusTone {
+  if (Number(phoneStatus.recent_call_summary?.total ?? 0) <= 0) {
+    return "neutral";
+  }
+  const outcomes = phoneStatus.recent_call_summary?.outcomes ?? {};
+  const failed =
+    Number(outcomes.failed ?? 0)
+    + Number(outcomes.network_error ?? 0)
+    + Number(outcomes.provider_error ?? 0)
+    + Number(outcomes.unknown ?? 0);
+  return failed > 0 ? "warning" : "ok";
+}
+
 function translatePhoneConnectionMessage(message: string, t: (key: string, fallback?: string) => string) {
   const messageKeyMap: Record<string, string> = {
     "Automatic secure connection is stopped.": "phone.automaticConnectionStopped",
@@ -852,10 +897,12 @@ export function SettingsView({
 
             {notice && <PhoneNotice notice={notice} />}
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
               <StatusTile label={t("common.provider")} value={providerLabel(phoneProvider, t)} tone={phoneProvider === "none" ? "neutral" : "ok"} />
               <StatusTile label={t("common.connection")} value={connectionLabel(phoneConnectionStatus, t)} tone={connectionTone(phoneConnectionStatus)} />
               <StatusTile label={t("phone.inboundCalls")} value={selectedPhoneProviderConfigured ? t("phone.ready") : t("phone.notConnected")} tone={selectedPhoneProviderConfigured ? "ok" : "warning"} />
+              <StatusTile label={t("phone.latestCall")} value={phoneOutcomeLabel(phoneStatus.last_call_outcome, t)} tone={phoneOutcomeTone(phoneStatus.last_call_outcome)} />
+              <StatusTile label={t("phone.recentCalls")} value={recentCallSummaryValue(phoneStatus, t)} tone={recentCallSummaryTone(phoneStatus)} />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

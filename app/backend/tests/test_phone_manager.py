@@ -125,6 +125,38 @@ class PhoneManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Suggested next steps:", tasks[0]["summary"])
             self.assertIn("Check the transfer target phone number", tasks[0]["summary"])
 
+    async def test_status_summarizes_recent_phone_call_outcomes(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            manager, _env, _provider = create_manager(
+                Path(tmp),
+                TunnelStatus(
+                    mode="automatic",
+                    status="running",
+                    public_base_url="https://old.trycloudflare.com",
+                    public_ws_url="wss://old.trycloudflare.com",
+                ),
+            )
+            agent_call = manager.db.create_phone_call("twilio", "CA-agent", "+15550000001", "+15552223333")
+            caller_call = manager.db.create_phone_call("twilio", "CA-caller", "+15550000002", "+15552223333")
+            provider_call = manager.db.create_phone_call("twilio", "CA-provider", "+15550000003", "+15552223333")
+            timeout_call = manager.db.create_phone_call("twilio", "CA-timeout", "+15550000004", "+15552223333")
+
+            manager.db.update_phone_call_status(agent_call, "completed", ended_reason="agent_hung_up")
+            manager.db.update_phone_call_status(caller_call, "caller_hung_up", ended_reason="caller_hung_up")
+            manager.db.update_phone_call_status(provider_call, "failed", ended_reason="provider_error", error_message="quota")
+            manager.db.update_phone_call_status(timeout_call, "completed", ended_reason="timeout_5_minutes")
+
+            status = manager.status()
+            outcomes = status["recent_call_summary"]["outcomes"]
+
+            self.assertEqual(status["recent_call_summary"]["window_hours"], 24)
+            self.assertEqual(status["recent_call_summary"]["total"], 4)
+            self.assertEqual(outcomes["agent_hung_up"], 1)
+            self.assertEqual(outcomes["caller_hung_up"], 1)
+            self.assertEqual(outcomes["provider_error"], 1)
+            self.assertEqual(outcomes["timeout_5_minutes"], 1)
+            self.assertIn(status["last_call_outcome"], {"agent_hung_up", "caller_hung_up", "provider_error", "timeout_5_minutes"})
+
 
 if __name__ == "__main__":
     unittest.main()

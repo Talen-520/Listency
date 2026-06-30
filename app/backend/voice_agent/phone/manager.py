@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from voice_agent.config.env_store import EnvStore
@@ -38,6 +38,10 @@ class PhoneManager:
         provider_ready = False
         provider_error = None
         recent_calls = self.db.list_phone_calls(limit=20)
+        recent_24h_calls = self.db.list_phone_calls(
+            limit=200,
+            since=(datetime.now(tz=UTC) - timedelta(hours=24)).isoformat(),
+        )
         last_call = next((call for call in recent_calls if provider_key == "none" or call.get("provider") == provider_key), {})
         if provider_key != "none":
             try:
@@ -72,6 +76,8 @@ class PhoneManager:
             "last_call_status": str(last_call.get("status") or ""),
             "last_call_error": str(last_call.get("error_message") or ""),
             "last_call_ended_reason": str(last_call.get("ended_reason") or ""),
+            "last_call_outcome": self._call_outcome(last_call) if last_call else "none",
+            "recent_call_summary": self._recent_call_summary(recent_24h_calls, provider_key),
         }
 
     async def start_connection(self) -> dict[str, Any]:
@@ -228,3 +234,46 @@ class PhoneManager:
         if key not in self.providers:
             raise PhoneConfigError(f"Unsupported phone provider: {key}")
         return self.providers[key]
+
+    def _recent_call_summary(self, calls: list[dict[str, Any]], provider_key: str) -> dict[str, Any]:
+        provider_calls = [call for call in calls if provider_key == "none" or call.get("provider") == provider_key]
+        outcomes = {
+            "active": 0,
+            "agent_hung_up": 0,
+            "backend_shutdown": 0,
+            "caller_hung_up": 0,
+            "completed": 0,
+            "failed": 0,
+            "network_error": 0,
+            "provider_error": 0,
+            "timeout_5_minutes": 0,
+            "transferred": 0,
+            "transferring": 0,
+            "unknown": 0,
+        }
+        for call in provider_calls:
+            outcome = self._call_outcome(call)
+            outcomes[outcome] = outcomes.get(outcome, 0) + 1
+        return {
+            "window_hours": 24,
+            "total": len(provider_calls),
+            "outcomes": outcomes,
+        }
+
+    def _call_outcome(self, call: dict[str, Any]) -> str:
+        status = str(call.get("status") or "").strip()
+        ended_reason = str(call.get("ended_reason") or "").strip()
+        if status in {"active", "transferring", "transferred"}:
+            return status
+        if ended_reason in {
+            "agent_hung_up",
+            "backend_shutdown",
+            "caller_hung_up",
+            "network_error",
+            "provider_error",
+            "timeout_5_minutes",
+        }:
+            return ended_reason
+        if status in {"completed", "failed"}:
+            return status
+        return "unknown"
