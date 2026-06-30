@@ -126,6 +126,58 @@ export type BusinessProfile = {
   updated_at: string | null;
 };
 
+export type BusinessHoursWindow = {
+  open: string;
+  close: string;
+};
+
+export type BusinessHoursConfig = {
+  timezone: string;
+  weekly_hours: Record<string, BusinessHoursWindow[]>;
+  closures: Array<{
+    date?: string;
+    start_date?: string;
+    end_date?: string;
+    reason?: string;
+    message?: string;
+  }>;
+  after_hours_mode: "take_callback" | "information_only" | "transfer" | "closed_message";
+  after_hours_message: string;
+  open_hours_transfer_target: string;
+  after_hours_transfer_target: string;
+};
+
+export type BusinessHoursStatus = {
+  configured: boolean;
+  status: string;
+  is_open: boolean;
+  timezone: string;
+  local_time: string | null;
+  reason: string;
+  active_policy: string;
+  after_hours_mode: string;
+  message: string;
+  transfer_target: string;
+  next_change: string | null;
+  allowed_tools: string[];
+};
+
+export type BusinessHoursPayload = {
+  config: BusinessHoursConfig;
+  status: BusinessHoursStatus;
+};
+
+export type BusinessInfoSections = {
+  business_type: "general" | "hotel" | "restaurant" | "appointment";
+  location: string;
+  services: string;
+  pricing: string;
+  booking_rules: string;
+  policies: string;
+  faq: string;
+  parking_accessibility: string;
+};
+
 export type AgentProfile = {
   id: string;
   name: string;
@@ -209,6 +261,24 @@ export type VoicePreviewRecord = {
 
 export type LogTimeWindow = "24h" | "7d" | "30d";
 
+export type FollowUpTask = {
+  id: number;
+  session_id: string | null;
+  phone_call_id: number | null;
+  status: "new" | "in_progress" | "done" | "dismissed";
+  priority: string;
+  type: string;
+  title: string;
+  summary: string;
+  caller_name: string | null;
+  caller_phone: string | null;
+  due_at: string | null;
+  source_event: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+};
+
 export type LogExport = {
   generated_at: string;
   since: string | null;
@@ -218,6 +288,17 @@ export type LogExport = {
   tool_calls: ToolCallRecord[];
   app_logs: AppLogRecord[];
   phone_calls: PhoneCallRecord[];
+};
+
+export type DiagnosticsExport = {
+  generated_at: string;
+  app: Record<string, unknown>;
+  config: Record<string, unknown>;
+  runtime: Record<string, unknown>;
+  phone: Record<string, unknown>;
+  providers: Array<Record<string, unknown>>;
+  business_hours: Record<string, unknown>;
+  recent: Record<string, unknown[]>;
 };
 
 export type LogDeleteCounts = {

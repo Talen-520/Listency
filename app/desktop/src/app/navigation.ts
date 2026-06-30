@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
-import { Activity, Bot, FileText, Mic, PhoneForwarded, Settings, TerminalSquare, Wrench } from "lucide-react";
+import { Activity, Bot, FileText, Inbox, Mic, PhoneForwarded, Settings, TerminalSquare, Wrench } from "lucide-react";
 
-export type View = "dashboard" | "agent" | "voice" | "business" | "tools" | "test" | "logs" | "settings";
+export type View = "dashboard" | "inbox" | "agent" | "voice" | "business" | "tools" | "test" | "logs" | "settings";
 
 export type NavItem = {
   id: View;
@@ -11,6 +11,7 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: Activity },
+  { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "agent", label: "Agent", icon: Bot },
   { id: "voice", label: "Voice", icon: Mic },
   { id: "business", label: "Business Info", icon: FileText },

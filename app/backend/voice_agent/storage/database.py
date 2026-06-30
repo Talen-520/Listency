@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from voice_agent.core.business_hours import default_business_hours, normalize_business_hours_config
 from voice_agent.config.paths import data_dir
 
 LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT = """Role
@@ -206,6 +207,24 @@ class Database:
                   ended_reason TEXT,
                   error_message TEXT
                 );
+
+                CREATE TABLE IF NOT EXISTS follow_up_tasks (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  session_id TEXT,
+                  phone_call_id INTEGER,
+                  status TEXT NOT NULL,
+                  priority TEXT NOT NULL,
+                  type TEXT NOT NULL,
+                  title TEXT NOT NULL,
+                  summary TEXT NOT NULL,
+                  caller_name TEXT,
+                  caller_phone TEXT,
+                  due_at TEXT,
+                  source_event TEXT,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  completed_at TEXT
+                );
                 """
             )
             row = connection.execute("SELECT system_prompt FROM agents WHERE id = 'default'").fetchone()
@@ -231,6 +250,51 @@ class Database:
         with self.open_connection() as connection:
             row = connection.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return str(row["value"]) if row else default
+
+    def get_business_hours(self) -> dict[str, Any]:
+        raw_value = self.get_setting("business_hours", "")
+        if not raw_value:
+            return default_business_hours()
+        try:
+            payload = json.loads(raw_value)
+        except json.JSONDecodeError:
+            return default_business_hours()
+        return normalize_business_hours_config(payload if isinstance(payload, dict) else {})
+
+    def set_business_hours(self, config: dict[str, Any]) -> dict[str, Any]:
+        normalized = normalize_business_hours_config(config)
+        self.set_setting("business_hours", json.dumps(normalized, ensure_ascii=False))
+        return normalized
+
+    def get_business_info_sections(self) -> dict[str, str]:
+        raw_value = self.get_setting("business_info_sections", "")
+        defaults = {
+            "business_type": "general",
+            "location": "",
+            "services": "",
+            "pricing": "",
+            "booking_rules": "",
+            "policies": "",
+            "faq": "",
+            "parking_accessibility": "",
+        }
+        if not raw_value:
+            return defaults
+        try:
+            payload = json.loads(raw_value)
+        except json.JSONDecodeError:
+            return defaults
+        if not isinstance(payload, dict):
+            return defaults
+        return {key: str(payload.get(key) or "") for key in defaults}
+
+    def set_business_info_sections(self, sections: dict[str, Any]) -> dict[str, str]:
+        normalized = {key: str(value or "") for key, value in self.get_business_info_sections().items()}
+        for key in normalized:
+            if key in sections:
+                normalized[key] = str(sections.get(key) or "")
+        self.set_setting("business_info_sections", json.dumps(normalized, ensure_ascii=False))
+        return normalized
 
     def upsert_business_profile(self, content: str, name: str = "Default Business") -> dict[str, Any]:
         now = utc_now()
@@ -600,6 +664,156 @@ class Database:
             "booking_time": booking_time,
             "notes": notes,
         }
+
+    def create_follow_up_task(
+        self,
+        *,
+        type: str,
+        title: str,
+        summary: str,
+        session_id: str | None = None,
+        phone_call_id: int | None = None,
+        status: str = "new",
+        priority: str = "normal",
+        caller_name: str = "",
+        caller_phone: str = "",
+        due_at: str | None = None,
+        source_event: str = "",
+    ) -> dict[str, Any]:
+        now = utc_now()
+        if session_id and phone_call_id is None:
+            phone_call = self.get_phone_call_by_session(session_id)
+            phone_call_id = int(phone_call["id"]) if phone_call else None
+            caller_phone = caller_phone or str(phone_call.get("from_number") or "") if phone_call else caller_phone
+        with self.open_connection() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO follow_up_tasks (
+                  session_id, phone_call_id, status, priority, type, title, summary, caller_name, caller_phone,
+                  due_at, source_event, created_at, updated_at, completed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    phone_call_id,
+                    status,
+                    priority,
+                    type,
+                    title,
+                    summary,
+                    caller_name,
+                    caller_phone,
+                    due_at,
+                    source_event,
+                    now,
+                    now,
+                    now if status == "done" else None,
+                ),
+            )
+            task_id = int(cursor.lastrowid)
+        task = self.get_follow_up_task(task_id)
+        assert task is not None
+        return task
+
+    def create_follow_up_task_once(
+        self,
+        *,
+        type: str,
+        title: str,
+        summary: str,
+        session_id: str | None = None,
+        phone_call_id: int | None = None,
+        status: str = "new",
+        priority: str = "normal",
+        caller_name: str = "",
+        caller_phone: str = "",
+        due_at: str | None = None,
+        source_event: str = "",
+    ) -> dict[str, Any]:
+        with self.open_connection() as connection:
+            row = connection.execute(
+                """
+                SELECT id
+                FROM follow_up_tasks
+                WHERE type = ?
+                  AND COALESCE(session_id, '') = COALESCE(?, '')
+                  AND COALESCE(phone_call_id, 0) = COALESCE(?, 0)
+                  AND COALESCE(source_event, '') = COALESCE(?, '')
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (type, session_id, phone_call_id, source_event),
+            ).fetchone()
+        if row:
+            task = self.get_follow_up_task(int(row["id"]))
+            assert task is not None
+            return task
+        return self.create_follow_up_task(
+            type=type,
+            title=title,
+            summary=summary,
+            session_id=session_id,
+            phone_call_id=phone_call_id,
+            status=status,
+            priority=priority,
+            caller_name=caller_name,
+            caller_phone=caller_phone,
+            due_at=due_at,
+            source_event=source_event,
+        )
+
+    def get_follow_up_task(self, task_id: int) -> dict[str, Any] | None:
+        with self.open_connection() as connection:
+            row = connection.execute(
+                """
+                SELECT id, session_id, phone_call_id, status, priority, type, title, summary, caller_name, caller_phone,
+                       due_at, source_event, created_at, updated_at, completed_at
+                FROM follow_up_tasks
+                WHERE id = ?
+                """,
+                (task_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_follow_up_tasks(self, limit: int = 100, status: str | None = None) -> list[dict[str, Any]]:
+        query = """
+                SELECT id, session_id, phone_call_id, status, priority, type, title, summary, caller_name, caller_phone,
+                       due_at, source_event, created_at, updated_at, completed_at
+                FROM follow_up_tasks
+                """
+        params: list[Any] = []
+        if status:
+            query += " WHERE status = ?"
+            params.append(status)
+        query += " ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT ?"
+        with self.open_connection() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_follow_up_task_status(self, task_id: int, status: str) -> dict[str, Any]:
+        now = utc_now()
+        with self.open_connection() as connection:
+            connection.execute(
+                """
+                UPDATE follow_up_tasks
+                SET status = ?, updated_at = ?, completed_at = CASE WHEN ? = 'done' THEN ? ELSE completed_at END
+                WHERE id = ?
+                """,
+                (status, now, status, now, task_id),
+            )
+        task = self.get_follow_up_task(task_id)
+        if not task:
+            raise KeyError(f"Follow-up task not found: {task_id}")
+        return task
+
+    def delete_follow_up_task(self, task_id: int) -> dict[str, Any]:
+        task = self.get_follow_up_task(task_id)
+        if not task:
+            raise KeyError(f"Follow-up task not found: {task_id}")
+        with self.open_connection() as connection:
+            connection.execute("DELETE FROM follow_up_tasks WHERE id = ?", (task_id,))
+        return task
 
     def add_log(self, level: str, event: str, message: str, metadata: dict[str, Any] | None = None) -> None:
         with self.open_connection() as connection:

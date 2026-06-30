@@ -5,6 +5,7 @@ import { navItems, type View } from "@/app/navigation";
 import { AgentView } from "@/features/agent/agent-view";
 import { BusinessView } from "@/features/business/business-view";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
+import { InboxView } from "@/features/inbox/inbox-view";
 import { LogsView } from "@/features/logs/logs-view";
 import { SettingsView } from "@/features/settings/settings-view";
 import { TestCallView } from "@/features/test-call/test-call-view";
@@ -49,6 +50,24 @@ export function App() {
             providers={data.providers}
             sessions={data.sessions}
             readinessChecks={data.readinessChecks}
+          />
+        );
+      case "inbox":
+        return (
+          <InboxView
+            phoneCalls={data.phoneCalls}
+            sessions={data.sessions}
+            tasks={data.followUpTasks}
+            toolCalls={data.toolCalls}
+            transcripts={data.transcripts}
+            onComplete={(taskId) => void data.runAction(() => data.updateFollowUpTaskStatus(taskId, "done"), t("inbox.taskCompleted", "Task completed"))}
+            onDelete={(taskId) => void data.runAction(() => data.deleteFollowUpTask(taskId), t("inbox.taskDeleted", "Task deleted"))}
+            onDismiss={(taskId) => void data.runAction(() => data.updateFollowUpTaskStatus(taskId, "dismissed"), t("inbox.taskDismissed", "Task dismissed"))}
+            onInProgress={(taskId) => void data.runAction(() => data.updateFollowUpTaskStatus(taskId, "in_progress"), t("inbox.taskUpdated", "Task updated"))}
+            onOpenSession={(sessionId) => {
+              data.setSelectedSessionId(sessionId);
+              setView("logs");
+            }}
           />
         );
       case "settings":
@@ -111,6 +130,7 @@ export function App() {
             onSave={() => void data.runAction(data.saveSettings, t("toast.envSaved"))}
             onPruneLogs={() => void data.runAction(data.pruneOldLogs, t("toast.oldLogsCleaned"))}
             onClearLogs={() => void data.runAction(data.clearLogs, t("toast.logsCleared"))}
+            onDownloadDiagnostics={() => void data.runAction(data.downloadDiagnostics, t("toast.diagnosticsDownloaded", "Diagnostics downloaded"))}
             hasActiveSession={Boolean(data.activeSession)}
           />
         );
@@ -133,13 +153,14 @@ export function App() {
         return (
           <BusinessView
             business={data.business}
+            businessHours={data.businessHours}
+            businessHoursStatus={data.businessHoursStatus}
+            businessInfoSections={data.businessInfoSections}
             onBusinessChange={data.setBusiness}
-            onSave={() =>
-              void data.runAction(
-                () => api.saveBusinessProfile({ name: data.business.name, content: data.business.content }),
-                t("toast.businessProfileSaved"),
-              )
-            }
+            onBusinessHoursChange={data.setBusinessHours}
+            onBusinessInfoSectionsChange={data.setBusinessInfoSections}
+            onSave={() => void data.runAction(data.saveBusinessInfo, t("toast.businessProfileSaved"))}
+            onSaveBusinessHours={() => void data.runAction(data.saveBusinessHours, t("businessHours.saved", "Business hours saved"))}
           />
         );
       case "tools":

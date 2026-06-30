@@ -3,6 +3,11 @@ import type {
   AgentList,
   AppLogRecord,
   BusinessProfile,
+  BusinessHoursConfig,
+  BusinessHoursPayload,
+  BusinessInfoSections,
+  DiagnosticsExport,
+  FollowUpTask,
   LogClearResult,
   LogExport,
   LogPruneResult,
@@ -143,6 +148,7 @@ export const api = {
     const query = params.toString();
     return request<LogExport>(`/logs/export${query ? `?${query}` : ""}`);
   },
+  exportDiagnostics: () => request<DiagnosticsExport>("/diagnostics/export"),
   pruneLogs: (retentionDays = 30) =>
     request<LogPruneResult>("/logs/prune", {
       method: "POST",
@@ -161,6 +167,25 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+  businessHours: () => request<BusinessHoursPayload>("/business-hours"),
+  saveBusinessHours: (payload: BusinessHoursConfig) =>
+    request<BusinessHoursPayload>("/business-hours", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  businessInfoSections: () => request<{ sections: BusinessInfoSections }>("/business-info-sections"),
+  saveBusinessInfoSections: (payload: BusinessInfoSections) =>
+    request<{ sections: BusinessInfoSections }>("/business-info-sections", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  followUpTasks: () => request<{ tasks: FollowUpTask[] }>("/follow-up-tasks"),
+  updateFollowUpTaskStatus: (id: number, status: FollowUpTask["status"]) =>
+    request<FollowUpTask>(`/follow-up-tasks/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  deleteFollowUpTask: (id: number) => request<{ deleted: FollowUpTask }>(`/follow-up-tasks/${id}`, { method: "DELETE" }),
   agent: () => request<AgentProfile>("/agent"),
   saveAgent: (payload: { name: string; system_prompt: string }) =>
     request<AgentProfile>("/agent", {

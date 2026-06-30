@@ -153,6 +153,15 @@ class PhoneManager:
             )
         except Exception as exc:
             self.db.update_phone_call_status(phone_call_id, "failed", ended_reason="provider_error", error_message=str(exc))
+            self.db.create_follow_up_task_once(
+                type="provider_failure",
+                title="Phone call failed to start",
+                summary=str(exc),
+                phone_call_id=phone_call_id,
+                priority="high",
+                caller_phone=from_number,
+                source_event="phone_session_start_failed",
+            )
             raise
         self.db.attach_phone_session(phone_call_id, session["id"])
         self.db.update_phone_call_status(phone_call_id, "active")
@@ -186,7 +195,20 @@ class PhoneManager:
         provider_key = str(phone_call.get("provider") or self._provider_key(env))
         provider_call_id = str(phone_call.get("provider_call_id") or "")
         transfer_target = env.get("PHONE_TRANSFER_TARGET", "").strip() or target.strip()
-        result = await self._provider(provider_key).transfer_call(env, provider_call_id, transfer_target, reason)
+        try:
+            result = await self._provider(provider_key).transfer_call(env, provider_call_id, transfer_target, reason)
+        except Exception as exc:
+            self.db.create_follow_up_task_once(
+                type="transfer_failed",
+                title="Call transfer failed",
+                summary=f"Target: {transfer_target or target or 'staff'}. Reason: {reason or 'not provided'}. Error: {exc}",
+                session_id=session_id,
+                phone_call_id=int(phone_call["id"]),
+                priority="high",
+                caller_phone=str(phone_call.get("from_number") or ""),
+                source_event="transfer_call_failed",
+            )
+            raise
         self.db.update_phone_call_status(int(phone_call["id"]), "transferring")
         return result
 

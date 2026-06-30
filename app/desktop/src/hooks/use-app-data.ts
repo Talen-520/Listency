@@ -9,7 +9,11 @@ import type {
   AgentProfile,
   AppLogRecord,
   BackendHealth,
+  BusinessHoursConfig,
+  BusinessHoursStatus,
+  BusinessInfoSections,
   BusinessProfile,
+  FollowUpTask,
   LogTimeWindow,
   PhoneStatus,
   PhoneCallRecord,
@@ -107,6 +111,44 @@ const defaultBusiness: BusinessProfile = {
   updated_at: null,
 };
 
+const weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+
+const defaultBusinessHours: BusinessHoursConfig = {
+  timezone: "",
+  weekly_hours: Object.fromEntries(weekdays.map((day) => [day, []])),
+  closures: [],
+  after_hours_mode: "take_callback",
+  after_hours_message: "",
+  open_hours_transfer_target: "",
+  after_hours_transfer_target: "",
+};
+
+const defaultBusinessHoursStatus: BusinessHoursStatus = {
+  configured: false,
+  status: "not_configured",
+  is_open: true,
+  timezone: "",
+  local_time: null,
+  reason: "Business hours are not configured.",
+  active_policy: "open_hours",
+  after_hours_mode: "take_callback",
+  message: "",
+  transfer_target: "",
+  next_change: null,
+  allowed_tools: [],
+};
+
+const defaultBusinessInfoSections: BusinessInfoSections = {
+  business_type: "general",
+  location: "",
+  services: "",
+  pricing: "",
+  booking_rules: "",
+  policies: "",
+  faq: "",
+  parking_accessibility: "",
+};
+
 const defaultAgent: AgentProfile = {
   id: "default",
   name: "Default Agent",
@@ -180,6 +222,7 @@ export function useAppData() {
   const [toolCalls, setToolCalls] = useState<ToolCallRecord[]>([]);
   const [appLogs, setAppLogs] = useState<AppLogRecord[]>([]);
   const [phoneCalls, setPhoneCalls] = useState<PhoneCallRecord[]>([]);
+  const [followUpTasks, setFollowUpTasks] = useState<FollowUpTask[]>([]);
   const [logWindow, setLogWindow] = useState<LogTimeWindow>("24h");
   const [voicePreviewCache, setVoicePreviewCache] = useState<VoicePreviewCache>(emptyVoicePreviewCache);
   const [twilioDebuggerAlerts, setTwilioDebuggerAlerts] = useState<TwilioDebuggerAlert[]>([]);
@@ -187,6 +230,9 @@ export function useAppData() {
   const [twilioDebuggerLoading, setTwilioDebuggerLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessProfile>(defaultBusiness);
+  const [businessHours, setBusinessHours] = useState<BusinessHoursConfig>(defaultBusinessHours);
+  const [businessHoursStatus, setBusinessHoursStatus] = useState<BusinessHoursStatus>(defaultBusinessHoursStatus);
+  const [businessInfoSections, setBusinessInfoSections] = useState<BusinessInfoSections>(defaultBusinessInfoSections);
   const [agents, setAgents] = useState<AgentProfile[]>([defaultAgent]);
   const [activeAgentId, setActiveAgentId] = useState(defaultAgent.id);
   const [agent, setAgent] = useState<AgentProfile>(defaultAgent);
@@ -228,6 +274,66 @@ export function useAppData() {
   const selectedSessionDetailId = selectedSession?.id ?? null;
   const selectedProvider = providers.find((provider) => provider.name === providerChoice);
   const selectedProviderReady = selectedProvider?.ready ?? false;
+  const businessInfoReadiness = useMemo(() => {
+    if (business.content.trim()) {
+      return { ready: true, detail: t("readiness.businessSaved") };
+    }
+
+    const fieldLabels: Record<keyof Omit<BusinessInfoSections, "business_type">, string> = {
+      location: t("businessSections.location", "Location and Directions"),
+      services: t("businessSections.services", "Services or Menu"),
+      pricing: t("businessSections.pricing", "Pricing Notes"),
+      booking_rules: t("businessSections.bookingRules", "Booking Rules"),
+      policies: t("businessSections.policies", "Policies"),
+      faq: t("businessSections.faq", "FAQ"),
+      parking_accessibility: t("businessSections.parkingAccessibility", "Parking and Accessibility"),
+    };
+    const requiredFields: Array<keyof Omit<BusinessInfoSections, "business_type">> =
+      businessInfoSections.business_type === "hotel"
+        ? ["location", "services", "booking_rules", "policies"]
+        : businessInfoSections.business_type === "restaurant"
+          ? ["location", "services", "booking_rules"]
+          : businessInfoSections.business_type === "appointment"
+            ? ["location", "services", "pricing", "booking_rules"]
+            : ["location", "services"];
+    const missingFields = requiredFields.filter((field) => !businessInfoSections[field].trim());
+
+    if (missingFields.length === 0) {
+      return { ready: true, detail: t("readiness.businessStructuredReady", "Structured business information is ready.") };
+    }
+
+    return {
+      ready: false,
+      detail: formatMessage(t("readiness.addBusinessDetails", "Add Business Info: {fields}."), {
+        fields: missingFields.map((field) => fieldLabels[field]).join(", "),
+      }),
+    };
+  }, [business.content, businessInfoSections, t]);
+  const businessHoursReadinessDetail = useMemo(() => {
+    if (!businessHoursStatus.configured) {
+      return t(
+        "businessHours.notConfigured",
+        "Set hours so Listency knows whether to answer normally, collect callbacks, transfer, or end calls after hours.",
+      );
+    }
+
+    const nextChange = businessHoursStatus.next_change ? new Date(businessHoursStatus.next_change).toLocaleString() : "";
+    const modeLabel = t(`businessHours.mode.${businessHoursStatus.after_hours_mode}`, businessHoursStatus.after_hours_mode);
+    const key = businessHoursStatus.is_open ? "businessHours.readyOpenDetail" : "businessHours.readyClosedDetail";
+    const fallback = businessHoursStatus.is_open
+      ? "Open now. Incoming calls use normal open-hours behavior."
+      : "Closed now. Incoming calls follow the configured after-hours mode: {mode}.";
+    const detail = formatMessage(t(key, fallback), { mode: modeLabel });
+    return nextChange
+      ? `${detail} ${formatMessage(t("businessHours.nextChangeDetail", "Next change: {time}."), { time: nextChange })}`
+      : detail;
+  }, [
+    businessHoursStatus.after_hours_mode,
+    businessHoursStatus.configured,
+    businessHoursStatus.is_open,
+    businessHoursStatus.next_change,
+    t,
+  ]);
   const readinessChecks: ReadinessCheck[] = useMemo(() => {
     const enabledToolCount = tools.filter((tool) => tool.enabled).length;
     const selectedProviderHasKey = providerChoice === "gemini" ? config.has_gemini_key : config.has_openai_key;
@@ -261,8 +367,14 @@ export function useAppData() {
       {
         id: "business",
         label: "Business profile",
-        detail: business.content.trim() ? t("readiness.businessSaved") : t("readiness.addBusiness"),
-        ready: Boolean(business.content.trim()),
+        detail: businessInfoReadiness.detail,
+        ready: businessInfoReadiness.ready,
+      },
+      {
+        id: "business_hours",
+        label: "Business hours",
+        detail: businessHoursReadinessDetail,
+        ready: businessHoursStatus.configured,
       },
       {
         id: "agent",
@@ -296,7 +408,10 @@ export function useAppData() {
   }, [
     agent.system_prompt,
     backendHealth,
-    business.content,
+    businessInfoReadiness.detail,
+    businessInfoReadiness.ready,
+    businessHoursReadinessDetail,
+    businessHoursStatus.configured,
     config.has_gemini_key,
     config.has_openai_key,
     providerChoice,
@@ -347,7 +462,10 @@ export function useAppData() {
         toolCallList,
         appLogList,
         phoneCallList,
+        followUpTaskList,
         businessProfile,
+        businessHoursPayload,
+        businessInfoSectionsPayload,
         agentList,
         previewCache,
       ] = await Promise.all([
@@ -361,7 +479,10 @@ export function useAppData() {
         api.toolCalls(undefined, 300, since),
         api.appLogs(undefined, 300, since),
         api.phoneCalls(undefined, 200, since),
+        api.followUpTasks().catch(() => ({ tasks: [] })),
         api.businessProfile(),
+        api.businessHours().catch(() => ({ config: defaultBusinessHours, status: defaultBusinessHoursStatus })),
+        api.businessInfoSections().catch(() => ({ sections: defaultBusinessInfoSections })),
         api.agents(),
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
       ]);
@@ -384,8 +505,12 @@ export function useAppData() {
       setToolCalls(toolCallList.tool_calls);
       setAppLogs(appLogList.logs);
       setPhoneCalls(phoneCallList.phone_calls);
+      setFollowUpTasks(followUpTaskList.tasks);
       setVoicePreviewCache(previewCache);
       setBusiness(businessProfile);
+      setBusinessHours(businessHoursPayload.config);
+      setBusinessHoursStatus(businessHoursPayload.status);
+      setBusinessInfoSections(businessInfoSectionsPayload.sections);
       setAgents(loadedAgents);
       setActiveAgentId(activeAgent.id);
       setAgent(activeAgent);
@@ -640,12 +765,41 @@ export function useAppData() {
     downloadJson(`listency-logs-${logWindow}-${stamp}.json`, payload);
   }, [logWindow]);
 
+  const downloadDiagnostics = useCallback(async () => {
+    const payload = await api.exportDiagnostics();
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadJson(`listency-diagnostics-${stamp}.json`, payload);
+  }, []);
+
   const pruneOldLogs = useCallback(async () => {
     await api.pruneLogs(30);
   }, []);
 
   const clearLogs = useCallback(async () => {
     await api.clearLogs();
+  }, []);
+
+  const saveBusinessHours = useCallback(async () => {
+    const result = await api.saveBusinessHours(businessHours);
+    setBusinessHours(result.config);
+    setBusinessHoursStatus(result.status);
+  }, [businessHours]);
+
+  const saveBusinessInfo = useCallback(async () => {
+    const [profile, sections] = await Promise.all([
+      api.saveBusinessProfile({ name: business.name, content: business.content }),
+      api.saveBusinessInfoSections(businessInfoSections),
+    ]);
+    setBusiness(profile);
+    setBusinessInfoSections(sections.sections);
+  }, [business.content, business.name, businessInfoSections]);
+
+  const updateFollowUpTaskStatus = useCallback(async (id: number, status: FollowUpTask["status"]) => {
+    await api.updateFollowUpTaskStatus(id, status);
+  }, []);
+
+  const deleteFollowUpTask = useCallback(async (id: number) => {
+    await api.deleteFollowUpTask(id);
   }, []);
 
   return {
@@ -663,12 +817,16 @@ export function useAppData() {
     toolCalls,
     appLogs,
     phoneCalls,
+    followUpTasks,
     logWindow,
     voicePreviewCache,
     selectedSessionId,
     selectedSession,
     selectedSessionDetailId,
     business,
+    businessHours,
+    businessHoursStatus,
+    businessInfoSections,
     agents,
     activeAgentId,
     agent,
@@ -710,14 +868,21 @@ export function useAppData() {
     refreshTwilioDebugger,
     previewVoice,
     downloadLogs,
+    downloadDiagnostics,
     pruneOldLogs,
     clearLogs,
+    saveBusinessHours,
+    saveBusinessInfo,
+    updateFollowUpTaskStatus,
+    deleteFollowUpTask,
     setTranscripts,
     setToolCalls,
     setAppLogs,
     setLogWindow,
     setSelectedSessionId,
     setBusiness,
+    setBusinessHours,
+    setBusinessInfoSections,
     setAgent: updateAgentDraft,
     setOpenAiKey,
     setGeminiKey,

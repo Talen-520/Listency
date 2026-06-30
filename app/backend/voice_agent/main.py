@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from voice_agent.config.env_store import EnvStore
+from voice_agent.core.business_hours import WEEKDAYS, default_business_hours, resolve_business_hours
 from voice_agent.core.session_manager import SessionManager
 from voice_agent.core.state import EndReason
 from voice_agent.core.voice_preview import DEFAULT_PREVIEW_TEXT, VoicePreviewService
@@ -59,6 +60,27 @@ class BusinessProfileUpdate(BaseModel):
     content: str = ""
 
 
+class BusinessHoursUpdate(BaseModel):
+    timezone: str = ""
+    weekly_hours: dict[str, list[dict[str, str]]] = Field(default_factory=lambda: {day: [] for day in WEEKDAYS})
+    closures: list[dict[str, str]] = Field(default_factory=list)
+    after_hours_mode: str = Field(default="take_callback", pattern="^(take_callback|information_only|transfer|closed_message)$")
+    after_hours_message: str = ""
+    open_hours_transfer_target: str = ""
+    after_hours_transfer_target: str = ""
+
+
+class BusinessInfoSectionsUpdate(BaseModel):
+    business_type: str = Field(default="general", pattern="^(general|hotel|restaurant|appointment)$")
+    location: str = ""
+    services: str = ""
+    pricing: str = ""
+    booking_rules: str = ""
+    policies: str = ""
+    faq: str = ""
+    parking_accessibility: str = ""
+
+
 class AgentUpdate(BaseModel):
     name: str = "Default Agent"
     system_prompt: str = ""
@@ -85,6 +107,10 @@ class VoicePreviewRequest(BaseModel):
 
 class LogPruneRequest(BaseModel):
     retention_days: int = Field(default=30, ge=1, le=3650)
+
+
+class FollowUpTaskStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(new|in_progress|done|dismissed)$")
 
 
 db = Database()
@@ -154,6 +180,48 @@ def _telnyx_number(value: Any) -> str:
     if isinstance(value, dict):
         return str(value.get("phone_number") or value.get("number") or "")
     return str(value or "")
+
+
+def _redact_diagnostics(value: Any, key: str = "") -> Any:
+    normalized_key = key.lower()
+    if isinstance(value, dict):
+        return {item_key: _redact_diagnostics(item_value, item_key) for item_key, item_value in value.items()}
+    if isinstance(value, list):
+        return [_redact_diagnostics(item, key) for item in value]
+    if value is None:
+        return None
+    if any(secret_key in normalized_key for secret_key in ("api_key", "auth", "token", "secret", "password", "authorization")):
+        return "[redacted]" if str(value) else ""
+    if normalized_key in {"from", "to", "caller", "called"} or any(
+        phone_key in normalized_key for phone_key in ("phone", "from_number", "to_number")
+    ):
+        raw = str(value)
+        if not raw:
+            return ""
+        if raw.startswith("[redacted phone"):
+            return raw
+        digits = "".join(char for char in raw if char.isdigit())
+        if len(digits) >= 4:
+            return f"[redacted phone ending {digits[-2:]}]"
+        return "[redacted phone]"
+    return value
+
+
+def _safe_json_record(record: dict[str, Any]) -> dict[str, Any]:
+    safe = dict(record)
+    for item_key, item_value in list(safe.items()):
+        if not item_key.endswith("_json"):
+            continue
+        target_key = item_key.removesuffix("_json")
+        if isinstance(item_value, str) and item_value:
+            try:
+                safe[target_key] = _redact_diagnostics(json.loads(item_value))
+            except json.JSONDecodeError:
+                safe[target_key] = "[unparseable json]"
+        else:
+            safe[target_key] = None
+        safe.pop(item_key, None)
+    return _redact_diagnostics(safe)
 
 
 @app.middleware("http")
@@ -740,6 +808,57 @@ async def save_business_profile(update: BusinessProfileUpdate) -> dict[str, Any]
     return db.upsert_business_profile(update.content, update.name)
 
 
+@app.get("/business-hours")
+async def get_business_hours() -> dict[str, Any]:
+    config = db.get_business_hours()
+    return {"config": config, "status": resolve_business_hours(config)}
+
+
+@app.put("/business-hours")
+async def save_business_hours(update: BusinessHoursUpdate) -> dict[str, Any]:
+    config = db.set_business_hours(update.model_dump())
+    return {"config": config, "status": resolve_business_hours(config)}
+
+
+@app.post("/business-hours/reset")
+async def reset_business_hours() -> dict[str, Any]:
+    config = db.set_business_hours(default_business_hours())
+    return {"config": config, "status": resolve_business_hours(config)}
+
+
+@app.get("/business-info-sections")
+async def get_business_info_sections() -> dict[str, Any]:
+    return {"sections": db.get_business_info_sections()}
+
+
+@app.put("/business-info-sections")
+async def save_business_info_sections(update: BusinessInfoSectionsUpdate) -> dict[str, Any]:
+    return {"sections": db.set_business_info_sections(update.model_dump())}
+
+
+@app.get("/follow-up-tasks")
+async def list_follow_up_tasks(limit: int = 100, status: str | None = None) -> dict[str, Any]:
+    if status and status not in {"new", "in_progress", "done", "dismissed"}:
+        raise HTTPException(status_code=400, detail="Unsupported task status.")
+    return {"tasks": db.list_follow_up_tasks(limit, status)}
+
+
+@app.patch("/follow-up-tasks/{task_id}/status")
+async def update_follow_up_task_status(task_id: int, update: FollowUpTaskStatusUpdate) -> dict[str, Any]:
+    try:
+        return db.update_follow_up_task_status(task_id, update.status)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/follow-up-tasks/{task_id}")
+async def delete_follow_up_task(task_id: int) -> dict[str, Any]:
+    try:
+        return {"deleted": db.delete_follow_up_task(task_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.get("/agent")
 async def get_agent() -> dict[str, Any]:
     return db.get_active_agent()
@@ -839,6 +958,71 @@ async def export_logs(since: str | None = None, session_id: str | None = None) -
         "since": normalize_timestamp_filter(since),
         "session_id": session_id,
         **db.export_log_data(since=since, session_id=session_id),
+    }
+
+
+@app.get("/diagnostics/export")
+async def export_diagnostics() -> dict[str, Any]:
+    env_public = env_store.read_public()
+    env = env_store.read()
+    providers = []
+    for key, adapter in session_manager.providers.items():
+        try:
+            adapter.validate_config(env)
+            ready = True
+            error = None
+        except ProviderConfigError as exc:
+            ready = False
+            error = str(exc)
+        providers.append(
+            {
+                "name": key,
+                "display_name": adapter.display_name,
+                "ready": ready,
+                "error": error,
+                "voice_count": len(adapter.list_voices(env)),
+            }
+        )
+
+    business_hours = db.get_business_hours()
+    business_hours_status = resolve_business_hours(business_hours)
+    return {
+        "generated_at": utc_now(),
+        "app": {
+            "name": "Listency",
+            "backend_version": app.version,
+        },
+        "config": {
+            "env_path": env_public.get("env_path", ""),
+            "default_realtime_provider": env_public.get("DEFAULT_REALTIME_PROVIDER", ""),
+            "openai_realtime_model": env_public.get("OPENAI_REALTIME_MODEL", ""),
+            "gemini_live_model": env_public.get("GEMINI_LIVE_MODEL", ""),
+            "openai_mock": env_public.get("OPENAI_REALTIME_MOCK", ""),
+            "has_openai_key": env_public.get("has_openai_key", False),
+            "has_gemini_key": env_public.get("has_gemini_key", False),
+            "phone_provider": env_public.get("PHONE_PROVIDER", "none"),
+            "phone_connection_mode": env_public.get("PHONE_CONNECTION_MODE", "automatic"),
+            "phone_realtime_provider": env_public.get("PHONE_REALTIME_PROVIDER", ""),
+            "phone_transfer_target_configured": bool(env.get("PHONE_TRANSFER_TARGET")),
+            "has_twilio_auth_token": env_public.get("has_twilio_auth_token", False),
+            "twilio_account_sid_configured": bool(env.get("TWILIO_ACCOUNT_SID")),
+            "twilio_phone_number_configured": bool(env.get("TWILIO_PHONE_NUMBER") or env.get("TWILIO_PHONE_NUMBER_SID")),
+            "has_telnyx_api_key": env_public.get("has_telnyx_api_key", False),
+        },
+        "runtime": _redact_diagnostics(session_manager.status()),
+        "phone": _redact_diagnostics(phone_manager.status()),
+        "providers": providers,
+        "business_hours": {
+            "configured": business_hours_status.get("configured", False),
+            "status": business_hours_status,
+        },
+        "recent": {
+            "sessions": [_safe_json_record(record) for record in db.list_sessions(limit=20)],
+            "phone_calls": [_safe_json_record(record) for record in db.list_phone_calls(limit=20)],
+            "tool_calls": [_safe_json_record(record) for record in db.list_tool_calls(limit=20)],
+            "follow_up_tasks": [_safe_json_record(record) for record in db.list_follow_up_tasks(limit=20)],
+            "app_logs": [_safe_json_record(record) for record in db.list_logs(limit=50)],
+        },
     }
 
 

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, ExternalLink, LifeBuoy, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
+import { BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, Download, ExternalLink, LifeBuoy, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
@@ -464,6 +464,7 @@ export function SettingsView({
   onSave,
   onPruneLogs,
   onClearLogs,
+  onDownloadDiagnostics,
   hasActiveSession,
 }: {
   config: PublicConfig;
@@ -523,6 +524,7 @@ export function SettingsView({
   onSave: () => void;
   onPruneLogs: () => void;
   onClearLogs: () => void;
+  onDownloadDiagnostics: () => void;
   hasActiveSession: boolean;
 }) {
   const { t } = useI18n();
@@ -947,7 +949,7 @@ export function SettingsView({
         <p className="text-sm text-muted-foreground">{t("settings.dataDescription")}</p>
       </div>
       <Separator />
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className="space-y-3 rounded-lg p-5">
           <div>
             <h3 className="text-base font-semibold">{t("settings.retentionTitle")}</h3>
@@ -968,6 +970,18 @@ export function SettingsView({
           <Button type="button" variant="destructive" disabled={hasActiveSession} onClick={handleClearLogs}>
             <Trash2 className="h-4 w-4" />
             {t("action.clearLogs")}
+          </Button>
+        </Card>
+        <Card className="space-y-3 rounded-lg p-5">
+          <div>
+            <h3 className="text-base font-semibold">{t("settings.diagnosticsTitle", "Export Diagnostics")}</h3>
+            <p className="text-sm text-muted-foreground">
+              {t("settings.diagnosticsDescription", "Download a redacted support file with local runtime, phone, and recent error context.")}
+            </p>
+          </div>
+          <Button type="button" variant="outline" onClick={onDownloadDiagnostics}>
+            <Download className="h-4 w-4" />
+            {t("action.exportDiagnostics", "Export Diagnostics")}
           </Button>
         </Card>
       </div>

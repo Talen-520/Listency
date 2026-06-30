@@ -130,10 +130,14 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             await manager.stop_session(session["id"], EndReason.PROVIDER_ERROR, "quota exceeded")
 
             stored = db.list_sessions()[0]
+            tasks = db.list_follow_up_tasks()
 
             self.assertEqual(stored["status"], "error")
             self.assertEqual(stored["ended_reason"], "provider_error")
             self.assertEqual(stored["error_message"], "quota exceeded")
+            self.assertEqual(tasks[0]["type"], "provider_failure")
+            self.assertEqual(tasks[0]["priority"], "high")
+            self.assertEqual(tasks[0]["session_id"], session["id"])
 
     async def test_tool_call_ids_are_deduplicated(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

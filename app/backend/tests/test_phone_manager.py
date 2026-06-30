@@ -100,6 +100,28 @@ class PhoneManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(result["phone"]["reprovision_required"])
             self.assertEqual(env.read()["PHONE_LAST_PROVISIONED_URL"], "https://new.trycloudflare.com")
 
+    async def test_transfer_failure_creates_follow_up_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manager, _env, _provider = create_manager(
+                Path(tmp),
+                TunnelStatus(
+                    mode="automatic",
+                    status="running",
+                    public_base_url="https://new.trycloudflare.com",
+                    public_ws_url="wss://new.trycloudflare.com",
+                ),
+            )
+            phone_call_id = manager.db.create_phone_call("twilio", "CA123", "+15550001111", "+15552223333")
+            manager.db.attach_phone_session(phone_call_id, "session-1")
+
+            with self.assertRaises(AttributeError):
+                await manager.transfer_for_session("session-1", "front desk", "caller asked for staff")
+
+            tasks = manager.db.list_follow_up_tasks()
+            self.assertEqual(tasks[0]["type"], "transfer_failed")
+            self.assertEqual(tasks[0]["priority"], "high")
+            self.assertEqual(tasks[0]["caller_phone"], "+15550001111")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Callable
 
+from voice_agent.core.business_hours import resolve_business_hours
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.state import BackgroundStatus, EndReason, SessionStatus
 from voice_agent.providers.base import ProviderConfigError, ProviderSessionHandle, RealtimeProviderAdapter
@@ -169,6 +170,8 @@ class SessionManager:
                 f"- Caller number: {call_context.get('from_number', '') or 'unknown'}\n"
                 f"- Business number: {call_context.get('to_number', '') or 'unknown'}"
             ).strip()
+        business_hours_status = resolve_business_hours(self.db.get_business_hours())
+        instructions = self._append_business_hours_context(instructions, business_hours_status)
         instructions = (
             f"{instructions}\n\n"
             "Call control:\n"
@@ -182,7 +185,8 @@ class SessionManager:
 
         session_config = {
             "instructions": instructions,
-            "tools": self.list_tools_for_provider() if self.list_tools_for_provider else [],
+            "tools": self._tools_for_business_policy(business_hours_status),
+            "business_hours": business_hours_status,
         }
         handle = await provider.start_session(
             session_id,
@@ -198,6 +202,12 @@ class SessionManager:
             timeout_at=timeout_at.isoformat(),
         )
         self.db.add_transcript(session_id, "system", system_transcript, True)
+        self.db.add_log(
+            "info",
+            "business_hours_resolved",
+            f"Business hours status: {business_hours_status['status']}.",
+            {"session_id": session_id, "business_hours": business_hours_status},
+        )
         timeout_task = asyncio.create_task(self._timeout_session(session_id))
         active = ActiveSession(
             id=session_id,
@@ -220,6 +230,60 @@ class SessionManager:
             "timeout_at": active.timeout_at,
             "provider_session": handle.metadata,
         }
+
+    def _tools_for_business_policy(self, business_hours_status: dict[str, Any]) -> list[dict[str, Any]]:
+        tools = self.list_tools_for_provider() if self.list_tools_for_provider else []
+        allowed = set(business_hours_status.get("allowed_tools") or [])
+        if business_hours_status.get("configured") and allowed:
+            return [tool for tool in tools if str(tool.get("name") or "") in allowed]
+        return tools
+
+    def _append_business_hours_context(self, instructions: str, business_hours_status: dict[str, Any]) -> str:
+        if not business_hours_status.get("configured"):
+            return (
+                f"{instructions}\n\n"
+                "Business hours context:\n"
+                "- Structured business hours are not configured yet.\n"
+                "- Do not invent current open/closed status. Use saved Business Info if it contains hours, otherwise say staff has not configured hours yet."
+            ).strip()
+
+        if business_hours_status.get("is_open"):
+            return (
+                f"{instructions}\n\n"
+                "Business hours context:\n"
+                "- Current structured status: OPEN.\n"
+                f"- Local business time: {business_hours_status.get('local_time') or 'unknown'}.\n"
+                f"- Next scheduled change: {business_hours_status.get('next_change') or 'unknown'}.\n"
+                "- Use the normal agent flow and enabled tools."
+            ).strip()
+
+        mode = str(business_hours_status.get("after_hours_mode") or "take_callback")
+        message = str(business_hours_status.get("message") or "").strip()
+        transfer_target = str(business_hours_status.get("transfer_target") or "").strip()
+        lines = [
+            f"{instructions}\n\nBusiness hours context:",
+            "- Current structured status: CLOSED.",
+            f"- Local business time: {business_hours_status.get('local_time') or 'unknown'}.",
+            f"- Reason: {business_hours_status.get('reason') or 'Business is currently closed.'}",
+            f"- After-hours mode: {mode}.",
+            f"- Next scheduled opening: {business_hours_status.get('next_change') or 'unknown'}.",
+        ]
+        if message:
+            lines.append(f"- After-hours message: {message}")
+        if transfer_target:
+            lines.append(f"- After-hours transfer target: {transfer_target}")
+        if mode == "take_callback":
+            lines.append(
+                "- Collect the caller's name, phone number if available, and a concise callback request. "
+                'Use log_customer_request with request_type "callback", then end_call.'
+            )
+        elif mode == "information_only":
+            lines.append("- Answer only basic saved business information. Do not create booking requests. End the call when the caller has the information they need.")
+        elif mode == "transfer":
+            lines.append("- Offer transfer to the configured after-hours target when appropriate. If transfer fails, log the request and end safely.")
+        elif mode == "closed_message":
+            lines.append("- Say the closed message or a concise closed-hours response, then use end_call.")
+        return "\n".join(lines).strip()
 
     async def stop_session(
         self,
@@ -244,6 +308,15 @@ class SessionManager:
             status = SessionStatus.ERROR
             self.background_status = BackgroundStatus.DEGRADED
             self.last_error = self._readable_end_reason(reason, error_message)
+            self.db.create_follow_up_task_once(
+                type="provider_failure",
+                title="Realtime provider issue",
+                summary=self.last_error,
+                session_id=session_id,
+                phone_call_id=active.phone_call_id,
+                priority="high",
+                source_event=f"session_{reason}",
+            )
         else:
             status = SessionStatus.STOPPED
         self.db.finish_session(session_id, status, reason, error_message)
