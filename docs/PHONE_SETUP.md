@@ -33,6 +33,8 @@ Then:
 3. Choose Connect Phone.
 4. Wait for tunnel and webhook readiness.
 5. Call the Twilio number.
+6. Use the Phone Setup Guide in Settings to confirm the latest call reached
+   Listency and did not end with a provider or network failure.
 
 Twilio trial accounts may restrict calls to verified caller IDs. Paid accounts
 can receive calls from normal caller numbers once the number and voice
@@ -43,6 +45,7 @@ capabilities are configured.
 Use:
 
 - Settings phone status for connection/provisioning state
+- Settings Phone Setup Guide for the next setup or test step
 - Settings phone outcome summary for the latest call result and recent 24-hour failure count
 - Dashboard readiness for backend/runtime/provider checks
 - Logs for phone call records and linked session detail

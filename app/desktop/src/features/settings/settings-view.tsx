@@ -37,6 +37,7 @@ type PhoneNoticeInfo = {
   tone: PhoneNoticeTone;
 };
 type ChecklistItemInfo = {
+  current?: boolean;
   detail: string;
   ready: boolean;
   title: string;
@@ -422,12 +423,21 @@ function twilioChecklist({
   const connectionReady =
     phoneConnectionStatus === "running" ||
     (phoneConnectionMode === "manual" && Boolean(phonePublicBaseUrl.trim()));
+  const recentCalls = Number(phoneStatus.recent_call_summary?.total ?? 0);
+  const hasRecentCall = recentCalls > 0;
+  const latestOutcome = phoneStatus.last_call_outcome || "none";
+  const latestCallFailed = ["failed", "network_error", "provider_error", "unknown"].includes(latestOutcome);
 
-  return [
+  const items = [
     {
       detail: missing.length > 0 ? formatMessage(t("phone.missing"), { fields: missing.join(", ") }) : t("phone.twilioCredentialsReady"),
       ready: missing.length === 0,
       title: t("phone.twilioCredentials"),
+    },
+    {
+      detail: phoneUnsaved ? t("phone.unsavedDetail") : t("phone.savedSettingsApplied"),
+      ready: !phoneUnsaved,
+      title: t("phone.savedSettings"),
     },
     {
       detail:
@@ -445,11 +455,24 @@ function twilioChecklist({
       title: t("phone.webhookProvisioning"),
     },
     {
-      detail: phoneUnsaved ? t("phone.unsavedDetail") : t("phone.savedSettingsApplied"),
-      ready: !phoneUnsaved,
-      title: t("phone.savedSettings"),
+      detail: hasRecentCall
+        ? formatMessage(t("phone.placeTestCallReady"), { outcome: phoneOutcomeLabel(latestOutcome, t) })
+        : t("phone.placeTestCallPending"),
+      ready: hasRecentCall,
+      title: t("phone.placeTestCall"),
+    },
+    {
+      detail: !hasRecentCall
+        ? t("phone.verifyAiAnsweredPending")
+        : latestCallFailed
+          ? formatMessage(t("phone.verifyAiAnsweredFailed"), { outcome: phoneOutcomeLabel(latestOutcome, t) })
+          : formatMessage(t("phone.verifyAiAnsweredReady"), { outcome: phoneOutcomeLabel(latestOutcome, t) }),
+      ready: hasRecentCall && !latestCallFailed,
+      title: t("phone.verifyAiAnswered"),
     },
   ] satisfies ChecklistItemInfo[];
+  const currentIndex = items.findIndex((item) => !item.ready);
+  return items.map((item, index) => ({ ...item, current: index === currentIndex }));
 }
 
 export function SettingsView({
@@ -951,7 +974,7 @@ export function SettingsView({
                     <Input type="password" placeholder={config.TWILIO_PHONE_NUMBER_SID || t("placeholder.optional")} value={twilioPhoneNumberSid} onChange={(event) => onTwilioPhoneNumberSidChange(event.target.value)} />
                   </Field>
                 </div>
-                <PhoneTestChecklist items={twilioTestChecklist} />
+                <PhoneSetupGuide items={twilioTestChecklist} />
                 <TwilioDebuggerPanel
                   alerts={twilioDebuggerAlerts}
                   error={twilioDebuggerError}
@@ -1402,23 +1425,45 @@ function TwilioDebuggerPanel({
   );
 }
 
-function PhoneTestChecklist({ items }: { items: ChecklistItemInfo[] }) {
+function PhoneSetupGuide({ items }: { items: ChecklistItemInfo[] }) {
   const { t } = useI18n();
 
   return (
-    <div className="space-y-3 rounded-lg bg-muted/30 p-4">
+    <div className="flex flex-col gap-3 rounded-lg bg-muted/30 p-4">
       <div>
-        <h4 className="text-sm font-medium">{t("phone.twilioTestPrep")}</h4>
-        <p className="text-sm text-muted-foreground">{t("phone.twilioTestPrepDescription")}</p>
+        <h4 className="text-sm font-medium">{t("phone.setupGuide")}</h4>
+        <p className="text-sm text-muted-foreground">{t("phone.setupGuideDescription")}</p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        {items.map((item) => {
+        {items.map((item, index) => {
           const Icon = item.ready ? CheckCircle2 : CircleDashed;
           return (
-            <div key={item.title} className="flex items-start gap-3 rounded-lg bg-background/60 p-3">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div
+              key={item.title}
+              className={cn(
+                "flex items-start gap-3 rounded-lg bg-background/60 p-3 transition-colors",
+                item.current && "ring-1 ring-foreground/15",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium",
+                  item.ready
+                    ? "bg-background text-muted-foreground"
+                    : item.current
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground",
+                )}
+              >
+                {item.ready ? <Icon className="size-4" /> : index + 1}
+              </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium">{item.title}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium">{item.title}</p>
+                  <Badge tone={item.ready ? "green" : item.current ? "cyan" : "neutral"}>
+                    {item.ready ? t("phone.stepDone") : item.current ? t("phone.stepNext") : t("phone.stepPending")}
+                  </Badge>
+                </div>
                 <p className="text-sm text-muted-foreground">{item.detail}</p>
               </div>
             </div>
