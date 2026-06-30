@@ -138,6 +138,9 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(tasks[0]["type"], "provider_failure")
             self.assertEqual(tasks[0]["priority"], "high")
             self.assertEqual(tasks[0]["session_id"], session["id"])
+            self.assertIn("What happened: provider error: quota exceeded", tasks[0]["summary"])
+            self.assertIn("Suggested next steps:", tasks[0]["summary"])
+            self.assertIn("Check the selected AI provider API key", tasks[0]["summary"])
 
     async def test_tool_call_ids_are_deduplicated(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

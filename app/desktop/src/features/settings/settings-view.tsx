@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, Download, ExternalLink, LifeBuoy, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
+import { BadgeCheck, Bell, CheckCircle2, CircleAlert, CircleDashed, Download, ExternalLink, LifeBuoy, Loader2, PhoneCall, Play, PlugZap, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { ProviderBrandIcon } from "@/components/provider-brand-icon";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
 import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
@@ -412,6 +413,8 @@ export function SettingsView({
   twilioDebuggerAlerts,
   twilioDebuggerError,
   twilioDebuggerLoading,
+  desktopNotificationsEnabled,
+  desktopNotificationPermission,
   openAiKey,
   geminiKey,
   providerChoice,
@@ -459,6 +462,7 @@ export function SettingsView({
   onTelnyxPhoneNumberChange,
   onPreviewVoice,
   onRefreshTwilioDebugger,
+  onDesktopNotificationsEnabledChange,
   onConnectPhone,
   onStopPhoneConnection,
   onSave,
@@ -472,6 +476,8 @@ export function SettingsView({
   twilioDebuggerAlerts: TwilioDebuggerAlert[];
   twilioDebuggerError: string;
   twilioDebuggerLoading: boolean;
+  desktopNotificationsEnabled: boolean;
+  desktopNotificationPermission: NotificationPermission | "unsupported";
   openAiKey: string;
   geminiKey: string;
   providerChoice: string;
@@ -519,6 +525,7 @@ export function SettingsView({
   onTelnyxPhoneNumberChange: (value: string) => void;
   onPreviewVoice: (provider: string, voice: string) => Promise<void>;
   onRefreshTwilioDebugger: () => Promise<void>;
+  onDesktopNotificationsEnabledChange: (enabled: boolean) => Promise<void>;
   onConnectPhone: () => Promise<void>;
   onStopPhoneConnection: () => Promise<void>;
   onSave: () => void;
@@ -942,6 +949,49 @@ export function SettingsView({
           </Card>
         )}
       </div>
+
+      {/* Notifications Section */}
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">{t("settings.notificationsTitle", "Notifications")}</h2>
+        <p className="text-sm text-muted-foreground">
+          {t("settings.notificationsDescription", "Show local desktop alerts when calls create work for the owner.")}
+        </p>
+      </div>
+      <Separator />
+      <Card className="rounded-lg p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Bell className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <h3 className="text-base font-semibold">{t("settings.desktopNotificationsTitle", "Follow-up Task Alerts")}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  "settings.desktopNotificationsDescription",
+                  "Notify you when Listency captures a new booking, callback, customer request, or failure that needs review.",
+                )}
+              </p>
+              {desktopNotificationPermission === "unsupported" && (
+                <p className="text-sm text-destructive">
+                  {t("settings.notificationsUnsupported", "Desktop notifications are not available in this environment.")}
+                </p>
+              )}
+              {desktopNotificationPermission === "denied" && (
+                <p className="text-sm text-destructive">
+                  {t("settings.notificationsDenied", "Notifications are blocked. Enable them in your browser or system settings.")}
+                </p>
+              )}
+            </div>
+          </div>
+          <Switch
+            checked={desktopNotificationsEnabled}
+            disabled={desktopNotificationPermission === "unsupported"}
+            aria-label={t("settings.desktopNotificationsTitle", "Follow-up Task Alerts")}
+            onCheckedChange={(checked) => void onDesktopNotificationsEnabledChange(checked)}
+          />
+        </div>
+      </Card>
 
       {/* Data Section */}
       <div className="pt-2">

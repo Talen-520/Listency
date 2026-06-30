@@ -63,6 +63,10 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertEqual(tasks[0]["status"], "new")
             self.assertEqual(tasks[0]["priority"], "high")
             self.assertEqual(tasks[0]["caller_name"], "Mina")
+            self.assertEqual(result["confirmation_status"], "request_captured_not_confirmed")
+            self.assertEqual(result["validation_status"], "needs_follow_up")
+            self.assertTrue(result["requires_follow_up"])
+            self.assertIn("phone_number", result["missing_fields"])
 
     def test_restaurant_booking_request_tracks_missing_fields(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -81,8 +85,61 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertEqual(result["business_type"], "restaurant")
             self.assertIn("phone_number", result["missing_fields"])
             self.assertIn("requested_time", result["missing_fields"])
+            self.assertIn("Phone number", result["missing_field_labels"])
+            self.assertEqual(result["validation_status"], "needs_follow_up")
+            self.assertTrue(result["requires_follow_up"])
             self.assertIn("Missing details", task["summary"])
             self.assertIn("Party Size: 4", task["summary"])
+            self.assertIn("Confirmation status: request captured", task["summary"])
+
+    def test_appointment_booking_request_can_validate_complete_details(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+            db.set_business_info_sections({"business_type": "appointment"})
+            registry = build_default_registry()
+
+            result = registry.call(
+                "create_booking",
+                {
+                    "customer_name": "Ari",
+                    "phone_number": "+15551234567",
+                    "service": "Haircut",
+                    "requested_date": "Saturday",
+                    "requested_time": "10 AM",
+                },
+                ToolContext(db=db, session_id="session-1"),
+            )
+
+            task = db.list_follow_up_tasks()[0]
+
+            self.assertEqual(result["business_type"], "appointment")
+            self.assertEqual(result["validation_status"], "complete")
+            self.assertFalse(result["requires_follow_up"])
+            self.assertEqual(result["missing_fields"], [])
+            self.assertIn("service", result["collected_fields"])
+            self.assertIn("Validation: complete", task["summary"])
+
+    def test_hotel_booking_request_requires_room_preference(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+            db.set_business_info_sections({"business_type": "hotel"})
+            registry = build_default_registry()
+
+            result = registry.call(
+                "create_booking",
+                {
+                    "customer_name": "Mina",
+                    "phone_number": "+15550001111",
+                    "check_in_date": "July 5",
+                    "check_out_date": "July 7",
+                    "guest_count": "2",
+                },
+                ToolContext(db=db, session_id="session-1"),
+            )
+
+            self.assertIn("room_count", result["missing_fields"])
+            self.assertIn("Room preference or room count", result["missing_field_labels"])
+            self.assertIn("Missing details for staff follow-up", result["message"])
 
     def test_business_info_lookup_prefers_structured_category(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

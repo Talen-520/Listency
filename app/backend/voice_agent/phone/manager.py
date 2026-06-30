@@ -5,6 +5,7 @@ from typing import Any
 
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.business_hours import resolve_business_hours
+from voice_agent.core.remediation import phone_session_start_remediation, transfer_failure_remediation
 from voice_agent.core.session_manager import SessionManager
 from voice_agent.phone.base import PhoneConfigError, PhoneProviderAdapter, PhoneProvisionResult
 from voice_agent.phone.telnyx import TelnyxPhoneAdapter
@@ -159,7 +160,7 @@ class PhoneManager:
             self.db.create_follow_up_task_once(
                 type="provider_failure",
                 title="Phone call failed to start",
-                summary=str(exc),
+                summary=phone_session_start_remediation(str(exc)),
                 phone_call_id=phone_call_id,
                 priority="high",
                 caller_phone=from_number,
@@ -204,7 +205,11 @@ class PhoneManager:
             self.db.create_follow_up_task_once(
                 type="transfer_failed",
                 title="Call transfer failed",
-                summary=f"Target: {transfer_target or target or 'staff'}. Reason: {reason or 'not provided'}. Error: {exc}",
+                summary=transfer_failure_remediation(
+                    target=transfer_target or target,
+                    reason=reason,
+                    error=str(exc),
+                ),
                 session_id=session_id,
                 phone_call_id=int(phone_call["id"]),
                 priority="high",

@@ -68,10 +68,12 @@ Listency は macOS と Windows でローカル実行できます。API key、事
 - 実際の電話番号を接続する前に使えるマイクテストモード
 - 選択した AI provider とモデルに応じた多言語音声会話
 - 営業時間、サービス、価格、ポリシー、FAQ、予約ルールを保存できるローカル事業ナレッジベース
-- ホテル、レストラン、サロン、クリニックなど向けの予約情報収集
+- 不足情報チェックとスタッフ確認の境界を含む予約情報収集
 - 人の対応が必要な会話の call transfer
 - 会話完了時に AI 側から通話終了
+- オーナー対応が必要なタスク用の follow-up Inbox と任意のデスクトップ通知
 - Conversation transcripts、tool call 履歴、phone call 履歴、runtime logs
+- provider、電話接続、runtime 問題の切り分けに使える diagnostics export
 - API key、事業データ、logs、transcripts のローカルファースト保存
 - macOS と Windows 向けデスクトップアプリ体験
 - 自動の安全な tunnel による Twilio 電話番号接続

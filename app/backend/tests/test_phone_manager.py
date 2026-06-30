@@ -121,6 +121,9 @@ class PhoneManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(tasks[0]["type"], "transfer_failed")
             self.assertEqual(tasks[0]["priority"], "high")
             self.assertEqual(tasks[0]["caller_phone"], "+15550001111")
+            self.assertIn("What happened: Transfer to front desk failed", tasks[0]["summary"])
+            self.assertIn("Suggested next steps:", tasks[0]["summary"])
+            self.assertIn("Check the transfer target phone number", tasks[0]["summary"])
 
 
 if __name__ == "__main__":

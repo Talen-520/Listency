@@ -349,6 +349,40 @@ async def twilio_debugger(limit: int = 10, hours: int = 24) -> dict[str, Any]:
     return {"alerts": alerts}
 
 
+def _correlate_twilio_debugger_alerts(alerts: list[dict[str, str]], phone_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    call_ids_by_provider_id = {
+        str(call.get("provider_call_id") or ""): call.get("id")
+        for call in phone_calls
+        if str(call.get("provider") or "").lower() == "twilio" and call.get("provider_call_id")
+    }
+    correlated = []
+    for alert in alerts:
+        resource_sid = str(alert.get("resource_sid") or "")
+        phone_call_id = call_ids_by_provider_id.get(resource_sid)
+        correlated.append(
+            {
+                **alert,
+                "correlated": phone_call_id is not None,
+                "listency_phone_call_id": phone_call_id,
+            }
+        )
+    return correlated
+
+
+async def _twilio_debugger_diagnostics(env: dict[str, str], phone_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    if (env.get("PHONE_PROVIDER") or "none").strip().lower() != "twilio":
+        return {"available": False, "alerts": [], "error": "Twilio is not the selected phone provider."}
+    try:
+        alerts = await TwilioPhoneAdapter().debugger_alerts(env, limit=10, hours=24)
+    except PhoneConfigError as exc:
+        return {"available": False, "alerts": [], "error": str(exc)}
+    return {
+        "available": True,
+        "alerts": _correlate_twilio_debugger_alerts(alerts, phone_calls),
+        "error": "",
+    }
+
+
 @app.post("/phone/twilio/inbound")
 async def twilio_inbound(request: Request) -> Response:
     form = _parse_form_body(await request.body())
@@ -992,6 +1026,12 @@ async def export_diagnostics() -> dict[str, Any]:
 
     business_hours = db.get_business_hours()
     business_hours_status = resolve_business_hours(business_hours)
+    recent_sessions = db.list_sessions(limit=20)
+    recent_phone_calls = db.list_phone_calls(limit=20)
+    recent_tool_calls = db.list_tool_calls(limit=20)
+    recent_follow_up_tasks = db.list_follow_up_tasks(limit=20)
+    recent_app_logs = db.list_logs(limit=50)
+    twilio_debugger_context = await _twilio_debugger_diagnostics(env, recent_phone_calls)
     return {
         "generated_at": utc_now(),
         "app": {
@@ -1022,12 +1062,13 @@ async def export_diagnostics() -> dict[str, Any]:
             "configured": business_hours_status.get("configured", False),
             "status": business_hours_status,
         },
+        "twilio_debugger": _redact_diagnostics(twilio_debugger_context),
         "recent": {
-            "sessions": [_safe_json_record(record) for record in db.list_sessions(limit=20)],
-            "phone_calls": [_safe_json_record(record) for record in db.list_phone_calls(limit=20)],
-            "tool_calls": [_safe_json_record(record) for record in db.list_tool_calls(limit=20)],
-            "follow_up_tasks": [_safe_json_record(record) for record in db.list_follow_up_tasks(limit=20)],
-            "app_logs": [_safe_json_record(record) for record in db.list_logs(limit=50)],
+            "sessions": [_safe_json_record(record) for record in recent_sessions],
+            "phone_calls": [_safe_json_record(record) for record in recent_phone_calls],
+            "tool_calls": [_safe_json_record(record) for record in recent_tool_calls],
+            "follow_up_tasks": [_safe_json_record(record) for record in recent_follow_up_tasks],
+            "app_logs": [_safe_json_record(record) for record in recent_app_logs],
         },
     }
 

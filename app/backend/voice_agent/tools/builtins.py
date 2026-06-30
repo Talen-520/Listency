@@ -5,10 +5,24 @@ from typing import Any
 from voice_agent.tools.registry import ToolContext, ToolDefinition, ToolRegistry
 
 BOOKING_FIELD_REQUIREMENTS = {
-    "hotel": ["customer_name", "phone_number", "check_in_date", "check_out_date", "guest_count"],
+    "hotel": ["customer_name", "phone_number", "check_in_date", "check_out_date", "guest_count", "room_count"],
     "restaurant": ["customer_name", "phone_number", "party_size", "requested_date", "requested_time"],
     "appointment": ["customer_name", "phone_number", "service", "requested_date", "requested_time"],
-    "general": ["customer_name", "booking_time"],
+    "general": ["customer_name", "phone_number", "booking_time"],
+}
+
+BOOKING_FIELD_LABELS = {
+    "customer_name": "Customer name",
+    "phone_number": "Phone number",
+    "booking_time": "Requested date/time",
+    "requested_date": "Requested date",
+    "requested_time": "Requested time",
+    "check_in_date": "Check-in date",
+    "check_out_date": "Check-out date",
+    "room_count": "Room preference or room count",
+    "guest_count": "Guest count",
+    "party_size": "Party size",
+    "service": "Service",
 }
 
 
@@ -52,16 +66,22 @@ def create_booking(payload: dict[str, Any], context: ToolContext) -> dict[str, A
     booking_time = _booking_time_from_payload(payload)
     notes = str(payload.get("notes", "")).strip()
     missing_fields = _missing_booking_fields(business_type, payload)
+    required_fields = BOOKING_FIELD_REQUIREMENTS[business_type]
+    collected_fields = [field for field in required_fields if field not in missing_fields]
+    missing_field_labels = [BOOKING_FIELD_LABELS.get(field, field.replace("_", " ").title()) for field in missing_fields]
+    validation_status = "needs_follow_up" if missing_fields else "complete"
     structured_details = _booking_details_for_summary(business_type, payload)
     summary_parts = [
         f"Business type: {business_type}",
+        "Confirmation status: request captured; staff must confirm final availability",
+        f"Validation: {validation_status.replace('_', ' ')}",
         f"Requested time: {booking_time}",
         *structured_details,
     ]
     if notes:
         summary_parts.append(f"Notes: {notes}")
     if missing_fields:
-        summary_parts.append(f"Missing details: {', '.join(missing_fields)}")
+        summary_parts.append(f"Missing details: {', '.join(missing_field_labels)}")
     booking = context.db.create_booking(customer_name, booking_time, notes)
     task = context.db.create_follow_up_task_once(
         type="booking_request",
@@ -77,8 +97,14 @@ def create_booking(payload: dict[str, Any], context: ToolContext) -> dict[str, A
         "booking": booking,
         "follow_up_task": task,
         "business_type": business_type,
+        "confirmation_status": "request_captured_not_confirmed",
+        "validation_status": validation_status,
+        "requires_follow_up": bool(missing_fields),
+        "required_fields": required_fields,
+        "collected_fields": collected_fields,
         "missing_fields": missing_fields,
-        "message": "Booking request saved locally for staff review. This is not a confirmed reservation.",
+        "missing_field_labels": missing_field_labels,
+        "message": _booking_message(missing_field_labels),
     }
 
 
@@ -108,6 +134,13 @@ def _missing_booking_fields(business_type: str, payload: dict[str, Any]) -> list
         if not str(payload.get(field) or "").strip():
             missing.append(field)
     return missing
+
+
+def _booking_message(missing_field_labels: list[str]) -> str:
+    base = "Booking request saved locally for staff review. This is not a confirmed reservation."
+    if not missing_field_labels:
+        return base
+    return f"{base} Missing details for staff follow-up: {', '.join(missing_field_labels)}."
 
 
 def _booking_details_for_summary(business_type: str, payload: dict[str, Any]) -> list[str]:
@@ -226,7 +259,8 @@ def build_default_registry() -> ToolRegistry:
                 name="create_booking",
                 description=(
                     "Capture a local booking, reservation, or appointment request for staff review. This does not confirm final availability. "
-                    "Use business_type-specific fields when available. If details are missing after one concise follow-up, still save the request and include missing details."
+                    "Use business_type-specific fields when available. If details are missing after one concise follow-up, still save the request and include missing details. "
+                    "The tool returns validation_status, missing fields, and confirmation_status so the caller and owner know the request still needs staff review."
                 ),
                 input_schema={
                     "type": "object",

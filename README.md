@@ -68,10 +68,12 @@ Listency runs locally on macOS and Windows. API keys, business information, tran
 - Microphone test mode before connecting a real phone number
 - Multilingual voice conversations, depending on the selected AI provider and model
 - Local business knowledge base for hours, services, pricing, policies, FAQs, and booking rules
-- Booking detail collection for hotels, restaurants, salons, clinics, and other service businesses
+- Booking detail collection with missing-info checks and staff confirmation boundaries
 - Call transfer support for conversations that need a human
 - AI-ended calls when the conversation is complete
+- Follow-up inbox and optional desktop alerts for tasks that need owner attention
 - Conversation transcripts, tool call history, phone call history, and runtime logs
+- Diagnostics export for troubleshooting provider, phone, and runtime issues
 - Local-first storage for API keys, business data, logs, and transcripts
 - Desktop app experience for macOS and Windows
 - Twilio phone number connection with automatic secure tunnel setup
@@ -83,10 +85,10 @@ For users:
 1. Download a packaged Listency build from
    [GitHub Releases](https://github.com/Talen-520/Listency/releases).
 2. Open the desktop app.
-3. Add OpenAI and/or Gemini API keys in Settings hit save.
+3. Add OpenAI and/or Gemini API keys in Settings, then hit save.
 4. Choose a provider, model, and voice.
 5. Fill in Business Info, then choose or edit an Agent prompt. You can save multiple agents for different call flows.
-6. Start Runtime by click the top right corner "Start" and the button will turn to "Stop".
+6. Start Runtime by clicking the top-right `Start` button. It will turn into `Stop`.
 7. Connect a phone provider for real inbound calls. Twilio is the recommended
    path for the first public release: add your Twilio Account SID, Auth Token,
    and phone number in Settings, click "Connect Phone", then call the configured

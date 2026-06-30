@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from voice_agent.core.business_hours import resolve_business_hours
 from voice_agent.config.env_store import EnvStore
+from voice_agent.core.remediation import realtime_provider_remediation
 from voice_agent.core.state import BackgroundStatus, EndReason, SessionStatus
 from voice_agent.providers.base import ProviderConfigError, ProviderSessionHandle, RealtimeProviderAdapter
 from voice_agent.storage.database import Database
@@ -311,7 +312,7 @@ class SessionManager:
             self.db.create_follow_up_task_once(
                 type="provider_failure",
                 title="Realtime provider issue",
-                summary=self.last_error,
+                summary=realtime_provider_remediation(self.last_error),
                 session_id=session_id,
                 phone_call_id=active.phone_call_id,
                 priority="high",

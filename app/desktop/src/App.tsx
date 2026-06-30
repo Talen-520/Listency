@@ -78,6 +78,8 @@ export function App() {
             twilioDebuggerAlerts={data.twilioDebuggerAlerts}
             twilioDebuggerError={data.twilioDebuggerError}
             twilioDebuggerLoading={data.twilioDebuggerLoading}
+            desktopNotificationsEnabled={data.desktopNotificationsEnabled}
+            desktopNotificationPermission={data.desktopNotificationPermission}
             openAiKey={data.openAiKey}
             geminiKey={data.geminiKey}
             providerChoice={data.providerChoice}
@@ -125,6 +127,7 @@ export function App() {
             onTelnyxPhoneNumberChange={data.setTelnyxPhoneNumber}
             onPreviewVoice={data.previewVoice}
             onRefreshTwilioDebugger={data.refreshTwilioDebugger}
+            onDesktopNotificationsEnabledChange={data.setDesktopNotificationsEnabled}
             onConnectPhone={() => data.runAction(data.connectPhone, t("toast.phoneConnected"))}
             onStopPhoneConnection={() => data.runAction(data.stopPhoneConnection, t("toast.phoneConnectionStopped"))}
             onSave={() => void data.runAction(data.saveSettings, t("toast.envSaved"))}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from voice_agent.main import _redact_diagnostics, _safe_json_record
+from voice_agent.main import _correlate_twilio_debugger_alerts, _redact_diagnostics, _safe_json_record
 
 
 class DiagnosticsExportTest(unittest.TestCase):
@@ -33,6 +33,36 @@ class DiagnosticsExportTest(unittest.TestCase):
         self.assertEqual(safe["metadata"]["raw"]["AuthToken"], "[redacted]")
         self.assertEqual(safe["metadata"]["raw"]["From"], "[redacted phone ending 67]")
         self.assertEqual(safe["metadata"]["status"], "failed")
+
+    def test_correlates_twilio_debugger_alerts_to_local_phone_calls(self) -> None:
+        alerts = [
+            {
+                "sid": "NO123",
+                "resource_sid": "CA123",
+                "error_code": "11200",
+                "alert_text": "HTTP retrieval failure",
+            },
+            {
+                "sid": "NO124",
+                "resource_sid": "CA999",
+                "error_code": "11205",
+                "alert_text": "Connection failed",
+            },
+        ]
+        phone_calls = [
+            {
+                "id": 42,
+                "provider": "twilio",
+                "provider_call_id": "CA123",
+            }
+        ]
+
+        correlated = _correlate_twilio_debugger_alerts(alerts, phone_calls)
+
+        self.assertTrue(correlated[0]["correlated"])
+        self.assertEqual(correlated[0]["listency_phone_call_id"], 42)
+        self.assertFalse(correlated[1]["correlated"])
+        self.assertIsNone(correlated[1]["listency_phone_call_id"])
 
 
 if __name__ == "__main__":

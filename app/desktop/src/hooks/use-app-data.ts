@@ -81,6 +81,55 @@ const emptyVoicePreviewCache: VoicePreviewCache = {
   cached: {},
 };
 
+const DESKTOP_NOTIFICATIONS_ENABLED_KEY = "listency.desktopNotificationsEnabled";
+const NOTIFIED_FOLLOW_UP_TASK_IDS_KEY = "listency.notifiedFollowUpTaskIds";
+const FOLLOW_UP_TASK_REFRESH_MS = 10_000;
+
+type NotificationPermissionState = NotificationPermission | "unsupported";
+
+function notificationPermissionState(): NotificationPermissionState {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+  return window.Notification.permission;
+}
+
+function readDesktopNotificationsEnabled() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return window.localStorage.getItem(DESKTOP_NOTIFICATIONS_ENABLED_KEY) === "true";
+}
+
+function writeDesktopNotificationsEnabled(enabled: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(DESKTOP_NOTIFICATIONS_ENABLED_KEY, enabled ? "true" : "false");
+}
+
+function readNotifiedFollowUpTaskIds() {
+  if (typeof window === "undefined") {
+    return new Set<number>();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(NOTIFIED_FOLLOW_UP_TASK_IDS_KEY);
+    const ids = raw ? JSON.parse(raw) : [];
+    return new Set<number>(Array.isArray(ids) ? ids.filter((id) => Number.isFinite(id)) : []);
+  } catch {
+    return new Set<number>();
+  }
+}
+
+function writeNotifiedFollowUpTaskIds(ids: Set<number>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const latestIds = Array.from(ids).slice(-300);
+  window.localStorage.setItem(NOTIFIED_FOLLOW_UP_TASK_IDS_KEY, JSON.stringify(latestIds));
+}
+
 const emptyPhoneStatus: PhoneStatus = {
   provider: "none",
   provider_ready: false,
@@ -228,6 +277,9 @@ export function useAppData() {
   const [twilioDebuggerAlerts, setTwilioDebuggerAlerts] = useState<TwilioDebuggerAlert[]>([]);
   const [twilioDebuggerError, setTwilioDebuggerError] = useState("");
   const [twilioDebuggerLoading, setTwilioDebuggerLoading] = useState(false);
+  const [desktopNotificationsEnabled, setDesktopNotificationsEnabledState] = useState(readDesktopNotificationsEnabled);
+  const [desktopNotificationPermission, setDesktopNotificationPermission] =
+    useState<NotificationPermissionState>(notificationPermissionState);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessProfile>(defaultBusiness);
   const [businessHours, setBusinessHours] = useState<BusinessHoursConfig>(defaultBusinessHours);
@@ -261,6 +313,8 @@ export function useAppData() {
   const [now, setNow] = useState(Date.now());
   const hasLoadedAllRef = useRef(false);
   const isLoadingAllRef = useRef(false);
+  const followUpNotificationsPrimedRef = useRef(false);
+  const notifiedFollowUpTaskIdsRef = useRef(readNotifiedFollowUpTaskIds());
 
   const activeSession = status.active_sessions[0];
   const remainingSeconds = useMemo(() => {
@@ -427,6 +481,15 @@ export function useAppData() {
     tools,
   ]);
 
+  useEffect(() => {
+    const permission = notificationPermissionState();
+    setDesktopNotificationPermission(permission);
+    if (desktopNotificationsEnabled && permission !== "granted") {
+      writeDesktopNotificationsEnabled(false);
+      setDesktopNotificationsEnabledState(false);
+    }
+  }, [desktopNotificationsEnabled]);
+
   const loadLogData = useCallback(async () => {
     const since = logWindowSince(logWindow);
     const [sessionList, transcriptList, toolCallList, appLogList, phoneCallList] = await Promise.all([
@@ -442,6 +505,74 @@ export function useAppData() {
     setAppLogs(appLogList.logs);
     setPhoneCalls(phoneCallList.phone_calls);
   }, [logWindow]);
+
+  const notifyFollowUpTask = useCallback(
+    (task: FollowUpTask) => {
+      if (!desktopNotificationsEnabled || desktopNotificationPermission !== "granted" || !("Notification" in window)) {
+        return;
+      }
+
+      const title = task.type === "provider_failure"
+        ? t("notifications.providerFailureTitle", "Provider failure needs attention")
+        : task.title || t("notifications.followUpTitle", "New follow-up task");
+      const caller = task.caller_name || task.caller_phone || "";
+      const summary = task.summary || t("notifications.followUpFallback", "A call created a task for owner review.");
+      const body = caller ? `${caller}: ${summary}` : summary;
+
+      try {
+        const notification = new window.Notification(title, {
+          body,
+          icon: "/favicon.svg",
+          tag: `listency-follow-up-${task.id}`,
+        });
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+      } catch {
+        // Notification support differs across WebView/browser shells. Keep this best-effort.
+      }
+    },
+    [desktopNotificationPermission, desktopNotificationsEnabled, t],
+  );
+
+  const syncFollowUpTasks = useCallback(
+    (tasks: FollowUpTask[], options: { prime?: boolean } = {}) => {
+      setFollowUpTasks(tasks);
+
+      if (options.prime || !followUpNotificationsPrimedRef.current) {
+        followUpNotificationsPrimedRef.current = true;
+        const notifiedIds = notifiedFollowUpTaskIdsRef.current;
+        let notifiedChanged = false;
+        for (const task of tasks) {
+          if (task.status === "new" && !notifiedIds.has(task.id)) {
+            notifiedIds.add(task.id);
+            notifiedChanged = true;
+          }
+        }
+        if (notifiedChanged) {
+          writeNotifiedFollowUpTaskIds(notifiedIds);
+        }
+        return;
+      }
+
+      let notifiedChanged = false;
+      const notifiedIds = notifiedFollowUpTaskIdsRef.current;
+      for (const task of tasks) {
+        if (task.status !== "new" || notifiedIds.has(task.id)) {
+          continue;
+        }
+        notifyFollowUpTask(task);
+        notifiedIds.add(task.id);
+        notifiedChanged = true;
+      }
+
+      if (notifiedChanged) {
+        writeNotifiedFollowUpTaskIds(notifiedIds);
+      }
+    },
+    [notifyFollowUpTask],
+  );
 
   const loadAll = useCallback(async () => {
     if (isLoadingAllRef.current) {
@@ -505,7 +636,7 @@ export function useAppData() {
       setToolCalls(toolCallList.tool_calls);
       setAppLogs(appLogList.logs);
       setPhoneCalls(phoneCallList.phone_calls);
-      setFollowUpTasks(followUpTaskList.tasks);
+      syncFollowUpTasks(followUpTaskList.tasks, { prime: !hasLoadedAllRef.current });
       setVoicePreviewCache(previewCache);
       setBusiness(businessProfile);
       setBusinessHours(businessHoursPayload.config);
@@ -555,7 +686,7 @@ export function useAppData() {
     } finally {
       isLoadingAllRef.current = false;
     }
-  }, [logWindow, t]);
+  }, [logWindow, syncFollowUpTasks, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -610,6 +741,23 @@ export function useAppData() {
     });
   }, [loadLogData, t]);
 
+  useEffect(() => {
+    if (!backendHealth.available || !hasLoadedAllRef.current) {
+      return;
+    }
+
+    const refreshTasks = () => {
+      api.followUpTasks()
+        .then((result) => syncFollowUpTasks(result.tasks))
+        .catch(() => {
+          // The backend health loop already owns user-visible offline state.
+        });
+    };
+
+    const refresh = window.setInterval(refreshTasks, FOLLOW_UP_TASK_REFRESH_MS);
+    return () => window.clearInterval(refresh);
+  }, [backendHealth.available, syncFollowUpTasks]);
+
   const runAction = useCallback(
     async (action: () => Promise<unknown>, message: string) => {
       try {
@@ -621,6 +769,41 @@ export function useAppData() {
       }
     },
     [loadAll, t],
+  );
+
+  const setDesktopNotificationsEnabled = useCallback(
+    async (enabled: boolean) => {
+      if (!enabled) {
+        writeDesktopNotificationsEnabled(false);
+        setDesktopNotificationsEnabledState(false);
+        toast.success(t("toast.notificationsDisabled", "Desktop notifications disabled"));
+        return;
+      }
+
+      if (!("Notification" in window)) {
+        setDesktopNotificationPermission("unsupported");
+        writeDesktopNotificationsEnabled(false);
+        setDesktopNotificationsEnabledState(false);
+        toast.error(t("settings.notificationsUnsupported", "Desktop notifications are not available in this environment."));
+        return;
+      }
+
+      let permission = window.Notification.permission;
+      if (permission === "default") {
+        permission = await window.Notification.requestPermission();
+      }
+
+      setDesktopNotificationPermission(permission);
+      const granted = permission === "granted";
+      writeDesktopNotificationsEnabled(granted);
+      setDesktopNotificationsEnabledState(granted);
+      if (granted) {
+        toast.success(t("toast.notificationsEnabled", "Desktop notifications enabled"));
+      } else {
+        toast.error(t("settings.notificationsDenied", "Notifications are blocked. Enable them in your browser or system settings."));
+      }
+    },
+    [t],
   );
 
   const updateAgentDraft = useCallback((nextAgent: AgentProfile) => {
@@ -811,6 +994,8 @@ export function useAppData() {
     twilioDebuggerAlerts,
     twilioDebuggerError,
     twilioDebuggerLoading,
+    desktopNotificationsEnabled,
+    desktopNotificationPermission,
     tools,
     sessions,
     transcripts,
@@ -866,6 +1051,7 @@ export function useAppData() {
     connectPhone,
     stopPhoneConnection,
     refreshTwilioDebugger,
+    setDesktopNotificationsEnabled,
     previewVoice,
     downloadLogs,
     downloadDiagnostics,
