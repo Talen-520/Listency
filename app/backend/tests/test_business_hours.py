@@ -121,7 +121,7 @@ class BusinessHoursTest(unittest.TestCase):
 
 class BusinessHoursSessionManagerTest(unittest.IsolatedAsyncioTestCase):
     async def test_session_config_includes_business_hours_and_filters_closed_tools(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             today = datetime.now(tz=ZoneInfo("America/New_York")).date().isoformat()
@@ -161,7 +161,7 @@ class BusinessHoursSessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(any(log["event"] == "business_hours_resolved" for log in logs))
 
     async def test_after_hours_callback_policy_instructs_callback_task_type(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             today = datetime.now(tz=ZoneInfo("America/New_York")).date().isoformat()
