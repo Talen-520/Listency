@@ -10,7 +10,7 @@ from voice_agent.storage.database import Database
 
 class LogMaintenanceTest(unittest.TestCase):
     def test_delete_log_data_before_removes_old_activity(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             db.create_session("old-session", "openai", "realtime", "stopped", "2026-05-08T00:00:00+00:00")
             db.create_session("new-session", "gemini", "realtime", "stopped", "2026-05-08T00:00:00+00:00")
@@ -44,7 +44,7 @@ class LogMaintenanceTest(unittest.TestCase):
             self.assertEqual([item["event"] for item in exported["app_logs"]], ["new_event"])
 
     def test_clear_log_data_removes_activity_tables(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             db.create_session("session", "openai", "realtime", "stopped", "2026-05-08T00:00:00+00:00")
             db.add_message("session", "user", "message")
@@ -65,7 +65,7 @@ class LogMaintenanceTest(unittest.TestCase):
             self.assertEqual(db.export_log_data(), {"sessions": [], "transcripts": [], "tool_calls": [], "app_logs": [], "phone_calls": []})
 
     def test_export_log_data_filters_by_session_and_since(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             db.create_session("old-session", "openai", "realtime", "stopped", "2026-05-08T00:00:00+00:00")
             db.create_session("new-session", "gemini", "realtime", "stopped", "2026-05-08T00:00:00+00:00")
@@ -90,7 +90,7 @@ class LogMaintenanceTest(unittest.TestCase):
             self.assertEqual([item["event"] for item in exported["app_logs"]], ["new_event"])
 
     def test_list_phone_calls_filters_by_session(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             first_call_id = db.create_phone_call("twilio", "CA111", "+15550000001", "+15550000002")
             second_call_id = db.create_phone_call("twilio", "CA222", "+15550000003", "+15550000004")
@@ -102,7 +102,7 @@ class LogMaintenanceTest(unittest.TestCase):
             self.assertEqual([item["provider_call_id"] for item in phone_calls], ["CA222"])
 
     def test_phone_call_stores_business_hours_metadata(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
 
             db.create_phone_call(
@@ -128,7 +128,7 @@ class LogMaintenanceTest(unittest.TestCase):
             self.assertEqual(exported["business_hours_policy"], "after_hours_take_callback")
 
     def test_existing_phone_call_table_gets_business_hours_columns(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             path = Path(tmp) / "test.sqlite3"
             with sqlite3.connect(path) as connection:
                 connection.execute(

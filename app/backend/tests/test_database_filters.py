@@ -9,7 +9,7 @@ from voice_agent.storage.database import Database
 
 class DatabaseFilterTest(unittest.TestCase):
     def test_lists_filter_records_by_since_timestamp(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             db.create_session("old-session", "openai", "realtime", "stopped", "2026-05-08T00:00:00+00:00")
             db.create_session("new-session", "gemini", "realtime", "stopped", "2026-05-08T00:00:00+00:00")

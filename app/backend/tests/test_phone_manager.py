@@ -64,7 +64,7 @@ def create_manager(root: Path, tunnel: TunnelStatus) -> tuple[PhoneManager, EnvS
 
 class PhoneManagerTest(unittest.IsolatedAsyncioTestCase):
     async def test_status_marks_reprovision_required_when_tunnel_url_changes(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             manager, _env, _provider = create_manager(
                 Path(tmp),
                 TunnelStatus(
@@ -82,7 +82,7 @@ class PhoneManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Tunnel URL changed", status["reprovision_reason"])
 
     async def test_connect_reprovisions_changed_tunnel_url(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             manager, env, provider = create_manager(
                 Path(tmp),
                 TunnelStatus(
@@ -101,7 +101,7 @@ class PhoneManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(env.read()["PHONE_LAST_PROVISIONED_URL"], "https://new.trycloudflare.com")
 
     async def test_transfer_failure_creates_follow_up_task(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             manager, _env, _provider = create_manager(
                 Path(tmp),
                 TunnelStatus(

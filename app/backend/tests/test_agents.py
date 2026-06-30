@@ -9,7 +9,7 @@ from voice_agent.storage.database import DEFAULT_AGENT_SYSTEM_PROMPT, LEGACY_DEF
 
 class AgentsDatabaseTest(unittest.TestCase):
     def test_list_agents_returns_default_when_empty(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
 
             agents = db.list_agents()
@@ -19,7 +19,7 @@ class AgentsDatabaseTest(unittest.TestCase):
             self.assertEqual(db.get_active_agent()["system_prompt"], DEFAULT_AGENT_SYSTEM_PROMPT)
 
     def test_create_select_and_delete_agent_updates_active_agent(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
 
             default_agent = db.upsert_default_agent("Default prompt", "Default")
@@ -36,7 +36,7 @@ class AgentsDatabaseTest(unittest.TestCase):
             self.assertEqual({agent["id"] for agent in db.list_agents()}, {default_agent["id"], support_agent["id"]})
 
     def test_delete_last_agent_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             db.upsert_default_agent("Default prompt", "Default")
 
@@ -44,7 +44,7 @@ class AgentsDatabaseTest(unittest.TestCase):
                 db.delete_agent("default")
 
     def test_create_agent_preserves_initial_default_agent(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
 
             created = db.create_agent("Sales prompt", "Sales")
@@ -53,7 +53,7 @@ class AgentsDatabaseTest(unittest.TestCase):
             self.assertEqual({agent["id"] for agent in agents}, {"default", created["id"]})
 
     def test_legacy_default_prompt_migrates_to_current_template(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "test.sqlite3"
             db = Database(db_path)
             db.upsert_default_agent(LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT, "Default Agent")
@@ -63,7 +63,7 @@ class AgentsDatabaseTest(unittest.TestCase):
             self.assertEqual(migrated.get_agent("default")["system_prompt"], DEFAULT_AGENT_SYSTEM_PROMPT)
 
     def test_custom_default_prompt_is_not_migrated(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "test.sqlite3"
             db = Database(db_path)
             db.upsert_default_agent("Custom prompt", "Default Agent")

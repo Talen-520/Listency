@@ -10,7 +10,7 @@ from voice_agent.tools import ToolContext, build_default_registry
 
 class ToolRegistryTest(unittest.TestCase):
     def test_check_booking_capacity_returns_fixed_message(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             registry = build_default_registry()
 
@@ -27,7 +27,7 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertEqual(calls[0]["status"], "completed")
 
     def test_end_call_tool_logs_local_hangup_intent(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             registry = build_default_registry()
 
@@ -46,7 +46,7 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertEqual(calls[0]["status"], "completed")
 
     def test_create_booking_creates_follow_up_task(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             registry = build_default_registry()
 
@@ -65,7 +65,7 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertEqual(tasks[0]["caller_name"], "Mina")
 
     def test_restaurant_booking_request_tracks_missing_fields(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             db.set_business_info_sections({"business_type": "restaurant"})
             registry = build_default_registry()
@@ -85,7 +85,7 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertIn("Party Size: 4", task["summary"])
 
     def test_business_info_lookup_prefers_structured_category(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             db.upsert_business_profile("Parking is mentioned in old free text.", "Cafe")
             db.set_business_info_sections({"pricing": "Lunch starts at $18. Private dining starts at $75 per person."})
@@ -101,7 +101,7 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertIn("$18", result["answer"])
 
     def test_log_customer_request_creates_follow_up_task(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             registry = build_default_registry()
 
@@ -119,7 +119,7 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertEqual(db.list_follow_up_tasks(), [])
 
     def test_log_customer_request_can_create_callback_task(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")
             registry = build_default_registry()
 

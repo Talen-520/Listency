@@ -49,7 +49,7 @@ class FlakyProvider:
 
 class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
     async def test_session_times_out(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             env = EnvStore(root / ".env", root / ".env.example")
@@ -77,7 +77,7 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sessions[0]["status"], "timeout")
 
     async def test_stop_session_wakes_provider_event_waiters(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             env = EnvStore(root / ".env", root / ".env.example")
@@ -108,7 +108,7 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(event["ended_reason"], "user_stopped")
 
     async def test_provider_error_marks_session_error(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             env = EnvStore(root / ".env", root / ".env.example")
@@ -140,7 +140,7 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(tasks[0]["session_id"], session["id"])
 
     async def test_tool_call_ids_are_deduplicated(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             env = EnvStore(root / ".env", root / ".env.example")
@@ -164,7 +164,7 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(manager.mark_tool_call_handled(session["id"], "call_123"))
 
     async def test_agent_hangup_state_tracks_ready_once(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             env = EnvStore(root / ".env", root / ".env.example")
@@ -191,7 +191,7 @@ class SessionManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(manager.is_agent_hangup_ready(session["id"]))
 
     async def test_audio_send_failure_reconnects_provider_once(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             db = Database(root / "test.sqlite3")
             env = EnvStore(root / ".env", root / ".env.example")

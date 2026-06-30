@@ -9,7 +9,7 @@ from voice_agent.config.env_store import EnvStore
 
 class EnvStoreTest(unittest.TestCase):
     def test_ensure_files_creates_default_env_and_example(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             store = EnvStore(root / ".env", root / ".env.example")
 
@@ -22,7 +22,7 @@ class EnvStoreTest(unittest.TestCase):
             self.assertEqual(values["DEFAULT_REALTIME_PROVIDER"], "openai")
 
     def test_write_and_mask_public_config(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             store = EnvStore(Path(tmp) / ".env", Path(tmp) / ".env.example")
             store.write(
                 {
@@ -55,7 +55,7 @@ class EnvStoreTest(unittest.TestCase):
             self.assertNotIn("sk-test-123456", public["OPENAI_API_KEY"])
 
     def test_read_migrates_legacy_realtime_default_model(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             store = EnvStore(root / ".env", root / ".env.example")
             store.ensure_files()

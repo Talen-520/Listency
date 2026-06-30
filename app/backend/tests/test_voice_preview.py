@@ -11,7 +11,7 @@ from voice_agent.providers.openai_realtime import OpenAIRealtimeAdapter
 
 class VoicePreviewServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_ensure_preview_uses_existing_cache_without_api_key(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             cache_root = root / "previews"
             preview_file = cache_root / "openai" / "alloy.wav"
@@ -29,7 +29,7 @@ class VoicePreviewServiceTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["audio_url"], "/voice-previews/openai/alloy")
 
     async def test_rejects_unsupported_voice_before_remote_call(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             env = EnvStore(root / ".env", root / ".env.example")
             env.write({"OPENAI_API_KEY": "sk-test"})
@@ -39,7 +39,7 @@ class VoicePreviewServiceTest(unittest.IsolatedAsyncioTestCase):
                 await service.ensure_preview("openai", "not-a-voice")
 
     def test_cached_voices_lists_wav_stems(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             cache_root = root / "previews"
             (cache_root / "openai").mkdir(parents=True)
