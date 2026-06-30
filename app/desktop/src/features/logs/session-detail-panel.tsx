@@ -127,6 +127,18 @@ export function SessionDetailContent({
                 </p>
               </div>
             )}
+            {phoneCall && (
+              <div className="rounded-lg bg-muted/30 p-4">
+                <div className="flex items-center justify-between pb-2">
+                  <p className="text-sm font-medium text-muted-foreground">{t("businessHours.title", "Business Hours")}</p>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="break-words font-display text-sm font-semibold leading-snug tracking-normal">
+                  {translateStatus(phoneCall.business_hours_status || "not_tracked", t)}
+                  {phoneCall.business_hours_policy ? ` · ${translateStatus(phoneCall.business_hours_policy, t)}` : ""}
+                </p>
+              </div>
+            )}
             <div className="rounded-lg bg-muted/30 p-4">
               <div className="flex items-center justify-between pb-2">
                 <p className="text-sm font-medium text-muted-foreground">{t("common.started")}</p>

@@ -239,6 +239,10 @@ export type PhoneCallRecord = {
   session_id: string | null;
   from_number: string | null;
   to_number: string | null;
+  business_hours_status: string | null;
+  business_hours_policy: string | null;
+  business_hours_mode: string | null;
+  business_hours_reason: string | null;
   status: string;
   started_at: string;
   answered_at: string | null;

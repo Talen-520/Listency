@@ -200,6 +200,10 @@ class Database:
                   session_id TEXT,
                   from_number TEXT,
                   to_number TEXT,
+                  business_hours_status TEXT,
+                  business_hours_policy TEXT,
+                  business_hours_mode TEXT,
+                  business_hours_reason TEXT,
                   status TEXT NOT NULL,
                   started_at TEXT NOT NULL,
                   answered_at TEXT,
@@ -227,12 +231,28 @@ class Database:
                 );
                 """
             )
+            self._ensure_columns(
+                connection,
+                "phone_calls",
+                {
+                    "business_hours_status": "TEXT",
+                    "business_hours_policy": "TEXT",
+                    "business_hours_mode": "TEXT",
+                    "business_hours_reason": "TEXT",
+                },
+            )
             row = connection.execute("SELECT system_prompt FROM agents WHERE id = 'default'").fetchone()
             if row and row["system_prompt"] == LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT:
                 connection.execute(
                     "UPDATE agents SET system_prompt = ?, updated_at = ? WHERE id = 'default'",
                     (DEFAULT_AGENT_SYSTEM_PROMPT, utc_now()),
                 )
+
+    def _ensure_columns(self, connection: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+        existing = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})").fetchall()}
+        for name, definition in columns.items():
+            if name not in existing:
+                connection.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
 
     def set_setting(self, key: str, value: str) -> None:
         now = utc_now()
@@ -428,14 +448,37 @@ class Database:
                 (session_id, provider, mode, utc_now(), status, timeout_at),
             )
 
-    def create_phone_call(self, provider: str, provider_call_id: str, from_number: str = "", to_number: str = "") -> int:
+    def create_phone_call(
+        self,
+        provider: str,
+        provider_call_id: str,
+        from_number: str = "",
+        to_number: str = "",
+        business_hours: dict[str, Any] | None = None,
+    ) -> int:
+        business_hours = business_hours or {}
         with self.open_connection() as connection:
             cursor = connection.execute(
                 """
-                INSERT INTO phone_calls (provider, provider_call_id, from_number, to_number, status, started_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO phone_calls (
+                  provider, provider_call_id, from_number, to_number,
+                  business_hours_status, business_hours_policy, business_hours_mode, business_hours_reason,
+                  status, started_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (provider, provider_call_id, from_number, to_number, "starting", utc_now()),
+                (
+                    provider,
+                    provider_call_id,
+                    from_number,
+                    to_number,
+                    str(business_hours.get("status") or ""),
+                    str(business_hours.get("active_policy") or ""),
+                    str(business_hours.get("after_hours_mode") or ""),
+                    str(business_hours.get("reason") or ""),
+                    "starting",
+                    utc_now(),
+                ),
             )
             return int(cursor.lastrowid)
 
@@ -488,6 +531,7 @@ class Database:
             row = connection.execute(
                 """
                 SELECT id, provider, provider_call_id, provider_stream_id, session_id, from_number, to_number,
+                       business_hours_status, business_hours_policy, business_hours_mode, business_hours_reason,
                        status, started_at, answered_at, ended_at, ended_reason, error_message
                 FROM phone_calls
                 WHERE session_id = ?
@@ -507,6 +551,7 @@ class Database:
         since = normalize_timestamp_filter(since)
         query = """
                 SELECT id, provider, provider_call_id, provider_stream_id, session_id, from_number, to_number,
+                       business_hours_status, business_hours_policy, business_hours_mode, business_hours_reason,
                        status, started_at, answered_at, ended_at, ended_reason, error_message
                 FROM phone_calls
                 """
@@ -896,6 +941,7 @@ class Database:
             "phone_calls": self._list_export_rows(
                 """
                 SELECT id, provider, provider_call_id, provider_stream_id, session_id, from_number, to_number,
+                       business_hours_status, business_hours_policy, business_hours_mode, business_hours_reason,
                        status, started_at, answered_at, ended_at, ended_reason, error_message
                 FROM phone_calls
                 """,

@@ -418,7 +418,13 @@ async def telnyx_webhook(request: Request) -> dict[str, Any]:
                 to_number=to_number,
             )
         except PhoneConfigError as exc:
-            phone_call_id = db.create_phone_call("telnyx", call_control_id, from_number, to_number)
+            phone_call_id = db.create_phone_call(
+                "telnyx",
+                call_control_id,
+                from_number,
+                to_number,
+                business_hours=resolve_business_hours(db.get_business_hours()),
+            )
             db.update_phone_call_status(phone_call_id, "failed", ended_reason=EndReason.PROVIDER_ERROR, error_message=str(exc))
             db.add_log(
                 "error",

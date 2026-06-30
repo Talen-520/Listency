@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
 
 from voice_agent.storage.database import Database
@@ -99,6 +100,66 @@ class LogMaintenanceTest(unittest.TestCase):
             phone_calls = db.list_phone_calls(session_id="second-session")
 
             self.assertEqual([item["provider_call_id"] for item in phone_calls], ["CA222"])
+
+    def test_phone_call_stores_business_hours_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+
+            db.create_phone_call(
+                "twilio",
+                "CA333",
+                "+15550000005",
+                "+15550000006",
+                business_hours={
+                    "status": "closed",
+                    "active_policy": "after_hours_take_callback",
+                    "after_hours_mode": "take_callback",
+                    "reason": "Holiday closure",
+                },
+            )
+
+            phone_call = db.list_phone_calls()[0]
+            exported = db.export_log_data()["phone_calls"][0]
+
+            self.assertEqual(phone_call["business_hours_status"], "closed")
+            self.assertEqual(phone_call["business_hours_policy"], "after_hours_take_callback")
+            self.assertEqual(phone_call["business_hours_mode"], "take_callback")
+            self.assertEqual(phone_call["business_hours_reason"], "Holiday closure")
+            self.assertEqual(exported["business_hours_policy"], "after_hours_take_callback")
+
+    def test_existing_phone_call_table_gets_business_hours_columns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "test.sqlite3"
+            with sqlite3.connect(path) as connection:
+                connection.execute(
+                    """
+                    CREATE TABLE phone_calls (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      provider TEXT NOT NULL,
+                      provider_call_id TEXT NOT NULL,
+                      provider_stream_id TEXT,
+                      session_id TEXT,
+                      from_number TEXT,
+                      to_number TEXT,
+                      status TEXT NOT NULL,
+                      started_at TEXT NOT NULL,
+                      answered_at TEXT,
+                      ended_at TEXT,
+                      ended_reason TEXT,
+                      error_message TEXT
+                    )
+                    """
+                )
+
+            Database(path)
+
+            with sqlite3.connect(path) as connection:
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(phone_calls)").fetchall()}
+
+            self.assertIn("business_hours_status", columns)
+            self.assertIn("business_hours_policy", columns)
+            self.assertIn("business_hours_mode", columns)
+            self.assertIn("business_hours_reason", columns)
 
 
 if __name__ == "__main__":

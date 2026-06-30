@@ -339,6 +339,19 @@ export function LogsView({
                 cell: (item) => <Badge tone={item.status === "failed" ? "red" : "neutral"}>{translateStatus(item.status, t)}</Badge>,
               },
               {
+                heading: t("businessHours.title", "Business Hours"),
+                cell: (item) => (
+                  <Badge tone={item.business_hours_status === "closed" ? "neutral" : "cyan"}>
+                    {translateStatus(item.business_hours_status || "not_tracked", t)}
+                  </Badge>
+                ),
+              },
+              {
+                heading: t("common.policy", "Policy"),
+                className: "max-w-[14rem] truncate text-muted-foreground",
+                cell: (item) => translateStatus(item.business_hours_policy || item.business_hours_mode, t),
+              },
+              {
                 heading: t("common.endReason"),
                 cell: (item) => translateStatus(item.ended_reason, t),
               },

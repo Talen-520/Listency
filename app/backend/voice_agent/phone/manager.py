@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from voice_agent.config.env_store import EnvStore
+from voice_agent.core.business_hours import resolve_business_hours
 from voice_agent.core.session_manager import SessionManager
 from voice_agent.phone.base import PhoneConfigError, PhoneProviderAdapter, PhoneProvisionResult
 from voice_agent.phone.telnyx import TelnyxPhoneAdapter
@@ -136,11 +137,13 @@ class PhoneManager:
     ) -> dict[str, Any]:
         env = self.env_store.read()
         realtime_provider = env.get("PHONE_REALTIME_PROVIDER") or env.get("DEFAULT_REALTIME_PROVIDER") or None
+        business_hours_status = resolve_business_hours(self.db.get_business_hours())
         phone_call_id = self.db.create_phone_call(
             provider=phone_provider,
             provider_call_id=provider_call_id,
             from_number=from_number,
             to_number=to_number,
+            business_hours=business_hours_status,
         )
         try:
             session = await self.session_manager.start_phone_session(

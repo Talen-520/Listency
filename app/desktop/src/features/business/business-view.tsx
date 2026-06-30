@@ -1,4 +1,4 @@
-import { CalendarClock, Database, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Database, Plus, Sparkles, Trash2 } from "lucide-react";
 
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
@@ -141,6 +141,17 @@ export function BusinessView({
   };
 
   const fieldMeta = getBusinessInfoFieldMeta(businessInfoSections.business_type, t);
+  const bookingRequirements = getBookingRequirementItems(businessInfoSections.business_type, t);
+  const applyBusinessInfoTemplate = () => {
+    const template = getBusinessInfoTemplate(businessInfoSections.business_type, t);
+    const nextSections = { ...businessInfoSections };
+    for (const key of businessInfoFieldKeys) {
+      if (!nextSections[key].trim()) {
+        nextSections[key] = template[key];
+      }
+    }
+    onBusinessInfoSectionsChange(nextSections);
+  };
 
   return (
     <div className="space-y-6">
@@ -153,29 +164,58 @@ export function BusinessView({
         <Field label={t("business.name")}>
           <Input value={business.name} onChange={(event) => onBusinessChange({ ...business, name: event.target.value })} />
         </Field>
-        <Field label={t("businessSections.businessType", "Business Type")}>
-          <Select
-            value={businessInfoSections.business_type}
-            onValueChange={(value) =>
-              onBusinessInfoSectionsChange({
-                ...businessInfoSections,
-                business_type: value as BusinessInfoSections["business_type"],
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {businessTypeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {t(option.labelKey, option.fallback)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <p className="text-sm text-muted-foreground">{t("businessSections.typeHint", "Choose the closest business type to tailor examples and required details.")}</p>
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <Field label={t("businessSections.businessType", "Business Type")}>
+            <Select
+              value={businessInfoSections.business_type}
+              onValueChange={(value) =>
+                onBusinessInfoSectionsChange({
+                  ...businessInfoSections,
+                  business_type: value as BusinessInfoSections["business_type"],
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {businessTypeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {t(option.labelKey, option.fallback)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Button variant="outline" onClick={applyBusinessInfoTemplate}>
+            <Sparkles className="h-4 w-4" />
+            {t("action.applyTemplate", "Apply Template")}
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {t("businessSections.typeHint", "Choose the closest business type to tailor examples and required details. Templates fill empty fields only.")}
+        </p>
+        <div className="rounded-lg bg-muted/40 p-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h3 className="text-sm font-medium">{t("businessSections.bookingChecklistTitle", "Booking Request Checklist")}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  "businessSections.bookingChecklistDescription",
+                  "Listency should collect these details before saving a request. Staff still confirms final availability.",
+                )}
+              </p>
+            </div>
+            <div className="text-sm text-muted-foreground">{t("businessSections.requestCaptureOnly", "Request capture only")}</div>
+          </div>
+          <ul className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {bookingRequirements.map((item) => (
+              <li key={item} className="rounded-full bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           {businessInfoFieldKeys.slice(0, 6).map((key) => (
             <StructuredField
@@ -471,4 +511,52 @@ function getBusinessInfoFieldMeta(type: BusinessInfoSections["business_type"], t
     },
   };
   return meta;
+}
+
+function getBusinessInfoTemplate(type: BusinessInfoSections["business_type"], t: (key: string, fallback?: string) => string) {
+  const suffix = type === "general" ? "general" : type;
+  const template: Record<BusinessInfoFieldKey, string> = {
+    location: t(
+      `businessTemplates.${suffix}.location`,
+      "Business name:\nStreet address:\nNeighborhood or service area:\nEntrance or pickup instructions:\nNearby landmarks:",
+    ),
+    services: t(
+      `businessTemplates.${suffix}.services`,
+      "Main services:\nPopular requests:\nWhat customers should know before booking:\nWhat the assistant should recommend first:",
+    ),
+    pricing: t(
+      `businessTemplates.${suffix}.pricing`,
+      "Typical price range:\nRequired deposits or fees:\nTaxes or service charges:\nWhen staff must confirm exact pricing:",
+    ),
+    booking_rules: t(
+      `businessTemplates.${suffix}.bookingRules`,
+      "Required details to collect:\nName, phone, requested date/time, service or party size, special notes.\nImportant: record requests only; staff confirms final availability.",
+    ),
+    policies: t(
+      `businessTemplates.${suffix}.policies`,
+      "Cancellation policy:\nLate arrival policy:\nRefund or deposit policy:\nRequests that should be transferred to staff:",
+    ),
+    faq: t(
+      `businessTemplates.${suffix}.faq`,
+      "Q: What are your hours?\nA:\n\nQ: Do I need a reservation?\nA:\n\nQ: Can I speak with a person?\nA:",
+    ),
+    parking_accessibility: t(
+      `businessTemplates.${suffix}.parkingAccessibility`,
+      "Parking:\nPublic transit:\nAccessible entrance:\nElevator or stairs:\nOther arrival notes:",
+    ),
+  };
+  return template;
+}
+
+function getBookingRequirementItems(type: BusinessInfoSections["business_type"], t: (key: string, fallback?: string) => string) {
+  const suffix = type === "general" ? "general" : type;
+  const fallback = [
+    "Customer name",
+    "Phone number",
+    "Requested date/time",
+    "Service or request type",
+    "Special notes",
+    "Staff confirmation required",
+  ];
+  return fallback.map((item, index) => t(`businessChecklist.${suffix}.${index + 1}`, item));
 }
