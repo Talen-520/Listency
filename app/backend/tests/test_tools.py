@@ -179,6 +179,51 @@ class ToolRegistryTest(unittest.TestCase):
             self.assertIn("service", result["collected_fields"])
             self.assertIn("Validation: complete", task["summary"])
 
+    def test_confirmed_slot_request_keeps_manual_calendar_staff_review_boundary(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db = Database(Path(tmp) / "test.sqlite3")
+            db.set_business_info_sections({"business_type": "appointment"})
+            db.set_calendar_availability(
+                {
+                    "slots": [
+                        {
+                            "id": "slot-saturday-10am",
+                            "label": "Saturday 10 AM haircut",
+                            "start": "2026-07-04T10:00",
+                            "end": "2026-07-04T10:30",
+                        }
+                    ]
+                }
+            )
+            registry = build_default_registry()
+
+            result = registry.call(
+                "create_booking",
+                {
+                    "customer_name": "Ari",
+                    "phone_number": "+15551234567",
+                    "service": "Haircut",
+                    "requested_date": "Saturday",
+                    "requested_time": "10 AM",
+                    "slot_id": "slot-saturday-10am",
+                    "caller_confirmed": True,
+                    "idempotency_key": "session-1:slot-saturday-10am",
+                },
+                ToolContext(db=db, session_id="session-1"),
+            )
+
+            task = db.list_follow_up_tasks()[0]
+
+            self.assertEqual(result["confirmation_status"], "request_captured_not_confirmed")
+            self.assertEqual(result["validation_status"], "complete")
+            self.assertEqual(result["slot_id"], "slot-saturday-10am")
+            self.assertTrue(result["caller_confirmed"])
+            self.assertEqual(result["calendar_booking"]["status"], "not_supported")
+            self.assertEqual(result["calendar_booking"]["confirmation_status"], "request_capture_required")
+            self.assertEqual(result["calendar_booking"]["idempotency_key"], "session-1:slot-saturday-10am")
+            self.assertIn("Selected slot: slot-saturday-10am", task["summary"])
+            self.assertIn("Calendar confirmation: request_capture_required", task["summary"])
+
     def test_hotel_booking_request_requires_room_preference(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(Path(tmp) / "test.sqlite3")

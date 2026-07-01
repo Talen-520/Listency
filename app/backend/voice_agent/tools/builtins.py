@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from voice_agent.calendar import AvailabilityRequest, ManualCalendarAdapter
+from voice_agent.calendar import AvailabilityRequest, BookingRequest, ManualCalendarAdapter
 from voice_agent.tools.registry import ToolContext, ToolDefinition, ToolRegistry
 
 BOOKING_FIELD_REQUIREMENTS = {
@@ -72,6 +72,19 @@ def create_booking(payload: dict[str, Any], context: ToolContext) -> dict[str, A
     missing_field_labels = [BOOKING_FIELD_LABELS.get(field, field.replace("_", " ").title()) for field in missing_fields]
     validation_status = "needs_follow_up" if missing_fields else "complete"
     structured_details = _booking_details_for_summary(business_type, payload)
+    slot_id = str(payload.get("slot_id") or "").strip()
+    caller_confirmed = bool(payload.get("caller_confirmed"))
+    idempotency_key = str(payload.get("idempotency_key") or "").strip()
+    calendar_booking = _calendar_booking_attempt(
+        context,
+        customer_name=customer_name,
+        phone_number=str(payload.get("phone_number") or "").strip(),
+        slot_id=slot_id,
+        notes=notes,
+        idempotency_key=idempotency_key,
+        caller_confirmed=caller_confirmed,
+        validation_status=validation_status,
+    )
     summary_parts = [
         f"Business type: {business_type}",
         "Confirmation status: request captured; staff must confirm final availability",
@@ -79,6 +92,10 @@ def create_booking(payload: dict[str, Any], context: ToolContext) -> dict[str, A
         f"Requested time: {booking_time}",
         *structured_details,
     ]
+    if slot_id:
+        summary_parts.append(f"Selected slot: {slot_id}")
+    if calendar_booking:
+        summary_parts.append(f"Calendar confirmation: {calendar_booking.get('confirmation_status', calendar_booking.get('status', 'unknown'))}")
     if notes:
         summary_parts.append(f"Notes: {notes}")
     if missing_fields:
@@ -92,7 +109,7 @@ def create_booking(payload: dict[str, Any], context: ToolContext) -> dict[str, A
         priority="high",
         caller_name=customer_name,
         caller_phone=str(payload.get("phone_number") or "").strip(),
-        source_event="create_booking",
+        source_event=f"create_booking:{idempotency_key}" if idempotency_key else "create_booking",
     )
     return {
         "booking": booking,
@@ -105,6 +122,10 @@ def create_booking(payload: dict[str, Any], context: ToolContext) -> dict[str, A
         "collected_fields": collected_fields,
         "missing_fields": missing_fields,
         "missing_field_labels": missing_field_labels,
+        "slot_id": slot_id,
+        "caller_confirmed": caller_confirmed,
+        "idempotency_key": idempotency_key,
+        "calendar_booking": calendar_booking,
         "message": _booking_message(missing_field_labels),
     }
 
@@ -157,6 +178,55 @@ def _booking_details_for_summary(business_type: str, payload: dict[str, Any]) ->
         if value:
             details.append(f"{field.replace('_', ' ').title()}: {value}")
     return details
+
+
+def _calendar_booking_attempt(
+    context: ToolContext,
+    *,
+    customer_name: str,
+    phone_number: str,
+    slot_id: str,
+    notes: str,
+    idempotency_key: str,
+    caller_confirmed: bool,
+    validation_status: str,
+) -> dict[str, Any]:
+    if not slot_id:
+        return {
+            "adapter": "manual",
+            "status": "not_attempted",
+            "confirmation_status": "no_slot_selected",
+            "message": "No exact calendar slot was selected, so the request stays staff-review only.",
+        }
+    if not caller_confirmed:
+        return {
+            "adapter": "manual",
+            "status": "not_attempted",
+            "confirmation_status": "caller_confirmation_required",
+            "slot_id": slot_id,
+            "idempotency_key": idempotency_key,
+            "message": "Caller confirmation is required before a calendar adapter may create a booking.",
+        }
+    if validation_status != "complete":
+        return {
+            "adapter": "manual",
+            "status": "not_attempted",
+            "confirmation_status": "missing_required_fields",
+            "slot_id": slot_id,
+            "idempotency_key": idempotency_key,
+            "message": "Required booking details are missing, so the request stays staff-review only.",
+        }
+
+    adapter = ManualCalendarAdapter.from_payload(context.db.get_calendar_availability())
+    return adapter.create_booking(
+        BookingRequest(
+            customer_name=customer_name,
+            slot_id=slot_id,
+            contact=phone_number,
+            notes=notes,
+            idempotency_key=idempotency_key,
+        )
+    )
 
 
 def transfer_call(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
@@ -365,6 +435,18 @@ def build_default_registry() -> ToolRegistry:
                         "special_requests": {
                             "type": "string",
                             "description": "Special notes, allergies, accessibility needs, room preferences, or other request details.",
+                        },
+                        "slot_id": {
+                            "type": "string",
+                            "description": "Exact candidate slot id selected from check_availability, when the caller chooses one.",
+                        },
+                        "caller_confirmed": {
+                            "type": "boolean",
+                            "description": "True only after the caller explicitly confirms the exact selected slot and details.",
+                        },
+                        "idempotency_key": {
+                            "type": "string",
+                            "description": "Stable key for a specific confirmed-slot attempt, used by future calendar adapters to avoid duplicate events.",
                         },
                         "notes": {
                             "type": "string",
