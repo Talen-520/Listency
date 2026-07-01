@@ -89,6 +89,8 @@ class PublicTunnelManager:
         if self._process and self._process.poll() is not None:
             self._process = None
             self._public_base_url = ""
+            self._reader_thread = None
+            self._last_message = "Automatic secure connection stopped unexpectedly. Click Connect Phone to reconnect."
         return TunnelStatus(
             mode="automatic",
             status="stopped",
