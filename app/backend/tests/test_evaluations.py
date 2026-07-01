@@ -16,12 +16,16 @@ class AgentEvaluationTest(unittest.TestCase):
             db = Database(Path(tmp) / "test.sqlite3")
 
             run = run_agent_evaluation(db)
+            scenario_ids = {scenario.id for scenario in default_evaluation_scenarios()}
 
             self.assertEqual(run["status"], "passed")
             self.assertEqual(run["scenario_count"], len(default_evaluation_scenarios()))
             self.assertEqual(run["failed_count"], 0)
             self.assertTrue(run["uses_scratch_database"])
             self.assertEqual(len(run["results"]), len(default_evaluation_scenarios()))
+            self.assertIn("transfer_request_logs_intent", scenario_ids)
+            self.assertIn("abusive_caller_uses_end_call", scenario_ids)
+            self.assertIn("provider_outage_creates_owner_task", scenario_ids)
             self.assertEqual(db.list_follow_up_tasks(), [])
             self.assertEqual(db.list_tool_calls(), [])
 

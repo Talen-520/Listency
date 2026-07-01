@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from voice_agent.core.remediation import realtime_provider_remediation
 from voice_agent.storage.database import Database
 from voice_agent.tools import ToolContext, build_default_registry
 
@@ -52,6 +53,24 @@ def default_evaluation_scenarios() -> list[EvaluationScenario]:
             title="Callback request creates follow-up task",
             description="Checks that unresolved callback requests are saved for owner review.",
             run=_scenario_callback_request_task,
+        ),
+        EvaluationScenario(
+            id="transfer_request_logs_intent",
+            title="Transfer request logs staff handoff intent",
+            description="Checks that transfer requests call the transfer tool and record the target staff handoff.",
+            run=_scenario_transfer_request_logs_intent,
+        ),
+        EvaluationScenario(
+            id="abusive_caller_uses_end_call",
+            title="Abusive caller guardrail ends safely",
+            description="Checks that abusive or unsafe caller behavior routes to end_call instead of continuing indefinitely.",
+            run=_scenario_abusive_caller_uses_end_call,
+        ),
+        EvaluationScenario(
+            id="provider_outage_creates_owner_task",
+            title="Provider outage creates owner follow-up",
+            description="Checks that provider failures create an owner-readable follow-up task with remediation steps.",
+            run=_scenario_provider_outage_creates_owner_task,
         ),
         EvaluationScenario(
             id="goodbye_uses_end_call",
@@ -250,6 +269,69 @@ def _scenario_callback_request_task(db: Database) -> dict[str, Any]:
         "request_type": result.get("request_type"),
         "task_type": task.get("type"),
         "task_status": task.get("status"),
+    }
+
+
+def _scenario_transfer_request_logs_intent(db: Database) -> dict[str, Any]:
+    result = _call_tool(
+        db,
+        "transfer_request_logs_intent",
+        "transfer_call",
+        {
+            "target": "front desk manager",
+            "reason": "Caller asked for a manager about a billing dispute.",
+        },
+    )
+    logs = db.list_logs(limit=5)
+    _assert(result.get("status") == "pending_phone_transfer", "Expected transfer request to stay pending for active phone bridge.")
+    _assert(result.get("target") == "front desk manager", "Expected transfer target to be preserved.")
+    _assert(any(log["event"] == "transfer_call_requested" for log in logs), "Expected transfer_call_requested app log.")
+    return {
+        "status": result.get("status"),
+        "target": result.get("target"),
+        "log_events": [log["event"] for log in logs],
+    }
+
+
+def _scenario_abusive_caller_uses_end_call(db: Database) -> dict[str, Any]:
+    result = _call_tool(
+        db,
+        "abusive_caller_uses_end_call",
+        "end_call",
+        {
+            "reason": "Caller became abusive after a warning.",
+            "goodbye_message": "I cannot continue this call. Goodbye.",
+        },
+    )
+    logs = db.list_logs(limit=5)
+    _assert(result.get("status") == "ending_after_goodbye", "Expected abusive caller flow to request final goodbye.")
+    _assert("cannot continue" in str(result.get("goodbye_message", "")).lower(), "Expected guardrail goodbye message.")
+    _assert(any(log["event"] == "agent_hangup_requested" for log in logs), "Expected agent_hangup_requested app log.")
+    return {
+        "status": result.get("status"),
+        "goodbye_message": result.get("goodbye_message"),
+        "log_events": [log["event"] for log in logs],
+    }
+
+
+def _scenario_provider_outage_creates_owner_task(db: Database) -> dict[str, Any]:
+    summary = realtime_provider_remediation("OpenAI Realtime websocket closed during an active customer call.")
+    task = db.create_follow_up_task_once(
+        type="provider_failure",
+        title="Realtime provider issue",
+        summary=summary,
+        session_id="eval-provider-outage",
+        priority="high",
+        source_event="session_provider_error",
+    )
+    _assert(task["type"] == "provider_failure", "Expected provider_failure follow-up task.")
+    _assert(task["priority"] == "high", "Expected provider outage task to be high priority.")
+    _assert("What happened:" in task["summary"], "Expected owner-readable failure summary.")
+    _assert("Suggested next steps:" in task["summary"], "Expected owner-readable remediation steps.")
+    return {
+        "task_type": task["type"],
+        "task_priority": task["priority"],
+        "summary_preview": task["summary"][:180],
     }
 
 
