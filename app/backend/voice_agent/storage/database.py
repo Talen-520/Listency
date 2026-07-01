@@ -229,6 +229,17 @@ class Database:
                   updated_at TEXT NOT NULL,
                   completed_at TEXT
                 );
+
+                CREATE TABLE IF NOT EXISTS agent_evaluations (
+                  id TEXT PRIMARY KEY,
+                  status TEXT NOT NULL,
+                  scenario_count INTEGER NOT NULL,
+                  passed_count INTEGER NOT NULL,
+                  failed_count INTEGER NOT NULL,
+                  duration_ms INTEGER NOT NULL,
+                  results_json TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                );
                 """
             )
             self._ensure_columns(
@@ -907,6 +918,82 @@ class Database:
         with self.open_connection() as connection:
             connection.execute("DELETE FROM follow_up_tasks WHERE id = ?", (task_id,))
         return task
+
+    def create_agent_evaluation(self, run: dict[str, Any]) -> dict[str, Any]:
+        now = utc_now()
+        run_id = str(run.get("id") or f"eval_{uuid.uuid4().hex}")
+        with self.open_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO agent_evaluations (
+                  id, status, scenario_count, passed_count, failed_count, duration_ms, results_json, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    str(run.get("status") or "failed"),
+                    int(run.get("scenario_count") or 0),
+                    int(run.get("passed_count") or 0),
+                    int(run.get("failed_count") or 0),
+                    int(run.get("duration_ms") or 0),
+                    json.dumps(
+                        {
+                            "uses_scratch_database": bool(run.get("uses_scratch_database")),
+                            "results": run.get("results", []),
+                        },
+                        ensure_ascii=False,
+                    ),
+                    now,
+                ),
+            )
+        evaluation = self.get_agent_evaluation(run_id)
+        assert evaluation is not None
+        return evaluation
+
+    def get_agent_evaluation(self, run_id: str) -> dict[str, Any] | None:
+        with self.open_connection() as connection:
+            row = connection.execute(
+                """
+                SELECT id, status, scenario_count, passed_count, failed_count, duration_ms, results_json, created_at
+                FROM agent_evaluations
+                WHERE id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+        return self._agent_evaluation_from_row(row, include_results=True) if row else None
+
+    def list_agent_evaluations(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self.open_connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, status, scenario_count, passed_count, failed_count, duration_ms, results_json, created_at
+                FROM agent_evaluations
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [self._agent_evaluation_from_row(row, include_results=False) for row in rows]
+
+    def _agent_evaluation_from_row(self, row: sqlite3.Row, *, include_results: bool) -> dict[str, Any]:
+        try:
+            results_payload = json.loads(str(row["results_json"] or "{}"))
+        except json.JSONDecodeError:
+            results_payload = {}
+        evaluation = {
+            "id": row["id"],
+            "status": row["status"],
+            "scenario_count": row["scenario_count"],
+            "passed_count": row["passed_count"],
+            "failed_count": row["failed_count"],
+            "duration_ms": row["duration_ms"],
+            "uses_scratch_database": bool(results_payload.get("uses_scratch_database")),
+            "created_at": row["created_at"],
+        }
+        if include_results:
+            evaluation["results"] = results_payload.get("results", [])
+        return evaluation
 
     def add_log(self, level: str, event: str, message: str, metadata: dict[str, Any] | None = None) -> None:
         with self.open_connection() as connection:

@@ -16,6 +16,7 @@ from voice_agent.core.business_hours import WEEKDAYS, default_business_hours, re
 from voice_agent.core.session_manager import SessionManager
 from voice_agent.core.state import EndReason
 from voice_agent.core.voice_preview import DEFAULT_PREVIEW_TEXT, VoicePreviewService
+from voice_agent.evaluations import default_evaluation_scenarios, run_agent_evaluation
 from voice_agent.phone import PhoneManager
 from voice_agent.phone.base import PhoneConfigError
 from voice_agent.phone.telnyx import TelnyxPhoneAdapter
@@ -121,6 +122,10 @@ class VoicePreviewRequest(BaseModel):
 
 class LogPruneRequest(BaseModel):
     retention_days: int = Field(default=30, ge=1, le=3650)
+
+
+class AgentEvaluationRunRequest(BaseModel):
+    scenario_ids: list[str] = Field(default_factory=list)
 
 
 class FollowUpTaskStatusUpdate(BaseModel):
@@ -1095,6 +1100,32 @@ async def export_diagnostics() -> dict[str, Any]:
             "app_logs": [_safe_json_record(record) for record in recent_app_logs],
         },
     }
+
+
+@app.get("/evaluations/scenarios")
+async def list_evaluation_scenarios() -> dict[str, Any]:
+    return {"scenarios": [scenario.public_dict() for scenario in default_evaluation_scenarios()]}
+
+
+@app.post("/evaluations/run")
+async def run_evaluations(request: AgentEvaluationRunRequest) -> dict[str, Any]:
+    try:
+        return {"run": run_agent_evaluation(db, request.scenario_ids or None)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/evaluations/runs")
+async def list_evaluation_runs(limit: int = 20) -> dict[str, Any]:
+    return {"runs": db.list_agent_evaluations(limit)}
+
+
+@app.get("/evaluations/runs/{run_id}")
+async def get_evaluation_run(run_id: str) -> dict[str, Any]:
+    run = db.get_agent_evaluation(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Evaluation run not found.")
+    return {"run": run}
 
 
 @app.post("/logs/prune")
