@@ -119,7 +119,16 @@ class PhoneManager:
         provider_key: str,
         tunnel: TunnelStatus,
     ) -> PhoneProvisionResult:
-        result = await self._provider(provider_key).provision(env, tunnel)
+        try:
+            result = await self._provider(provider_key).provision(env, tunnel)
+        except Exception as exc:
+            self.db.add_log(
+                "error",
+                "phone_provision_failed",
+                str(exc),
+                {"provider": provider_key, "public_base_url": tunnel.public_base_url},
+            )
+            raise
         self.env_store.write(
             {
                 "PHONE_LAST_PROVISIONED_URL": tunnel.public_base_url,

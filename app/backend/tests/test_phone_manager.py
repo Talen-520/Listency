@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from voice_agent.config.env_store import EnvStore
-from voice_agent.phone.base import PhoneProvisionResult
+from voice_agent.phone.base import PhoneConfigError, PhoneProvisionResult
 from voice_agent.phone.manager import PhoneManager
 from voice_agent.storage.database import Database
 from voice_agent.tunnel import TunnelStatus
@@ -42,6 +43,12 @@ class FakePhoneProvider:
             inbound_url=f"{tunnel.public_base_url}/phone/twilio/inbound",
             media_url=f"{tunnel.public_ws_url}/phone/twilio/media",
         )
+
+
+class FailingPhoneProvider(FakePhoneProvider):
+    async def provision(self, env: dict[str, str], tunnel: TunnelStatus) -> PhoneProvisionResult:
+        self.provision_count += 1
+        raise PhoneConfigError("Twilio API request failed: unauthorized")
 
 
 def create_manager(root: Path, tunnel: TunnelStatus) -> tuple[PhoneManager, EnvStore, FakePhoneProvider]:
@@ -99,6 +106,33 @@ class PhoneManagerTest(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(result["phone"]["configured"])
             self.assertFalse(result["phone"]["reprovision_required"])
             self.assertEqual(env.read()["PHONE_LAST_PROVISIONED_URL"], "https://new.trycloudflare.com")
+
+    async def test_connect_failure_logs_error_without_updating_last_provisioned_url(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            manager, env, _provider = create_manager(
+                Path(tmp),
+                TunnelStatus(
+                    mode="automatic",
+                    status="running",
+                    public_base_url="https://new.trycloudflare.com",
+                    public_ws_url="wss://new.trycloudflare.com",
+                ),
+            )
+            failing_provider = FailingPhoneProvider()
+            manager.providers = {"twilio": failing_provider}  # type: ignore[dict-item]
+
+            with self.assertRaises(PhoneConfigError):
+                await manager.connect()
+
+            logs = manager.db.list_logs(limit=5)
+            self.assertEqual(failing_provider.provision_count, 1)
+            self.assertEqual(env.read()["PHONE_LAST_PROVISIONED_URL"], "https://old.trycloudflare.com")
+            self.assertTrue(manager.status()["reprovision_required"])
+            self.assertEqual(logs[0]["event"], "phone_provision_failed")
+            self.assertEqual(logs[0]["level"], "error")
+            self.assertIn("Twilio API request failed", logs[0]["message"])
+            metadata = json.loads(logs[0]["metadata_json"])
+            self.assertEqual(metadata["public_base_url"], "https://new.trycloudflare.com")
 
     async def test_transfer_failure_creates_follow_up_task(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
