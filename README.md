@@ -68,7 +68,7 @@ Listency runs locally on macOS and Windows. API keys, business information, tran
 - Microphone test mode before connecting a real phone number
 - Multilingual voice conversations, depending on the selected AI provider and model
 - Local business knowledge base for hours, services, pricing, policies, FAQs, and booking rules
-- Booking detail collection with missing-info checks and staff confirmation boundaries
+- Booking detail collection with candidate availability checks, missing-info checks, and staff confirmation boundaries
 - Call transfer support for conversations that need a human
 - AI-ended calls when the conversation is complete
 - Follow-up inbox and optional desktop alerts for tasks that need owner attention

@@ -6,6 +6,8 @@ import type {
   BusinessHoursConfig,
   BusinessHoursPayload,
   BusinessInfoSections,
+  CalendarAvailability,
+  CalendarAvailabilityPayload,
   DiagnosticsExport,
   FollowUpTask,
   LogClearResult,
@@ -176,6 +178,12 @@ export const api = {
   businessInfoSections: () => request<{ sections: BusinessInfoSections }>("/business-info-sections"),
   saveBusinessInfoSections: (payload: BusinessInfoSections) =>
     request<{ sections: BusinessInfoSections }>("/business-info-sections", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  calendarAvailability: () => request<CalendarAvailabilityPayload>("/calendar-availability"),
+  saveCalendarAvailability: (payload: CalendarAvailability) =>
+    request<CalendarAvailabilityPayload>("/calendar-availability", {
       method: "PUT",
       body: JSON.stringify(payload),
     }),

@@ -81,6 +81,20 @@ class BusinessInfoSectionsUpdate(BaseModel):
     parking_accessibility: str = ""
 
 
+class CalendarAvailabilitySlotUpdate(BaseModel):
+    id: str = ""
+    label: str = ""
+    start: str = ""
+    end: str = ""
+    capacity: int | None = Field(default=None, ge=0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CalendarAvailabilityUpdate(BaseModel):
+    adapter: str = Field(default="manual", pattern="^manual$")
+    slots: list[CalendarAvailabilitySlotUpdate] = Field(default_factory=list)
+
+
 class AgentUpdate(BaseModel):
     name: str = "Default Agent"
     system_prompt: str = ""
@@ -874,6 +888,16 @@ async def get_business_info_sections() -> dict[str, Any]:
 @app.put("/business-info-sections")
 async def save_business_info_sections(update: BusinessInfoSectionsUpdate) -> dict[str, Any]:
     return {"sections": db.set_business_info_sections(update.model_dump())}
+
+
+@app.get("/calendar-availability")
+async def get_calendar_availability() -> dict[str, Any]:
+    return {"availability": db.get_calendar_availability()}
+
+
+@app.put("/calendar-availability")
+async def save_calendar_availability(update: CalendarAvailabilityUpdate) -> dict[str, Any]:
+    return {"availability": db.set_calendar_availability(update.model_dump())}
 
 
 @app.get("/follow-up-tasks")

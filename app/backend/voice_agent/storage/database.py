@@ -336,10 +336,30 @@ class Database:
         }
 
     def set_calendar_availability(self, payload: dict[str, Any]) -> dict[str, Any]:
-        slots = payload.get("slots", [])
+        slots: list[dict[str, Any]] = []
+        for index, raw_slot in enumerate(payload.get("slots", [])):
+            if not isinstance(raw_slot, dict):
+                continue
+            label = str(raw_slot.get("label") or "").strip()
+            if not label:
+                continue
+            capacity = raw_slot.get("capacity")
+            normalized_capacity: int | None = None
+            if isinstance(capacity, (int, float)) and capacity >= 0:
+                normalized_capacity = int(capacity)
+            slots.append(
+                {
+                    "id": str(raw_slot.get("id") or f"manual-{index + 1}"),
+                    "label": label,
+                    "start": str(raw_slot.get("start") or ""),
+                    "end": str(raw_slot.get("end") or ""),
+                    "capacity": normalized_capacity,
+                    "metadata": raw_slot.get("metadata") if isinstance(raw_slot.get("metadata"), dict) else {},
+                }
+            )
         normalized = {
             "adapter": str(payload.get("adapter") or "manual"),
-            "slots": slots if isinstance(slots, list) else [],
+            "slots": slots,
         }
         self.set_setting("calendar_availability", json.dumps(normalized, ensure_ascii=False))
         return normalized

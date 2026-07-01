@@ -184,6 +184,24 @@ export type BusinessInfoSections = {
   parking_accessibility: string;
 };
 
+export type CalendarAvailabilitySlot = {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
+  capacity: number | null;
+  metadata?: Record<string, unknown>;
+};
+
+export type CalendarAvailability = {
+  adapter: "manual";
+  slots: CalendarAvailabilitySlot[];
+};
+
+export type CalendarAvailabilityPayload = {
+  availability: CalendarAvailability;
+};
+
 export type AgentProfile = {
   id: string;
   name: string;

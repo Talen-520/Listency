@@ -14,7 +14,7 @@ import { ApiKeyHelp } from "@/features/settings/api-key-help";
 import { VoiceHelp } from "@/features/settings/voice-help";
 import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
 import { DEFAULT_OPENAI_REALTIME_MODEL, geminiLiveModelOptions } from "@/lib/models";
-import type { PhoneStatus, PublicConfig, TwilioDebuggerAlert, VoicePreviewCache } from "@/lib/types";
+import type { CalendarAvailability, CalendarAvailabilitySlot, PhoneStatus, PublicConfig, TwilioDebuggerAlert, VoicePreviewCache } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isSupportedVoice, type VoiceOption, voiceOptionsForProvider } from "@/lib/voices";
 
@@ -491,6 +491,7 @@ export function SettingsView({
   openAiMock,
   openAiVoice,
   geminiVoice,
+  calendarAvailability,
   phoneProvider,
   phoneConnectionMode,
   phonePublicBaseUrl,
@@ -514,6 +515,7 @@ export function SettingsView({
   onOpenAiMockChange,
   onOpenAiVoiceChange,
   onGeminiVoiceChange,
+  onCalendarAvailabilityChange,
   onPhoneProviderChange,
   onPhoneConnectionModeChange,
   onPhonePublicBaseUrlChange,
@@ -533,6 +535,7 @@ export function SettingsView({
   onDesktopNotificationsEnabledChange,
   onConnectPhone,
   onStopPhoneConnection,
+  onSaveCalendarAvailability,
   onSave,
   onPruneLogs,
   onClearLogs,
@@ -554,6 +557,7 @@ export function SettingsView({
   openAiMock: string;
   openAiVoice: string;
   geminiVoice: string;
+  calendarAvailability: CalendarAvailability;
   phoneProvider: string;
   phoneConnectionMode: string;
   phonePublicBaseUrl: string;
@@ -577,6 +581,7 @@ export function SettingsView({
   onOpenAiMockChange: (value: string) => void;
   onOpenAiVoiceChange: (value: string) => void;
   onGeminiVoiceChange: (value: string) => void;
+  onCalendarAvailabilityChange: (value: CalendarAvailability) => void;
   onPhoneProviderChange: (value: string) => void;
   onPhoneConnectionModeChange: (value: string) => void;
   onPhonePublicBaseUrlChange: (value: string) => void;
@@ -596,6 +601,7 @@ export function SettingsView({
   onDesktopNotificationsEnabledChange: (enabled: boolean) => Promise<void>;
   onConnectPhone: () => Promise<void>;
   onStopPhoneConnection: () => Promise<void>;
+  onSaveCalendarAvailability: () => void;
   onSave: () => void;
   onPruneLogs: () => void;
   onClearLogs: () => void;
@@ -630,6 +636,43 @@ export function SettingsView({
     if (window.confirm(t("settings.clearConfirm"))) {
       onClearLogs();
     }
+  }
+
+  function updateCalendarSlot(slotId: string, patch: Partial<CalendarAvailabilitySlot>) {
+    onCalendarAvailabilityChange({
+      ...calendarAvailability,
+      slots: calendarAvailability.slots.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot)),
+    });
+  }
+
+  function addCalendarSlot() {
+    const nextIndex = calendarAvailability.slots.length + 1;
+    onCalendarAvailabilityChange({
+      ...calendarAvailability,
+      slots: [
+        ...calendarAvailability.slots,
+        {
+          id: `manual-${Date.now()}-${nextIndex}`,
+          label: "",
+          start: "",
+          end: "",
+          capacity: null,
+          metadata: {},
+        },
+      ],
+    });
+  }
+
+  function removeCalendarSlot(slotId: string) {
+    onCalendarAvailabilityChange({
+      ...calendarAvailability,
+      slots: calendarAvailability.slots.filter((slot) => slot.id !== slotId),
+    });
+  }
+
+  function updateCalendarSlotCapacity(slotId: string, value: string) {
+    const parsed = Number(value);
+    updateCalendarSlot(slotId, { capacity: value === "" || !Number.isFinite(parsed) ? null : Math.max(0, Math.floor(parsed)) });
   }
 
   const phoneConnectionStatus = phoneStatus.connection.status || "stopped";
@@ -859,6 +902,83 @@ export function SettingsView({
           </Field>
         </ProviderPanel>
       </div>
+
+      {/* Calendar Availability Section */}
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">{t("calendar.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("calendar.description")}</p>
+      </div>
+      <Separator />
+      <Card className="rounded-lg p-5">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold">{t("calendar.manualSlots")}</h3>
+              <p className="text-sm text-muted-foreground">{t("calendar.helper")}</p>
+            </div>
+            <Badge variant="secondary">{t("calendar.manualAdapter")}</Badge>
+          </div>
+
+          {calendarAvailability.slots.length === 0 ? (
+            <div className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">{t("calendar.empty")}</div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {calendarAvailability.slots.map((slot, index) => (
+                <div key={slot.id} className="rounded-lg bg-muted/40 p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">{formatMessage(t("calendar.slotTitle"), { number: index + 1 })}</p>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeCalendarSlot(slot.id)}>
+                      <Trash2 className="h-4 w-4" />
+                      {t("action.delete")}
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Field label={t("calendar.label")}>
+                      <Input
+                        value={slot.label}
+                        placeholder={t("calendar.labelPlaceholder")}
+                        onChange={(event) => updateCalendarSlot(slot.id, { label: event.target.value })}
+                      />
+                    </Field>
+                    <Field label={t("calendar.start")}>
+                      <Input
+                        type="datetime-local"
+                        value={slot.start}
+                        onChange={(event) => updateCalendarSlot(slot.id, { start: event.target.value })}
+                      />
+                    </Field>
+                    <Field label={t("calendar.end")}>
+                      <Input
+                        type="datetime-local"
+                        value={slot.end}
+                        onChange={(event) => updateCalendarSlot(slot.id, { end: event.target.value })}
+                      />
+                    </Field>
+                    <Field label={t("calendar.capacity")}>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={slot.capacity ?? ""}
+                        placeholder={t("placeholder.optional")}
+                        onChange={(event) => updateCalendarSlotCapacity(slot.id, event.target.value)}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={addCalendarSlot}>
+              {t("calendar.addSlot")}
+            </Button>
+            <Button type="button" onClick={onSaveCalendarAvailability}>
+              {t("calendar.save")}
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* Phone Section */}
       <div className="pt-2">

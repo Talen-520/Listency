@@ -13,6 +13,7 @@ import type {
   BusinessHoursStatus,
   BusinessInfoSections,
   BusinessProfile,
+  CalendarAvailability,
   FollowUpTask,
   LogTimeWindow,
   PhoneStatus,
@@ -204,6 +205,11 @@ const defaultBusinessInfoSections: BusinessInfoSections = {
   parking_accessibility: "",
 };
 
+const defaultCalendarAvailability: CalendarAvailability = {
+  adapter: "manual",
+  slots: [],
+};
+
 const defaultAgent: AgentProfile = {
   id: "default",
   name: "Default Agent",
@@ -291,6 +297,7 @@ export function useAppData() {
   const [businessHours, setBusinessHours] = useState<BusinessHoursConfig>(defaultBusinessHours);
   const [businessHoursStatus, setBusinessHoursStatus] = useState<BusinessHoursStatus>(defaultBusinessHoursStatus);
   const [businessInfoSections, setBusinessInfoSections] = useState<BusinessInfoSections>(defaultBusinessInfoSections);
+  const [calendarAvailability, setCalendarAvailability] = useState<CalendarAvailability>(defaultCalendarAvailability);
   const [agents, setAgents] = useState<AgentProfile[]>([defaultAgent]);
   const [activeAgentId, setActiveAgentId] = useState(defaultAgent.id);
   const [agent, setAgent] = useState<AgentProfile>(defaultAgent);
@@ -603,6 +610,7 @@ export function useAppData() {
         businessProfile,
         businessHoursPayload,
         businessInfoSectionsPayload,
+        calendarAvailabilityPayload,
         agentList,
         previewCache,
       ] = await Promise.all([
@@ -620,6 +628,7 @@ export function useAppData() {
         api.businessProfile(),
         api.businessHours().catch(() => ({ config: defaultBusinessHours, status: defaultBusinessHoursStatus })),
         api.businessInfoSections().catch(() => ({ sections: defaultBusinessInfoSections })),
+        api.calendarAvailability().catch(() => ({ availability: defaultCalendarAvailability })),
         api.agents(),
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
       ]);
@@ -648,6 +657,7 @@ export function useAppData() {
       setBusinessHours(businessHoursPayload.config);
       setBusinessHoursStatus(businessHoursPayload.status);
       setBusinessInfoSections(businessInfoSectionsPayload.sections);
+      setCalendarAvailability(calendarAvailabilityPayload.availability);
       setAgents(loadedAgents);
       setActiveAgentId(activeAgent.id);
       setAgent(activeAgent);
@@ -983,6 +993,11 @@ export function useAppData() {
     setBusinessInfoSections(sections.sections);
   }, [business.content, business.name, businessInfoSections]);
 
+  const saveCalendarAvailability = useCallback(async () => {
+    const result = await api.saveCalendarAvailability(calendarAvailability);
+    setCalendarAvailability(result.availability);
+  }, [calendarAvailability]);
+
   const updateFollowUpTaskStatus = useCallback(async (id: number, status: FollowUpTask["status"]) => {
     await api.updateFollowUpTaskStatus(id, status);
   }, []);
@@ -1018,6 +1033,7 @@ export function useAppData() {
     businessHours,
     businessHoursStatus,
     businessInfoSections,
+    calendarAvailability,
     agents,
     activeAgentId,
     agent,
@@ -1065,6 +1081,7 @@ export function useAppData() {
     clearLogs,
     saveBusinessHours,
     saveBusinessInfo,
+    saveCalendarAvailability,
     updateFollowUpTaskStatus,
     deleteFollowUpTask,
     setTranscripts,
@@ -1075,6 +1092,7 @@ export function useAppData() {
     setBusiness,
     setBusinessHours,
     setBusinessInfoSections,
+    setCalendarAvailability,
     setAgent: updateAgentDraft,
     setOpenAiKey,
     setGeminiKey,

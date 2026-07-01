@@ -88,6 +88,7 @@ export function App() {
             openAiMock={data.openAiMock}
             openAiVoice={data.openAiVoice}
             geminiVoice={data.geminiVoice}
+            calendarAvailability={data.calendarAvailability}
             phoneProvider={data.phoneProvider}
             phoneConnectionMode={data.phoneConnectionMode}
             phonePublicBaseUrl={data.phonePublicBaseUrl}
@@ -111,6 +112,7 @@ export function App() {
             onOpenAiMockChange={data.setOpenAiMock}
             onOpenAiVoiceChange={data.setOpenAiVoice}
             onGeminiVoiceChange={data.setGeminiVoice}
+            onCalendarAvailabilityChange={data.setCalendarAvailability}
             onPhoneProviderChange={data.setPhoneProvider}
             onPhoneConnectionModeChange={data.setPhoneConnectionMode}
             onPhonePublicBaseUrlChange={data.setPhonePublicBaseUrl}
@@ -130,6 +132,7 @@ export function App() {
             onDesktopNotificationsEnabledChange={data.setDesktopNotificationsEnabled}
             onConnectPhone={() => data.runAction(data.connectPhone, t("toast.phoneConnected"))}
             onStopPhoneConnection={() => data.runAction(data.stopPhoneConnection, t("toast.phoneConnectionStopped"))}
+            onSaveCalendarAvailability={() => void data.runAction(data.saveCalendarAvailability, t("calendar.saved"))}
             onSave={() => void data.runAction(data.saveSettings, t("toast.envSaved"))}
             onPruneLogs={() => void data.runAction(data.pruneOldLogs, t("toast.oldLogsCleaned"))}
             onClearLogs={() => void data.runAction(data.clearLogs, t("toast.logsCleared"))}
