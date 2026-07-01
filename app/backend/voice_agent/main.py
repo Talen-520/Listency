@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from voice_agent.analytics import build_local_analytics
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.business_hours import WEEKDAYS, default_business_hours, resolve_business_hours
 from voice_agent.core.session_manager import SessionManager
@@ -326,6 +327,14 @@ async def list_providers() -> dict[str, Any]:
             }
         )
     return {"providers": providers}
+
+
+@app.get("/analytics")
+async def local_analytics(window: str = "24h") -> dict[str, Any]:
+    try:
+        return {"analytics": build_local_analytics(db, window)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/phone/status")

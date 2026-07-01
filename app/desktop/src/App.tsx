@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/app/app-shell";
 import { navItems, type View } from "@/app/navigation";
 import { AgentView } from "@/features/agent/agent-view";
+import { AnalyticsView } from "@/features/analytics/analytics-view";
 import { BusinessView } from "@/features/business/business-view";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
 import { EvaluationsView } from "@/features/evaluations/evaluations-view";
@@ -209,6 +210,14 @@ export function App() {
             selectedRun={data.selectedEvaluationRun}
             onInspectRun={(runId) => void data.runAction(() => data.loadEvaluationRun(runId), t("evaluations.runLoaded"))}
             onRunEvaluations={() => void data.runAction(data.runEvaluations, t("evaluations.runComplete"))}
+          />
+        );
+      case "analytics":
+        return (
+          <AnalyticsView
+            analytics={data.localAnalytics}
+            window={data.logWindow}
+            onWindowChange={data.setLogWindow}
           />
         );
       case "logs":

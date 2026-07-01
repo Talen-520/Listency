@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
-import { Activity, Bot, ClipboardCheck, FileText, Inbox, Mic, PhoneForwarded, Settings, TerminalSquare, Wrench } from "lucide-react";
+import { Activity, BarChart3, Bot, ClipboardCheck, FileText, Inbox, Mic, PhoneForwarded, Settings, TerminalSquare, Wrench } from "lucide-react";
 
-export type View = "dashboard" | "inbox" | "agent" | "voice" | "business" | "tools" | "test" | "evaluations" | "logs" | "settings";
+export type View = "dashboard" | "inbox" | "agent" | "voice" | "business" | "tools" | "test" | "analytics" | "evaluations" | "logs" | "settings";
 
 export type NavItem = {
   id: View;
@@ -17,6 +17,7 @@ export const navItems: NavItem[] = [
   { id: "business", label: "Business Info", icon: FileText },
   { id: "tools", label: "Tools", icon: Wrench },
   { id: "test", label: "Test Call", icon: PhoneForwarded },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "evaluations", label: "Evaluations", icon: ClipboardCheck },
   { id: "logs", label: "Logs", icon: TerminalSquare },
   { id: "settings", label: "Settings", icon: Settings },

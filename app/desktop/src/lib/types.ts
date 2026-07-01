@@ -125,6 +125,43 @@ export type ToolInfo = {
   enabled: boolean;
 };
 
+export type LocalAnalytics = {
+  window: LogTimeWindow;
+  since: string;
+  generated_at: string;
+  calls: {
+    total: number;
+    answered: number;
+    active: number;
+    failed_or_error: number;
+    average_duration_seconds: number;
+    longest_duration_seconds: number;
+    by_outcome: Record<string, number>;
+  };
+  tasks: {
+    total: number;
+    open: number;
+    completed: number;
+    dismissed: number;
+    by_status: Record<string, number>;
+    by_type: Record<string, number>;
+  };
+  tools: {
+    total: number;
+    failed: number;
+    by_tool: Record<string, number>;
+  };
+  highlights: {
+    booking_requests: number;
+    callbacks: number;
+    customer_requests: number;
+    unresolved_questions: number;
+    transfer_requests: number;
+    transfer_failures: number;
+    provider_failures: number;
+  };
+};
+
 export type BusinessProfile = {
   id: string;
   name: string;

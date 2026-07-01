@@ -17,6 +17,7 @@ import type {
   EvaluationRun,
   EvaluationScenario,
   FollowUpTask,
+  LocalAnalytics,
   LogTimeWindow,
   PhoneStatus,
   PhoneCallRecord,
@@ -287,6 +288,7 @@ export function useAppData() {
   const [phoneCalls, setPhoneCalls] = useState<PhoneCallRecord[]>([]);
   const [followUpTasks, setFollowUpTasks] = useState<FollowUpTask[]>([]);
   const [logWindow, setLogWindow] = useState<LogTimeWindow>("24h");
+  const [localAnalytics, setLocalAnalytics] = useState<LocalAnalytics | null>(null);
   const [voicePreviewCache, setVoicePreviewCache] = useState<VoicePreviewCache>(emptyVoicePreviewCache);
   const [evaluationScenarios, setEvaluationScenarios] = useState<EvaluationScenario[]>([]);
   const [evaluationRuns, setEvaluationRuns] = useState<EvaluationRun[]>([]);
@@ -511,18 +513,20 @@ export function useAppData() {
 
   const loadLogData = useCallback(async () => {
     const since = logWindowSince(logWindow);
-    const [sessionList, transcriptList, toolCallList, appLogList, phoneCallList] = await Promise.all([
+    const [sessionList, transcriptList, toolCallList, appLogList, phoneCallList, analyticsPayload] = await Promise.all([
       api.sessions(since, 200),
       api.transcripts(undefined, 300, since),
       api.toolCalls(undefined, 300, since),
       api.appLogs(undefined, 300, since),
       api.phoneCalls(undefined, 200, since),
+      api.analytics(logWindow).catch(() => ({ analytics: null })),
     ]);
     setSessions(sessionList.sessions);
     setTranscripts(transcriptList.transcripts);
     setToolCalls(toolCallList.tool_calls);
     setAppLogs(appLogList.logs);
     setPhoneCalls(phoneCallList.phone_calls);
+    setLocalAnalytics(analyticsPayload.analytics);
   }, [logWindow]);
 
   const notifyFollowUpTask = useCallback(
@@ -621,6 +625,7 @@ export function useAppData() {
         previewCache,
         evaluationScenarioList,
         evaluationRunList,
+        analyticsPayload,
       ] = await Promise.all([
         api.health(),
         api.getConfig(),
@@ -641,6 +646,7 @@ export function useAppData() {
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
         api.evaluationScenarios().catch(() => ({ scenarios: [] })),
         api.evaluationRuns().catch(() => ({ runs: [] })),
+        api.analytics(logWindow).catch(() => ({ analytics: null })),
       ]);
       const loadedAgents = agentList.agents.length ? agentList.agents : [defaultAgent];
       const activeAgent =
@@ -665,6 +671,7 @@ export function useAppData() {
       setVoicePreviewCache(previewCache);
       setEvaluationScenarios(evaluationScenarioList.scenarios);
       setEvaluationRuns(evaluationRunList.runs);
+      setLocalAnalytics(analyticsPayload.analytics);
       setBusiness(businessProfile);
       setBusinessHours(businessHoursPayload.config);
       setBusinessHoursStatus(businessHoursPayload.status);
@@ -1054,6 +1061,7 @@ export function useAppData() {
     phoneCalls,
     followUpTasks,
     logWindow,
+    localAnalytics,
     voicePreviewCache,
     evaluationScenarios,
     evaluationRuns,

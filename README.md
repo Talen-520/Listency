@@ -73,6 +73,7 @@ Listency runs locally on macOS and Windows. API keys, business information, tran
 - AI-ended calls when the conversation is complete
 - Follow-up inbox and optional desktop alerts for tasks that need owner attention
 - Conversation transcripts, tool call history, phone call history, and runtime logs
+- Local analytics for call outcomes, follow-up requests, tool usage, and owner-visible issues
 - Local evaluation center to check core agent workflows before live call testing
 - Diagnostics export for troubleshooting provider, phone, and runtime issues
 - Local-first storage for API keys, business data, logs, and transcripts
