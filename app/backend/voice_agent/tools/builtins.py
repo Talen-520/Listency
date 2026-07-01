@@ -100,7 +100,7 @@ def create_booking(payload: dict[str, Any], context: ToolContext) -> dict[str, A
         summary_parts.append(f"Notes: {notes}")
     if missing_fields:
         summary_parts.append(f"Missing details: {', '.join(missing_field_labels)}")
-    booking = context.db.create_booking(customer_name, booking_time, notes)
+    booking = context.db.create_booking(customer_name, booking_time, notes, idempotency_key=idempotency_key)
     task = context.db.create_follow_up_task_once(
         type="booking_request",
         title=f"Booking request from {customer_name}",

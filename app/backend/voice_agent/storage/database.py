@@ -180,6 +180,7 @@ class Database:
                   customer_name TEXT NOT NULL,
                   booking_time TEXT NOT NULL,
                   notes TEXT,
+                  idempotency_key TEXT,
                   created_at TEXT NOT NULL
                 );
 
@@ -252,6 +253,7 @@ class Database:
                     "business_hours_reason": "TEXT",
                 },
             )
+            self._ensure_columns(connection, "bookings", {"idempotency_key": "TEXT"})
             row = connection.execute("SELECT system_prompt FROM agents WHERE id = 'default'").fetchone()
             if row and row["system_prompt"] == LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT:
                 connection.execute(
@@ -752,14 +754,35 @@ class Database:
             rows = connection.execute(query, (*params, limit)).fetchall()
         return [dict(row) for row in rows]
 
-    def create_booking(self, customer_name: str, booking_time: str, notes: str = "") -> dict[str, Any]:
+    def create_booking(self, customer_name: str, booking_time: str, notes: str = "", idempotency_key: str = "") -> dict[str, Any]:
+        idempotency_key = idempotency_key.strip()
         with self.open_connection() as connection:
+            if idempotency_key:
+                existing = connection.execute(
+                    """
+                    SELECT id, customer_name, booking_time, notes, idempotency_key
+                    FROM bookings
+                    WHERE idempotency_key = ?
+                    ORDER BY id ASC
+                    LIMIT 1
+                    """,
+                    (idempotency_key,),
+                ).fetchone()
+                if existing:
+                    return {
+                        "id": existing["id"],
+                        "customer_name": existing["customer_name"],
+                        "booking_time": existing["booking_time"],
+                        "notes": existing["notes"] or "",
+                        "idempotency_key": existing["idempotency_key"] or "",
+                        "deduplicated": True,
+                    }
             cursor = connection.execute(
                 """
-                INSERT INTO bookings (customer_name, booking_time, notes, created_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO bookings (customer_name, booking_time, notes, idempotency_key, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (customer_name, booking_time, notes, utc_now()),
+                (customer_name, booking_time, notes, idempotency_key or None, utc_now()),
             )
             booking_id = cursor.lastrowid
         return {
@@ -767,6 +790,8 @@ class Database:
             "customer_name": customer_name,
             "booking_time": booking_time,
             "notes": notes,
+            "idempotency_key": idempotency_key,
+            "deduplicated": False,
         }
 
     def create_follow_up_task(
