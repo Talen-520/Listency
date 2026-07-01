@@ -9,6 +9,8 @@ import type {
   CalendarAvailability,
   CalendarAvailabilityPayload,
   DiagnosticsExport,
+  EvaluationRun,
+  EvaluationScenario,
   FollowUpTask,
   LogClearResult,
   LogExport,
@@ -194,6 +196,14 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
   deleteFollowUpTask: (id: number) => request<{ deleted: FollowUpTask }>(`/follow-up-tasks/${id}`, { method: "DELETE" }),
+  evaluationScenarios: () => request<{ scenarios: EvaluationScenario[] }>("/evaluations/scenarios"),
+  evaluationRuns: (limit = 20) => request<{ runs: EvaluationRun[] }>(`/evaluations/runs?limit=${limit}`),
+  evaluationRun: (id: string) => request<{ run: EvaluationRun }>(`/evaluations/runs/${encodeURIComponent(id)}`),
+  runEvaluations: (scenarioIds: string[] = []) =>
+    request<{ run: EvaluationRun }>("/evaluations/run", {
+      method: "POST",
+      body: JSON.stringify({ scenario_ids: scenarioIds }),
+    }),
   agent: () => request<AgentProfile>("/agent"),
   saveAgent: (payload: { name: string; system_prompt: string }) =>
     request<AgentProfile>("/agent", {

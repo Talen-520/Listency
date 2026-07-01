@@ -14,6 +14,8 @@ import type {
   BusinessInfoSections,
   BusinessProfile,
   CalendarAvailability,
+  EvaluationRun,
+  EvaluationScenario,
   FollowUpTask,
   LogTimeWindow,
   PhoneStatus,
@@ -286,6 +288,10 @@ export function useAppData() {
   const [followUpTasks, setFollowUpTasks] = useState<FollowUpTask[]>([]);
   const [logWindow, setLogWindow] = useState<LogTimeWindow>("24h");
   const [voicePreviewCache, setVoicePreviewCache] = useState<VoicePreviewCache>(emptyVoicePreviewCache);
+  const [evaluationScenarios, setEvaluationScenarios] = useState<EvaluationScenario[]>([]);
+  const [evaluationRuns, setEvaluationRuns] = useState<EvaluationRun[]>([]);
+  const [selectedEvaluationRun, setSelectedEvaluationRun] = useState<EvaluationRun | null>(null);
+  const [evaluationRunning, setEvaluationRunning] = useState(false);
   const [twilioDebuggerAlerts, setTwilioDebuggerAlerts] = useState<TwilioDebuggerAlert[]>([]);
   const [twilioDebuggerError, setTwilioDebuggerError] = useState("");
   const [twilioDebuggerLoading, setTwilioDebuggerLoading] = useState(false);
@@ -613,6 +619,8 @@ export function useAppData() {
         calendarAvailabilityPayload,
         agentList,
         previewCache,
+        evaluationScenarioList,
+        evaluationRunList,
       ] = await Promise.all([
         api.health(),
         api.getConfig(),
@@ -631,6 +639,8 @@ export function useAppData() {
         api.calendarAvailability().catch(() => ({ availability: defaultCalendarAvailability })),
         api.agents(),
         api.voicePreviewCache().catch(() => emptyVoicePreviewCache),
+        api.evaluationScenarios().catch(() => ({ scenarios: [] })),
+        api.evaluationRuns().catch(() => ({ runs: [] })),
       ]);
       const loadedAgents = agentList.agents.length ? agentList.agents : [defaultAgent];
       const activeAgent =
@@ -653,6 +663,8 @@ export function useAppData() {
       setPhoneCalls(phoneCallList.phone_calls);
       syncFollowUpTasks(followUpTaskList.tasks, { prime: !hasLoadedAllRef.current });
       setVoicePreviewCache(previewCache);
+      setEvaluationScenarios(evaluationScenarioList.scenarios);
+      setEvaluationRuns(evaluationRunList.runs);
       setBusiness(businessProfile);
       setBusinessHours(businessHoursPayload.config);
       setBusinessHoursStatus(businessHoursPayload.status);
@@ -998,6 +1010,23 @@ export function useAppData() {
     setCalendarAvailability(result.availability);
   }, [calendarAvailability]);
 
+  const loadEvaluationRun = useCallback(async (id: string) => {
+    const result = await api.evaluationRun(id);
+    setSelectedEvaluationRun(result.run);
+  }, []);
+
+  const runEvaluations = useCallback(async () => {
+    setEvaluationRunning(true);
+    try {
+      const result = await api.runEvaluations();
+      setSelectedEvaluationRun(result.run);
+      const runs = await api.evaluationRuns();
+      setEvaluationRuns(runs.runs);
+    } finally {
+      setEvaluationRunning(false);
+    }
+  }, []);
+
   const updateFollowUpTaskStatus = useCallback(async (id: number, status: FollowUpTask["status"]) => {
     await api.updateFollowUpTaskStatus(id, status);
   }, []);
@@ -1026,6 +1055,10 @@ export function useAppData() {
     followUpTasks,
     logWindow,
     voicePreviewCache,
+    evaluationScenarios,
+    evaluationRuns,
+    selectedEvaluationRun,
+    evaluationRunning,
     selectedSessionId,
     selectedSession,
     selectedSessionDetailId,
@@ -1082,6 +1115,8 @@ export function useAppData() {
     saveBusinessHours,
     saveBusinessInfo,
     saveCalendarAvailability,
+    loadEvaluationRun,
+    runEvaluations,
     updateFollowUpTaskStatus,
     deleteFollowUpTask,
     setTranscripts,

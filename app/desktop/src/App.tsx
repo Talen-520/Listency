@@ -5,6 +5,7 @@ import { navItems, type View } from "@/app/navigation";
 import { AgentView } from "@/features/agent/agent-view";
 import { BusinessView } from "@/features/business/business-view";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
+import { EvaluationsView } from "@/features/evaluations/evaluations-view";
 import { InboxView } from "@/features/inbox/inbox-view";
 import { LogsView } from "@/features/logs/logs-view";
 import { SettingsView } from "@/features/settings/settings-view";
@@ -196,6 +197,18 @@ export function App() {
                 void data.runAction(realtime.stopLiveTest, t("toast.sessionStopped"));
               }
             }}
+          />
+        );
+      case "evaluations":
+        return (
+          <EvaluationsView
+            evaluationRunning={data.evaluationRunning}
+            latestRun={data.evaluationRuns[0]}
+            runs={data.evaluationRuns}
+            scenarios={data.evaluationScenarios}
+            selectedRun={data.selectedEvaluationRun}
+            onInspectRun={(runId) => void data.runAction(() => data.loadEvaluationRun(runId), t("evaluations.runLoaded"))}
+            onRunEvaluations={() => void data.runAction(data.runEvaluations, t("evaluations.runComplete"))}
           />
         );
       case "logs":

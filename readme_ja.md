@@ -73,6 +73,7 @@ Listency は macOS と Windows でローカル実行できます。API key、事
 - 会話完了時に AI 側から通話終了
 - オーナー対応が必要なタスク用の follow-up Inbox と任意のデスクトップ通知
 - Conversation transcripts、tool call 履歴、phone call 履歴、runtime logs
+- 実際の通話テスト前に主要なエージェントフローを確認できるローカル評価センター
 - provider、電話接続、runtime 問題の切り分けに使える diagnostics export
 - API key、事業データ、logs、transcripts のローカルファースト保存
 - macOS と Windows 向けデスクトップアプリ体験

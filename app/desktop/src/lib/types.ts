@@ -307,6 +307,33 @@ export type FollowUpTask = {
   completed_at: string | null;
 };
 
+export type EvaluationScenario = {
+  id: string;
+  title: string;
+  description: string;
+};
+
+export type EvaluationScenarioResult = {
+  id: string;
+  title: string;
+  status: string;
+  duration_ms: number;
+  actual: Record<string, unknown>;
+  errors: string[];
+};
+
+export type EvaluationRun = {
+  id: string;
+  status: string;
+  scenario_count: number;
+  passed_count: number;
+  failed_count: number;
+  duration_ms: number;
+  uses_scratch_database: boolean;
+  created_at: string;
+  results?: EvaluationScenarioResult[];
+};
+
 export type LogExport = {
   generated_at: string;
   since: string | null;
