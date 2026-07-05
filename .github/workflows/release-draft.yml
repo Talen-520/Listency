@@ -549,10 +549,56 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          assets=$(find release-assets -maxdepth 1 -type f -print | sort)
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" $assets --clobber
-            gh release edit "$RELEASE_TAG" --title "Listency $RELEASE_TAG" --notes-file release-assets/RELEASE_NOTES.md
-          else
-            gh release create "$RELEASE_TAG" $assets --draft --target "$GITHUB_SHA" --title "Listency $RELEASE_TAG" --notes-file release-assets/RELEASE_NOTES.md
+          mapfile -t assets < <(find release-assets -maxdepth 1 -type f -print | sort)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets found." >&2
+            exit 1
           fi
+
+          body="$(cat release-assets/RELEASE_NOTES.md)"
+          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id' 2>/dev/null || true)"
+
+          if [ -n "$release_id" ]; then
+            echo "Updating existing release $RELEASE_TAG ($release_id)."
+            gh api \
+              --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              -f name="Listency ${RELEASE_TAG}" \
+              -f body="$body" \
+              -F draft=true \
+              -F prerelease=true >/dev/null
+          else
+            echo "Creating draft release $RELEASE_TAG."
+            release_id="$(gh api \
+              --method POST \
+              "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$RELEASE_TAG" \
+              -f target_commitish="$GITHUB_SHA" \
+              -f name="Listency ${RELEASE_TAG}" \
+              -f body="$body" \
+              -F draft=true \
+              -F prerelease=true \
+              --jq '.id')"
+          fi
+
+          for asset in "${assets[@]}"; do
+            name="$(basename "$asset")"
+            echo "Uploading $name."
+
+            while IFS= read -r existing_asset_id; do
+              if [ -n "$existing_asset_id" ]; then
+                gh api \
+                  --method DELETE \
+                  "repos/${GITHUB_REPOSITORY}/releases/assets/${existing_asset_id}" >/dev/null
+              fi
+            done < <(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100" --jq ".[] | select(.name == \"$name\") | .id")
+
+            encoded_name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$name")"
+            curl --fail-with-body -sS \
+              -X POST \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$asset" \
+              "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?name=${encoded_name}" >/dev/null
+          done
