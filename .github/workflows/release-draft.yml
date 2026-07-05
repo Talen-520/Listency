@@ -563,7 +563,14 @@ jobs:
           )"
 
           if [ -z "$release_id" ]; then
-            release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id' 2>/dev/null || true)"
+            if tag_release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id' 2>/dev/null)"; then
+              release_id="$tag_release_id"
+            fi
+          fi
+
+          if [ -n "$release_id" ] && ! [[ "$release_id" =~ ^[0-9]+$ ]]; then
+            echo "Ignoring invalid release id lookup result: $release_id" >&2
+            release_id=""
           fi
 
           if [ -n "$release_id" ]; then
