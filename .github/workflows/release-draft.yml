@@ -556,19 +556,30 @@ jobs:
           fi
 
           body="$(cat release-assets/RELEASE_NOTES.md)"
-          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id' 2>/dev/null || true)"
+          release_id="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id" |
+              head -n 1
+          )"
+
+          if [ -z "$release_id" ]; then
+            release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id' 2>/dev/null || true)"
+          fi
 
           if [ -n "$release_id" ]; then
-            echo "Updating existing release $RELEASE_TAG ($release_id)."
+            echo "Updating existing release $RELEASE_TAG ($release_id), preserving its draft/published state."
             gh api \
               --method PATCH \
               "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
               -f name="Listency ${RELEASE_TAG}" \
-              -f body="$body" \
-              -F draft=true \
-              -F prerelease=true >/dev/null
+              -f body="$body" >/dev/null
           else
             echo "Creating draft release $RELEASE_TAG."
+            prerelease=false
+            case "$RELEASE_TAG" in
+              *alpha*|*beta*|*rc*) prerelease=true ;;
+            esac
+
             release_id="$(gh api \
               --method POST \
               "repos/${GITHUB_REPOSITORY}/releases" \
@@ -577,7 +588,7 @@ jobs:
               -f name="Listency ${RELEASE_TAG}" \
               -f body="$body" \
               -F draft=true \
-              -F prerelease=true \
+              -F prerelease="$prerelease" \
               --jq '.id')"
           fi
 
