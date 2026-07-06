@@ -34,7 +34,7 @@ from voice_agent.tools import ToolContext, build_default_registry
 class EnvUpdate(BaseModel):
     openai_api_key: str = ""
     gemini_api_key: str = ""
-    openai_realtime_model: str = "gpt-realtime-2"
+    openai_realtime_model: str = "gpt-realtime-2.1"
     gemini_live_model: str = "gemini-3.1-flash-live-preview"
     openai_realtime_mock: str = "false"
     default_realtime_provider: str = "openai"

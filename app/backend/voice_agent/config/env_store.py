@@ -7,8 +7,8 @@ from typing import Mapping
 from voice_agent.config.paths import repo_root
 
 
-DEFAULT_OPENAI_REALTIME_MODEL = "gpt-realtime-2"
-LEGACY_OPENAI_REALTIME_DEFAULT_MODEL = "gpt-realtime"
+DEFAULT_OPENAI_REALTIME_MODEL = "gpt-realtime-2.1"
+LEGACY_OPENAI_REALTIME_DEFAULT_MODELS = {"gpt-realtime", "gpt-realtime-2"}
 
 ENV_DEFAULTS: dict[str, str] = {
     "OPENAI_API_KEY": "",
@@ -98,7 +98,7 @@ class EnvStore:
         values = dict(ENV_DEFAULTS)
         if self.path.exists():
             values.update(_parse_env(self.path.read_text(encoding="utf-8")))
-        if values.get("OPENAI_REALTIME_MODEL", "").strip() == LEGACY_OPENAI_REALTIME_DEFAULT_MODEL:
+        if values.get("OPENAI_REALTIME_MODEL", "").strip() in LEGACY_OPENAI_REALTIME_DEFAULT_MODELS:
             values["OPENAI_REALTIME_MODEL"] = DEFAULT_OPENAI_REALTIME_MODEL
         return values
 

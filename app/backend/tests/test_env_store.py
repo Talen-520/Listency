@@ -18,7 +18,7 @@ class EnvStoreTest(unittest.TestCase):
             self.assertTrue((root / ".env").is_file())
             self.assertTrue((root / ".env.example").is_file())
             values = store.read()
-            self.assertEqual(values["OPENAI_REALTIME_MODEL"], "gpt-realtime-2")
+            self.assertEqual(values["OPENAI_REALTIME_MODEL"], "gpt-realtime-2.1")
             self.assertEqual(values["DEFAULT_REALTIME_PROVIDER"], "openai")
 
     def test_write_and_mask_public_config(self) -> None:
@@ -28,7 +28,7 @@ class EnvStoreTest(unittest.TestCase):
                 {
                     "OPENAI_API_KEY": "sk-test-123456",
                     "GEMINI_API_KEY": "gemini-test-987654",
-                    "OPENAI_REALTIME_MODEL": "gpt-realtime-2",
+                    "OPENAI_REALTIME_MODEL": "gpt-realtime-2.1",
                     "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
                     "OPENAI_REALTIME_MOCK": "true",
                     "DEFAULT_REALTIME_PROVIDER": "gemini",
@@ -42,7 +42,7 @@ class EnvStoreTest(unittest.TestCase):
             public = store.read_public()
 
             self.assertEqual(values["DEFAULT_REALTIME_PROVIDER"], "gemini")
-            self.assertEqual(values["OPENAI_REALTIME_MODEL"], "gpt-realtime-2")
+            self.assertEqual(values["OPENAI_REALTIME_MODEL"], "gpt-realtime-2.1")
             self.assertEqual(values["GEMINI_LIVE_MODEL"], "gemini-3.1-flash-live-preview")
             self.assertEqual(values["OPENAI_REALTIME_MOCK"], "true")
             self.assertEqual(values["OPENAI_DEFAULT_VOICE"], "marin")
@@ -61,7 +61,16 @@ class EnvStoreTest(unittest.TestCase):
             store.ensure_files()
             (root / ".env").write_text("OPENAI_REALTIME_MODEL=gpt-realtime\n", encoding="utf-8")
 
-            self.assertEqual(store.read()["OPENAI_REALTIME_MODEL"], "gpt-realtime-2")
+            self.assertEqual(store.read()["OPENAI_REALTIME_MODEL"], "gpt-realtime-2.1")
+
+    def test_read_migrates_previous_realtime_2_default_model(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            root = Path(tmp)
+            store = EnvStore(root / ".env", root / ".env.example")
+            store.ensure_files()
+            (root / ".env").write_text("OPENAI_REALTIME_MODEL=gpt-realtime-2\n", encoding="utf-8")
+
+            self.assertEqual(store.read()["OPENAI_REALTIME_MODEL"], "gpt-realtime-2.1")
 
 
 if __name__ == "__main__":

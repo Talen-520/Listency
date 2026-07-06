@@ -57,7 +57,7 @@ class OpenAIRealtimeAdapter:
                 },
             )
 
-        model = env.get("OPENAI_REALTIME_MODEL", "gpt-realtime-2").strip() or "gpt-realtime-2"
+        model = env.get("OPENAI_REALTIME_MODEL", "gpt-realtime-2.1").strip() or "gpt-realtime-2.1"
         url = f"{OPENAI_REALTIME_BASE_URL}?model={model}"
         connection = await websockets.connect(
             url,
