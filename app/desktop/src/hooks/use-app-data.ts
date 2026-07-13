@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { formatMessage, useI18n } from "@/lib/i18n";
 import { DEFAULT_GEMINI_LIVE_MODEL, DEFAULT_OPENAI_REALTIME_MODEL, isSupportedGeminiLiveModel } from "@/lib/models";
 import { isRuntimeRunning } from "@/lib/runtime";
+import { safeGetLocalStorageItem, safeSetLocalStorageItem } from "@/lib/safe-storage";
 import type {
   AgentProfile,
   AppLogRecord,
@@ -74,6 +75,18 @@ const emptyStatus: RuntimeStatus = {
   session_limit_seconds: 300,
 };
 
+function normalizeRuntimeStatus(runtime: Partial<RuntimeStatus> | null | undefined): RuntimeStatus {
+  return {
+    ...emptyStatus,
+    ...(runtime ?? {}),
+    active_sessions: Array.isArray(runtime?.active_sessions) ? runtime.active_sessions : [],
+    last_error: runtime?.last_error ?? null,
+    session_limit_seconds: Number.isFinite(runtime?.session_limit_seconds)
+      ? Number(runtime?.session_limit_seconds)
+      : emptyStatus.session_limit_seconds,
+  };
+}
+
 const emptyBackendHealth: BackendHealth = {
   available: false,
   checking: true,
@@ -99,17 +112,11 @@ function notificationPermissionState(): NotificationPermissionState {
 }
 
 function readDesktopNotificationsEnabled() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return window.localStorage.getItem(DESKTOP_NOTIFICATIONS_ENABLED_KEY) === "true";
+  return safeGetLocalStorageItem(DESKTOP_NOTIFICATIONS_ENABLED_KEY) === "true";
 }
 
 function writeDesktopNotificationsEnabled(enabled: boolean) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.setItem(DESKTOP_NOTIFICATIONS_ENABLED_KEY, enabled ? "true" : "false");
+  safeSetLocalStorageItem(DESKTOP_NOTIFICATIONS_ENABLED_KEY, enabled ? "true" : "false");
 }
 
 function readNotifiedFollowUpTaskIds() {
@@ -118,7 +125,7 @@ function readNotifiedFollowUpTaskIds() {
   }
 
   try {
-    const raw = window.localStorage.getItem(NOTIFIED_FOLLOW_UP_TASK_IDS_KEY);
+    const raw = safeGetLocalStorageItem(NOTIFIED_FOLLOW_UP_TASK_IDS_KEY);
     const ids = raw ? JSON.parse(raw) : [];
     return new Set<number>(Array.isArray(ids) ? ids.filter((id) => Number.isFinite(id)) : []);
   } catch {
@@ -127,11 +134,8 @@ function readNotifiedFollowUpTaskIds() {
 }
 
 function writeNotifiedFollowUpTaskIds(ids: Set<number>) {
-  if (typeof window === "undefined") {
-    return;
-  }
   const latestIds = Array.from(ids).slice(-300);
-  window.localStorage.setItem(NOTIFIED_FOLLOW_UP_TASK_IDS_KEY, JSON.stringify(latestIds));
+  safeSetLocalStorageItem(NOTIFIED_FOLLOW_UP_TASK_IDS_KEY, JSON.stringify(latestIds));
 }
 
 const emptyPhoneStatus: PhoneStatus = {
@@ -337,7 +341,7 @@ export function useAppData() {
   const followUpNotificationsPrimedRef = useRef(false);
   const notifiedFollowUpTaskIdsRef = useRef(readNotifiedFollowUpTaskIds());
 
-  const activeSession = status.active_sessions[0];
+  const activeSession = status.active_sessions?.[0];
   const remainingSeconds = useMemo(() => {
     if (!activeSession) return null;
     return Math.max(0, Math.ceil((new Date(activeSession.timeout_at).getTime() - now) / 1000));
@@ -657,7 +661,7 @@ export function useAppData() {
         message: t("readiness.backendHealthy"),
         last_checked_at: new Date().toISOString(),
       });
-      setStatus(health.runtime);
+      setStatus(normalizeRuntimeStatus(health.runtime));
       setConfig(cfg);
       setProviders(providerList.providers);
       setPhoneStatus(phone);
@@ -741,7 +745,7 @@ export function useAppData() {
       setNow(Date.now());
       api.health()
         .then((health) => {
-          setStatus(health.runtime);
+          setStatus(normalizeRuntimeStatus(health.runtime));
           setBackendHealth({
             available: true,
             checking: false,

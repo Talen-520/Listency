@@ -1,5 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
+import { safeGetLocalStorageItem, safeSetLocalStorageItem } from "@/lib/safe-storage";
+
 export type Language = "en" | "zh" | "ja";
 
 export const languageOptions = [
@@ -2135,7 +2137,7 @@ export function LanguageProvider({
   storageKey = "listency-language",
 }: LanguageProviderProps) {
   const [language, setLanguageState] = useState<Language>(() => {
-    const storedLanguage = localStorage.getItem(storageKey);
+    const storedLanguage = safeGetLocalStorageItem(storageKey);
     return isLanguage(storedLanguage) ? storedLanguage : defaultLanguage;
   });
 
@@ -2143,13 +2145,13 @@ export function LanguageProvider({
     () => ({
       language,
       setLanguage: (nextLanguage: Language) => {
-        localStorage.setItem(storageKey, nextLanguage);
+        safeSetLocalStorageItem(storageKey, nextLanguage);
         setLanguageState(nextLanguage);
       },
       toggleLanguage: () => {
         const currentIndex = languageOptions.findIndex((option) => option.value === language);
         const nextLanguage = languageOptions[(currentIndex + 1) % languageOptions.length].value;
-        localStorage.setItem(storageKey, nextLanguage);
+        safeSetLocalStorageItem(storageKey, nextLanguage);
         setLanguageState(nextLanguage);
       },
       t: (key: string, fallback = key) => translations[language][key] ?? translations.en[key] ?? fallback,

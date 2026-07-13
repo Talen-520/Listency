@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { safeGetLocalStorageItem, safeSetLocalStorageItem } from "@/lib/safe-storage";
+
 type Theme = "dark" | "light";
 
 type ThemeProviderProps = {
@@ -30,7 +32,7 @@ export function ThemeProvider({
   storageKey = "listency-theme",
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const storedTheme = localStorage.getItem(storageKey);
+    const storedTheme = safeGetLocalStorageItem(storageKey);
     return storedTheme === "light" || storedTheme === "dark" ? storedTheme : defaultTheme;
   });
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
@@ -47,12 +49,12 @@ export function ThemeProvider({
       theme,
       resolvedTheme,
       setTheme: (nextTheme: Theme) => {
-        localStorage.setItem(storageKey, nextTheme);
+        safeSetLocalStorageItem(storageKey, nextTheme);
         setThemeState(nextTheme);
       },
       toggleTheme: () => {
         const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
-        localStorage.setItem(storageKey, nextTheme);
+        safeSetLocalStorageItem(storageKey, nextTheme);
         setThemeState(nextTheme);
       },
     }),
