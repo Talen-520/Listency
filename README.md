@@ -115,7 +115,7 @@ If Windows blocks the downloaded installer or portable app, open PowerShell in
 the extracted release folder and remove the Mark-of-the-Web flag:
 
 ```powershell
-Unblock-File .\Listency_0.1.0_x64-setup.exe
+Unblock-File .\Listency_0.3.0_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
@@ -171,7 +171,7 @@ data.
 - [GitHub Releases](https://github.com/Talen-520/Listency/releases)
 - [Unsigned Build Testing](docs/ALPHA_TESTING.md)
 - [Phone Setup](docs/PHONE_SETUP.md)
-- [Release And Signing](docs/RELEASE.md)
+- [Unsigned Release Workflow](docs/RELEASE.md)
 - [Development](docs/DEVELOPMENT.md)
 
 Agent-facing architecture, design, and development notes are kept locally in the

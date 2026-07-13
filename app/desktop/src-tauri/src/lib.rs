@@ -2,7 +2,7 @@ use std::{
     env,
     fs::{File, OpenOptions},
     io::{Read, Write},
-    net::{SocketAddr, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
@@ -11,12 +11,22 @@ use std::{
 
 use tauri::Manager;
 
-const BACKEND_PORT: u16 = 8765;
+const DEFAULT_BACKEND_PORT: u16 = 8765;
+const MAX_BACKEND_PORT: u16 = 8785;
 const BACKEND_SIDECAR_NAME: &str = "listency-backend";
 const CLOUDFLARED_BINARY_NAME: &str = "cloudflared";
 
 struct BackendProcess {
     child: Mutex<Option<Child>>,
+}
+
+struct BackendEndpoint {
+    port: u16,
+}
+
+struct BackendLaunch {
+    child: Option<Child>,
+    port: u16,
 }
 
 impl BackendProcess {
@@ -38,22 +48,27 @@ impl Drop for BackendProcess {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![backend_base_url])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 window.state::<BackendProcess>().terminate();
             }
         })
         .setup(|app| {
-            let child = match ensure_backend_started(app) {
-                Ok(child) => child,
+            let launch = match ensure_backend_started(app) {
+                Ok(launch) => launch,
                 Err(error) => {
                     eprintln!("Listency backend bootstrap failed: {error}");
                     append_bootstrap_log(app, &format!("Backend bootstrap failed: {error}"));
-                    None
+                    BackendLaunch {
+                        child: None,
+                        port: DEFAULT_BACKEND_PORT,
+                    }
                 }
             };
+            app.manage(BackendEndpoint { port: launch.port });
             app.manage(BackendProcess {
-                child: Mutex::new(child),
+                child: Mutex::new(launch.child),
             });
             Ok(())
         })
@@ -68,10 +83,35 @@ pub fn run() {
     });
 }
 
-fn ensure_backend_started(app: &tauri::App) -> Result<Option<Child>, String> {
-    if is_backend_healthy() {
-        append_bootstrap_log(app, "Backend already healthy; reusing existing process.");
-        return Ok(None);
+#[tauri::command]
+fn backend_base_url(endpoint: tauri::State<'_, BackendEndpoint>) -> String {
+    format!("http://127.0.0.1:{}", endpoint.port)
+}
+
+fn ensure_backend_started(app: &tauri::App) -> Result<BackendLaunch, String> {
+    for port in DEFAULT_BACKEND_PORT..=MAX_BACKEND_PORT {
+        if is_backend_healthy(port) {
+            append_bootstrap_log(
+                app,
+                &format!(
+                    "Listency backend already healthy on port {port}; reusing existing process."
+                ),
+            );
+            return Ok(BackendLaunch { child: None, port });
+        }
+    }
+
+    let port =
+        find_available_backend_port(DEFAULT_BACKEND_PORT, MAX_BACKEND_PORT).ok_or_else(|| {
+            format!("No available backend port in {DEFAULT_BACKEND_PORT}-{MAX_BACKEND_PORT}.")
+        })?;
+    if port != DEFAULT_BACKEND_PORT {
+        append_bootstrap_log(
+            app,
+            &format!(
+                "Port {DEFAULT_BACKEND_PORT} is occupied by another service; using port {port}."
+            ),
+        );
     }
 
     if let Some(sidecar) = find_bundled_sidecar(app) {
@@ -79,8 +119,8 @@ fn ensure_backend_started(app: &tauri::App) -> Result<Option<Child>, String> {
             app,
             &format!("Starting bundled backend sidecar: {}", sidecar.display()),
         );
-        let mut child = spawn_sidecar_backend(app, &sidecar)?;
-        match wait_for_backend_start(&mut child, Duration::from_secs(20)) {
+        let mut child = spawn_sidecar_backend(app, &sidecar, port)?;
+        match wait_for_backend_start(&mut child, port, Duration::from_secs(20)) {
             BackendStartStatus::Healthy => {
                 append_bootstrap_log(app, "Bundled backend sidecar is healthy.");
             }
@@ -100,17 +140,23 @@ fn ensure_backend_started(app: &tauri::App) -> Result<Option<Child>, String> {
                 );
             }
         }
-        return Ok(Some(child));
+        return Ok(BackendLaunch {
+            child: Some(child),
+            port,
+        });
     }
 
     append_bootstrap_log(
         app,
         "No bundled backend sidecar found; falling back to development backend.",
     );
-    spawn_dev_backend().map(Some)
+    spawn_dev_backend(port).map(|child| BackendLaunch {
+        child: Some(child),
+        port,
+    })
 }
 
-fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, String> {
+fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path, port: u16) -> Result<Child, String> {
     let app_data_dir = app
         .path()
         .app_local_data_dir()
@@ -144,7 +190,7 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path) -> Result<Child, Stri
         .env("VOICE_AGENT_ROOT", &app_data_dir)
         .env("LISTENCY_BACKEND_MODE", "sidecar")
         .env("LISTENCY_BACKEND_HOST", "127.0.0.1")
-        .env("LISTENCY_BACKEND_PORT", BACKEND_PORT.to_string())
+        .env("LISTENCY_BACKEND_PORT", port.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
@@ -209,7 +255,7 @@ fn backend_log_hint(app: &tauri::App) -> String {
     }
 }
 
-fn spawn_dev_backend() -> Result<Child, String> {
+fn spawn_dev_backend(port: u16) -> Result<Child, String> {
     let backend_dir = find_backend_dir()
         .ok_or_else(|| "Could not locate app/backend next to the desktop app.".to_string())?;
     let python = find_python_command(&backend_dir);
@@ -222,7 +268,7 @@ fn spawn_dev_backend() -> Result<Child, String> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("--port")
-        .arg("8765")
+        .arg(port.to_string())
         .current_dir(&backend_dir)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -326,8 +372,8 @@ fn wait_for_child_exit(process: &mut Child, timeout: Duration) -> bool {
     false
 }
 
-fn is_backend_healthy() -> bool {
-    let addr: SocketAddr = match format!("127.0.0.1:{BACKEND_PORT}").parse() {
+fn is_backend_healthy(port: u16) -> bool {
+    let addr: SocketAddr = match format!("127.0.0.1:{port}").parse() {
         Ok(addr) => addr,
         Err(_) => return false,
     };
@@ -336,21 +382,39 @@ fn is_backend_healthy() -> bool {
     };
     let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
-    if stream
-        .write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nConnection: close\r\n\r\n")
-        .is_err()
-    {
+    let request =
+        format!("GET /health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n");
+    if stream.write_all(request.as_bytes()).is_err() {
         return false;
     }
 
-    let mut response = [0_u8; 64];
-    match stream.read(&mut response) {
-        Ok(size) => {
-            let head = String::from_utf8_lossy(&response[..size]);
-            head.starts_with("HTTP/1.1 200") || head.starts_with("HTTP/1.0 200")
-        }
-        Err(_) => false,
+    let mut response = Vec::new();
+    stream.take(16 * 1024).read_to_end(&mut response).is_ok()
+        && is_listency_health_response(&response)
+}
+
+fn is_listency_health_response(response: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(response);
+    let Some((headers, body)) = text.split_once("\r\n\r\n") else {
+        return false;
+    };
+    if !(headers.starts_with("HTTP/1.1 200") || headers.starts_with("HTTP/1.0 200")) {
+        return false;
     }
+
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|payload| {
+            payload
+                .get("service")
+                .and_then(|value| value.as_str())
+                .map(str::to_owned)
+        })
+        .is_some_and(|service| service == "listency-backend")
+}
+
+fn find_available_backend_port(start: u16, end: u16) -> Option<u16> {
+    (start..=end).find(|port| TcpListener::bind(("127.0.0.1", *port)).is_ok())
 }
 
 fn find_bundled_sidecar(app: &tauri::App) -> Option<PathBuf> {
@@ -454,10 +518,10 @@ enum BackendStartStatus {
     Timeout,
 }
 
-fn wait_for_backend_start(child: &mut Child, timeout: Duration) -> BackendStartStatus {
+fn wait_for_backend_start(child: &mut Child, port: u16, timeout: Duration) -> BackendStartStatus {
     let started_at = Instant::now();
     while started_at.elapsed() < timeout {
-        if is_backend_healthy() {
+        if is_backend_healthy(port) {
             return BackendStartStatus::Healthy;
         }
         if let Ok(Some(status)) = child.try_wait() {
@@ -563,5 +627,32 @@ fn find_python_command(backend_dir: &Path) -> PathBuf {
         PathBuf::from("python")
     } else {
         PathBuf::from("python3")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::TcpListener;
+
+    use super::{find_available_backend_port, is_listency_health_response};
+
+    #[test]
+    fn health_response_requires_listency_service_marker() {
+        let listency = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"service\":\"listency-backend\",\"runtime\":{}}";
+        let unrelated = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"status\":\"ok\",\"service\":\"jobflow-backend\"}";
+
+        assert!(is_listency_health_response(listency));
+        assert!(!is_listency_health_response(unrelated));
+    }
+
+    #[test]
+    fn available_port_skips_an_occupied_preferred_port() {
+        let occupied = TcpListener::bind(("127.0.0.1", 0)).expect("bind occupied test port");
+        let preferred = occupied.local_addr().expect("occupied address").port();
+        let selected = find_available_backend_port(preferred, preferred.saturating_add(10))
+            .expect("find alternate backend port");
+
+        assert_ne!(selected, preferred);
+        TcpListener::bind(("127.0.0.1", selected)).expect("selected port remains available");
     }
 }

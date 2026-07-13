@@ -107,7 +107,7 @@ xattr -dr com.apple.quarantine /path/to/Listency.app
 如果 Windows 阻止下载的安装包或 portable app，在解压后的 release 文件夹中打开 PowerShell，移除 Mark-of-the-Web 标记：
 
 ```powershell
-Unblock-File .\Listency_0.1.0_x64-setup.exe
+Unblock-File .\Listency_0.3.0_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
@@ -153,7 +153,7 @@ Listency 处于第一版 unsigned 公开发布阶段。推荐电话路径是 Twi
 - [GitHub Releases](https://github.com/Talen-520/Listency/releases)
 - [Unsigned Build Testing](docs/ALPHA_TESTING.md)
 - [Phone Setup](docs/PHONE_SETUP.md)
-- [Release And Signing](docs/RELEASE.md)
+- [Unsigned Release Workflow](docs/RELEASE.md)
 - [Development](docs/DEVELOPMENT.md)
 
 面向开发 agent 的架构、设计和开发说明保存在本地 ignored `.agent/` 目录中。

@@ -1,6 +1,6 @@
 [package]
 name = "listency-desktop"
-version = "0.1.0"
+version = "0.3.0"
 description = "Local Listency desktop app"
 authors = ["Listency contributors"]
 edition = "2021"

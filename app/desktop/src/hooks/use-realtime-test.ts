@@ -181,7 +181,7 @@ export function useRealtimeTest({
       const session = await api.startTestSession(providerChoice);
       appendEvent(formatMessage(t("realtime.sessionStartedEvent", "session {session} started"), { session: session.id.slice(0, 8) }));
 
-      const socket = new WebSocket(api.sessionStreamUrl(session.id));
+      const socket = new WebSocket(await api.sessionStreamUrl(session.id));
       socketRef.current = socket;
       setStreamStatus("connecting");
 

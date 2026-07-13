@@ -31,21 +31,39 @@ import type {
   VoicePreviewRecord,
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8765";
+const DEFAULT_API_BASE = "http://127.0.0.1:8765";
+const CONFIGURED_API_BASE = import.meta.env.VITE_BACKEND_URL as string | undefined;
+let apiBasePromise: Promise<string> | null = null;
 
-function websocketBase() {
-  return API_BASE.replace(/^http/, "ws");
+async function resolveApiBase(): Promise<string> {
+  if (CONFIGURED_API_BASE) {
+    return CONFIGURED_API_BASE;
+  }
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) {
+    return DEFAULT_API_BASE;
+  }
+
+  apiBasePromise ??= import("@tauri-apps/api/core")
+    .then(({ invoke }) => invoke<string>("backend_base_url"))
+    .then((url) => (/^http:\/\/127\.0\.0\.1:\d+$/.test(url) ? url : DEFAULT_API_BASE))
+    .catch(() => DEFAULT_API_BASE);
+  return apiBasePromise;
 }
 
-function assetUrl(path: string) {
+async function websocketBase(): Promise<string> {
+  return (await resolveApiBase()).replace(/^http/, "ws");
+}
+
+async function assetUrl(path: string): Promise<string> {
   if (/^https?:\/\//.test(path)) {
     return path;
   }
-  return `${API_BASE}${path}`;
+  return `${await resolveApiBase()}${path}`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const apiBase = await resolveApiBase();
+  const response = await fetch(`${apiBase}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -107,7 +125,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    return { ...preview, audio_url: assetUrl(preview.audio_url) };
+    return { ...preview, audio_url: await assetUrl(preview.audio_url) };
   },
   runtimeStatus: () => request<RuntimeStatus>("/runtime/status"),
   startRuntime: () => request<RuntimeStatus>("/runtime/start", { method: "POST" }),
@@ -118,7 +136,7 @@ export const api = {
       body: JSON.stringify({ provider }),
     }),
   stopSession: (id: string) => request(`/sessions/${id}/stop`, { method: "POST" }),
-  sessionStreamUrl: (id: string) => `${websocketBase()}/sessions/${id}/stream`,
+  sessionStreamUrl: async (id: string) => `${await websocketBase()}/sessions/${id}/stream`,
   sessions: (since?: string, limit = 100) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (since) params.set("since", since);

@@ -3,8 +3,16 @@ name: Windows Packaged Smoke
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "assets/**"
   pull_request:
     branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "assets/**"
   workflow_dispatch:
 
 concurrency:
@@ -44,6 +52,9 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Run Rust tests
+        run: cargo test --manifest-path app/desktop/src-tauri/Cargo.toml
+
       - name: Install backend dependencies
         working-directory: app/backend
         run: |
@@ -57,10 +68,6 @@ jobs:
       - name: Install desktop dependencies
         working-directory: app/desktop
         run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        working-directory: app/desktop
-        run: pnpm run build
 
       - name: Build Windows backend sidecar
         working-directory: app/desktop
@@ -91,43 +98,19 @@ jobs:
         working-directory: app/desktop
         run: pnpm run windows:portable
 
+      - name: Verify Windows GUI subsystem
+        working-directory: app/desktop
+        run: pnpm run windows:subsystem:check
+
       - name: Smoke test Windows desktop launcher
         working-directory: app/desktop
         timeout-minutes: 3
         run: pnpm run windows:launcher:smoke
 
-      - name: Stage Windows release artifacts
-        shell: pwsh
-        run: |
-          $release = Resolve-Path "app/desktop/src-tauri/target/release"
-          $stage = "app/desktop/dist-artifacts/windows"
-          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force $stage | Out-Null
-          Copy-Item "$release/portable" "$stage/portable" -Recurse
-          if (Test-Path "app/desktop/smoke.log") {
-            Copy-Item "app/desktop/smoke.log" "$stage/smoke.log"
-          }
-          $nsis = Join-Path $release "bundle/nsis"
-          if (Test-Path $nsis) {
-            Copy-Item "$nsis/*.exe" $stage -ErrorAction SilentlyContinue
-          }
-          $root = Resolve-Path $stage
-          $files = @()
-          $files += Get-ChildItem $root -File -Recurse | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
-          $lines = $files | Sort-Object FullName | ForEach-Object {
-            $relative = $_.FullName.Substring($root.Path.Length + 1).Replace("\", "/")
-            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
-            "$hash  $relative"
-          }
-          $checksumPath = Join-Path $root "SHA256SUMS.txt"
-          Set-Content -Path $checksumPath -Value $lines -Encoding utf8
-          Get-Content $checksumPath
-
-      - name: Upload Windows artifacts
+      - name: Upload Windows smoke log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: listency-windows-${{ github.sha }}
+          name: listency-windows-smoke-${{ github.sha }}
           if-no-files-found: warn
-          path: |
-            app/desktop/dist-artifacts/windows/**
+          path: app/desktop/smoke.log

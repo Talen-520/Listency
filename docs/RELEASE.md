@@ -1,155 +1,81 @@
-# Release And Signing
+# Unsigned Release Workflow
 
-Listency has an unsigned public release workflow and a signing-ready path for
-future signed builds.
+Listency currently publishes unsigned macOS and Windows builds. The release
+workflow builds both platforms, runs packaged smoke tests, writes checksums,
+and creates or updates a GitHub draft release.
 
-## Release Draft Workflow
+## Create A Release Draft
 
-Run:
-
-```text
-Actions -> Release Draft
-```
-
-Inputs:
-
-- `tag`: release tag, for example `v0.1.0`
-- `require_signed`: whether to fail if signing or notarization inputs are
-  missing
-
-Known working unsigned path:
+Open:
 
 ```text
-tag: v0.1.0
-require_signed: false
+Actions -> Release Draft -> Run workflow
 ```
 
-The workflow builds macOS and Windows artifacts, runs packaged smoke checks,
-creates per-platform checksums, creates platform zip archives, generates
-`SHA256SUMS-all.txt`, and creates or updates a GitHub draft release.
-
-The current public release path intentionally stays unsigned. Signed and
-notarized builds can later be produced through the same workflow with
-`require_signed=true`.
-
-## macOS Signing
-
-Public macOS distribution should use Developer ID signing and Apple
-notarization.
-
-Required repository secrets:
-
-- `APPLE_CERTIFICATE`: base64-encoded Developer ID Application `.p12`
-- `APPLE_CERTIFICATE_PASSWORD`: password for the exported `.p12`
-- `APPLE_SIGNING_IDENTITY`: Developer ID Application signing identity
-- `APPLE_API_KEY`: App Store Connect API key ID
-- `APPLE_API_KEY_BASE64`: base64-encoded `AuthKey_*.p8`
-- `APPLE_API_ISSUER`: App Store Connect issuer ID
-
-Encode the `.p12`:
-
-```bash
-openssl base64 -A -in DeveloperIDApplication.p12 -out apple_certificate_base64.txt
-```
-
-Encode the `.p8`:
-
-```bash
-openssl base64 -A -in AuthKey_XXXX.p8 -out apple_api_key_base64.txt
-```
-
-The workflow verifies the built app with `codesign` and validates the
-notarization ticket with `xcrun stapler validate` when notarization credentials
-are configured.
-
-## Windows Signing
-
-Windows public installers should use an Authenticode/code-signing certificate.
-
-Required repository secrets:
-
-- `WINDOWS_CERTIFICATE`: base64-encoded code-signing `.pfx`
-- `WINDOWS_CERTIFICATE_PASSWORD`: password for the `.pfx`
-
-Optional repository variable:
-
-- `WINDOWS_TIMESTAMP_URL`: timestamp server URL, defaulting to
-  `http://timestamp.digicert.com`
-
-Encode the `.pfx`:
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("ListencyCodeSigning.pfx")) |
-  Set-Content windows_certificate_base64.txt
-```
-
-The workflow imports the certificate before `tauri build`, generates a temporary
-Tauri Windows signing config from the certificate thumbprint, signs sidecar
-inputs, signs any remaining staged Listency executables, verifies Authenticode
-status, then writes checksums.
-
-## Signed Candidate Validation
-
-After adding signing secrets, run:
+Enter the release tag explicitly, for example:
 
 ```text
-Actions -> Release Draft
-require_signed: true
+v0.3.0
 ```
 
-Expected platform status:
+The workflow has no default tag so an old release cannot be updated by
+accident. Pushing a `v*` Git tag also starts the same workflow.
 
-```text
-macOS: signed=true, notarization_configured=true
-Windows: signed=true
-```
+## CI Gates
 
-Manual checks:
+Both platform jobs must pass before the draft release is created:
 
-macOS:
+- backend unit tests
+- Rust unit tests
+- frontend production build through Tauri `beforeBuildCommand`
+- packaged backend sidecar smoke test
+- desktop launcher smoke test
+- Windows GUI subsystem validation
 
-```bash
-spctl -a -vv /Applications/Listency.app
-stapler validate /Applications/Listency.app
-```
+## Release Assets
 
-Windows PowerShell:
+The draft contains platform archives with:
 
-```powershell
-Get-AuthenticodeSignature .\Listency.exe
-```
+- macOS app ZIP and DMG
+- Windows NSIS installer and portable app folder
+- per-platform `SHA256SUMS.txt`
+- top-level `SHA256SUMS-all.txt`
+- `SIGNING_STATUS.txt` recording the unsigned status
+- smoke logs
 
-Also verify:
+## Manual Validation
 
-- checksums match
-- app opens on clean macOS and Windows machines
-- backend starts online
-- Runtime Start/Stop works
-- Test Call works
-- Twilio Connect Phone and inbound call flow still work
+Before publishing the draft, verify on clean macOS and Windows machines:
 
-## Unsigned macOS Release Note
+1. Checksums match.
+2. The app opens and the backend becomes online.
+3. Runtime Start/Stop works.
+4. Test Call can start and stop.
+5. Twilio Connect Phone and an inbound call work.
+6. Closing Listency stops its backend sidecar.
+7. Windows does not open an empty terminal beside the app.
 
-If macOS shows `"Listency" is damaged and can't be opened`, Gatekeeper is
-blocking the unsigned downloaded app. For builds downloaded from this
-repository, remove the download quarantine flag after extracting or installing
-the app:
+## macOS Gatekeeper
+
+Unsigned macOS builds can show `"Listency" is damaged and can't be opened`.
+For builds downloaded from this repository, remove the quarantine flag after
+installing or extracting the app:
 
 ```bash
 xattr -dr com.apple.quarantine /path/to/Listency.app
 ```
 
-This prompt is expected for unsigned builds.
+## Windows SmartScreen
 
-## Unsigned Windows Release Note
-
-Unsigned Windows builds may show browser, Defender, or SmartScreen trust
-warnings. For builds downloaded from this repository, open PowerShell in the
-extracted release folder and remove the Mark-of-the-Web flag:
+Unsigned Windows builds can show browser, Defender, or SmartScreen warnings.
+For builds downloaded from this repository, open PowerShell in the release
+folder and remove the Mark-of-the-Web flag:
 
 ```powershell
-Unblock-File .\Listency_0.1.0_x64-setup.exe
+Unblock-File .\Listency_0.3.0_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
-These warnings are expected for unsigned builds.
+Signing and notarization are intentionally outside the current release
+pipeline. They can be added later in a separate signed-release workflow without
+making the normal unsigned build path more complex.

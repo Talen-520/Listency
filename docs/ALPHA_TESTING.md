@@ -3,23 +3,23 @@
 This guide is for testing unsigned builds from GitHub Actions or
 [GitHub Releases](https://github.com/Talen-520/Listency/releases).
 
-Use GitHub Releases for normal testing. GitHub Actions artifacts are still
-useful when validating a specific CI run before publishing or updating a
-release.
+Use GitHub Releases for normal testing. Full installable artifacts are produced
+by the Release Draft workflow; regular platform smoke workflows now retain only
+their diagnostic smoke logs.
 
 ## Artifact Types
 
 macOS artifacts usually include:
 
 - `Listency-macos.zip`
-- `Listency_0.1.0_aarch64.dmg`
+- `Listency_0.3.0_aarch64.dmg`
 - `SHA256SUMS.txt`
 - `SIGNING_STATUS.txt`
 - `smoke.log`
 
 Windows artifacts usually include:
 
-- `Listency_0.1.0_x64-setup.exe`
+- `Listency_0.3.0_x64-setup.exe`
 - `portable/Listency.exe`
 - `portable/binaries/listency-backend-*.exe`
 - `portable/binaries/cloudflared-*.exe`
@@ -45,7 +45,7 @@ This prompt is expected for unsigned builds.
 
 For the most predictable path, use one of:
 
-- `Listency_0.1.0_x64-setup.exe`
+- `Listency_0.3.0_x64-setup.exe`
 - `portable/Listency.exe`
 
 Do not launch raw `target/release/*.exe` from a build tree by itself. It does
@@ -60,7 +60,7 @@ release folder and remove the Mark-of-the-Web flag from the installer or
 portable app:
 
 ```powershell
-Unblock-File .\Listency_0.1.0_x64-setup.exe
+Unblock-File .\Listency_0.3.0_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 

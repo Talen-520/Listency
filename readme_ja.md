@@ -107,7 +107,7 @@ xattr -dr com.apple.quarantine /path/to/Listency.app
 Windows がダウンロードした installer または portable app をブロックする場合は、展開した release フォルダで PowerShell を開き、Mark-of-the-Web flag を削除します。
 
 ```powershell
-Unblock-File .\Listency_0.1.0_x64-setup.exe
+Unblock-File .\Listency_0.3.0_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
@@ -153,7 +153,7 @@ active session 中は、provider API が audio、text、prompts、tool results �
 - [GitHub Releases](https://github.com/Talen-520/Listency/releases)
 - [Unsigned Build Testing](docs/ALPHA_TESTING.md)
 - [Phone Setup](docs/PHONE_SETUP.md)
-- [Release And Signing](docs/RELEASE.md)
+- [Unsigned Release Workflow](docs/RELEASE.md)
 - [Development](docs/DEVELOPMENT.md)
 
 agent 向けの architecture、design、development notes は、git ignored のローカル `.agent/` ディレクトリに保存します。

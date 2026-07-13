@@ -3,8 +3,18 @@ name: Coverage
 on:
   push:
     branches: ["main"]
+    paths:
+      - "app/backend/**"
+      - "scripts/test_backend*.mjs"
+      - "package.json"
+      - ".github/workflows/coverage.yml"
   pull_request:
     branches: ["main"]
+    paths:
+      - "app/backend/**"
+      - "scripts/test_backend*.mjs"
+      - "package.json"
+      - ".github/workflows/coverage.yml"
   workflow_dispatch:
 
 concurrency:

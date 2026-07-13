@@ -183,6 +183,7 @@ Desktop shell, sidecar, packaging, or Tauri changes:
 
 ```bash
 pnpm --dir app/desktop run build
+cargo test --manifest-path app/desktop/src-tauri/Cargo.toml
 pnpm --dir app/desktop run backend:sidecar:smoke
 pnpm --dir app/desktop run macos:launcher:smoke
 git diff --check
@@ -197,9 +198,14 @@ GitHub Actions or release workflow changes:
 - Run:
 
 ```bash
+cargo test --manifest-path app/desktop/src-tauri/Cargo.toml
 git diff --check
 ```
 
+- The platform smoke workflows validate packaged startup and retain diagnostic
+  logs only. They do not publish duplicate installers or portable archives.
+- Full macOS and Windows artifacts are generated only by the Release Draft
+  workflow, which requires an explicit release tag such as `v0.3.0`.
 - After pushing, verify the affected GitHub Actions workflow.
 
 Documentation-only changes:

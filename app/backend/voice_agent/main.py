@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import os
 import urllib.parse
 from typing import Any
 
@@ -164,10 +165,11 @@ session_manager = SessionManager(
     },
 )
 voice_preview_service = VoicePreviewService(env_store, session_manager.providers)
-public_tunnel_manager = PublicTunnelManager()
+backend_port = os.environ.get("LISTENCY_BACKEND_PORT", "8765")
+public_tunnel_manager = PublicTunnelManager(local_url=f"http://127.0.0.1:{backend_port}")
 phone_manager = PhoneManager(db, env_store, session_manager, public_tunnel_manager)
 
-app = FastAPI(title="Listency Local Backend", version="0.1.0")
+app = FastAPI(title="Listency Local Backend", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -259,7 +261,7 @@ async def shutdown_phone_connection() -> None:
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    return {"ok": True, "runtime": session_manager.status()}
+    return {"ok": True, "service": "listency-backend", "runtime": session_manager.status()}
 
 
 @app.get("/config")

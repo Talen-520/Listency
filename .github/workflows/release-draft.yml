@@ -4,14 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to create or update, for example v0.1.0-alpha.1"
+        description: "Release tag to create or update, for example v0.3.0"
         required: true
-        default: "v0.1.0-alpha.1"
-      require_signed:
-        description: "Fail the release if signing/notarization secrets are missing"
-        required: true
-        type: boolean
-        default: false
   push:
     tags: ["v*"]
 
@@ -24,7 +18,6 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-  REQUIRE_SIGNED: ${{ github.event_name == 'workflow_dispatch' && inputs.require_signed || false }}
 
 jobs:
   macos:
@@ -59,6 +52,9 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Run Rust tests
+        run: cargo test --manifest-path app/desktop/src-tauri/Cargo.toml
+
       - name: Install backend dependencies
         working-directory: app/backend
         run: |
@@ -73,10 +69,6 @@ jobs:
         working-directory: app/desktop
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
-        working-directory: app/desktop
-        run: pnpm run build
-
       - name: Build macOS backend sidecar
         working-directory: app/desktop
         run: pnpm run backend:sidecar
@@ -90,91 +82,9 @@ jobs:
         working-directory: app/desktop
         run: pnpm run cloudflared:sidecar
 
-      - name: Check macOS signing readiness
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          write_env() {
-            name="$1"
-            value="$2"
-            delimiter="LISTENCY_${name}_$(uuidgen | tr -d '-')"
-            {
-              echo "$name<<$delimiter"
-              printf '%s\n' "$value"
-              echo "$delimiter"
-            } >> "$GITHUB_ENV"
-          }
-
-          signing_ready=false
-          notarization_ready=false
-
-          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
-            signing_ready=true
-          fi
-
-          if [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_BASE64" ] && [ -n "$APPLE_API_ISSUER" ]; then
-            notarization_ready=true
-          elif [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
-            notarization_ready=true
-          fi
-
-          echo "MACOS_SIGNING_READY=$signing_ready" >> "$GITHUB_ENV"
-          echo "MACOS_NOTARIZATION_READY=$notarization_ready" >> "$GITHUB_ENV"
-
-          if [ "$signing_ready" = "true" ]; then
-            write_env "APPLE_CERTIFICATE" "$APPLE_CERTIFICATE"
-            write_env "APPLE_CERTIFICATE_PASSWORD" "$APPLE_CERTIFICATE_PASSWORD"
-            write_env "APPLE_SIGNING_IDENTITY" "$APPLE_SIGNING_IDENTITY"
-          fi
-
-          if [ "$signing_ready" = "true" ]; then
-            if [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_BASE64" ] && [ -n "$APPLE_API_ISSUER" ]; then
-              write_env "APPLE_API_KEY" "$APPLE_API_KEY"
-              write_env "APPLE_API_KEY_BASE64" "$APPLE_API_KEY_BASE64"
-              write_env "APPLE_API_ISSUER" "$APPLE_API_ISSUER"
-            elif [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
-              write_env "APPLE_ID" "$APPLE_ID"
-              write_env "APPLE_PASSWORD" "$APPLE_PASSWORD"
-              write_env "APPLE_TEAM_ID" "$APPLE_TEAM_ID"
-            fi
-          fi
-
-          if [ "$REQUIRE_SIGNED" = "true" ] && { [ "$signing_ready" != "true" ] || [ "$notarization_ready" != "true" ]; }; then
-            echo "::error title=macOS signing secrets missing::Set APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, and either App Store Connect API key secrets or Apple ID notarization secrets."
-            exit 1
-          fi
-
-      - name: Prepare App Store Connect API key
-        run: |
-          if [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_BASE64" ]; then
-            key_dir="$RUNNER_TEMP/apple-notary"
-            mkdir -p "$key_dir"
-            key_path="$key_dir/AuthKey_${APPLE_API_KEY}.p8"
-            printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$key_path"
-            echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
-          fi
-
       - name: Build macOS Tauri app and installer
         working-directory: app/desktop
         run: pnpm exec tauri build --ci --bundles app,dmg
-
-      - name: Verify macOS signature and notarization
-        if: env.MACOS_SIGNING_READY == 'true'
-        run: |
-          app_path="app/desktop/src-tauri/target/release/bundle/macos/Listency.app"
-          codesign --verify --deep --strict --verbose=2 "$app_path"
-
-          if [ "$MACOS_NOTARIZATION_READY" = "true" ]; then
-            xcrun stapler validate "$app_path"
-          fi
 
       - name: Smoke test macOS desktop launcher
         working-directory: app/desktop
@@ -198,9 +108,8 @@ jobs:
           {
             echo "platform=macos"
             echo "release_tag=$RELEASE_TAG"
-            echo "signed=$MACOS_SIGNING_READY"
-            echo "notarization_configured=$MACOS_NOTARIZATION_READY"
-            echo "require_signed=$REQUIRE_SIGNED"
+            echo "signed=false"
+            echo "notarization_configured=false"
           } > "$stage/SIGNING_STATUS.txt"
 
           cd "$stage"
@@ -246,6 +155,9 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Run Rust tests
+        run: cargo test --manifest-path app/desktop/src-tauri/Cargo.toml
+
       - name: Install backend dependencies
         working-directory: app/backend
         run: |
@@ -259,10 +171,6 @@ jobs:
       - name: Install desktop dependencies
         working-directory: app/desktop
         run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        working-directory: app/desktop
-        run: pnpm run build
 
       - name: Build Windows backend sidecar
         working-directory: app/desktop
@@ -285,95 +193,17 @@ jobs:
         working-directory: app/desktop
         run: pnpm run cloudflared:sidecar
 
-      - name: Check Windows signing readiness
-        shell: pwsh
-        env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
-        run: |
-          $signingReady = -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE) -and -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)
-          "WINDOWS_SIGNING_READY=$($signingReady.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-          if ($env:REQUIRE_SIGNED -eq "true" -and -not $signingReady) {
-            Write-Output "::error title=Windows signing secrets missing::Set WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD."
-            exit 1
-          }
-
-          if (-not $signingReady) {
-            return
-          }
-
-          $timestampUrl = $env:WINDOWS_TIMESTAMP_URL
-          if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
-            $timestampUrl = "http://timestamp.digicert.com"
-          }
-
-          $certPath = Join-Path $env:RUNNER_TEMP "listency-codesign.pfx"
-          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
-          $securePassword = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
-          Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword | Out-Null
-
-          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certPath, $env:WINDOWS_CERTIFICATE_PASSWORD)
-          $thumbprint = $cert.Thumbprint.Replace(" ", "")
-          "WINDOWS_CERTIFICATE_THUMBPRINT=$thumbprint" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "WINDOWS_TIMESTAMP_URL=$timestampUrl" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "WINDOWS_TAURI_CONFIG=src-tauri/tauri.windows.signing.json" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-          $signingConfig = @{
-            bundle = @{
-              windows = @{
-                certificateThumbprint = $thumbprint
-                digestAlgorithm = "sha256"
-                timestampUrl = $timestampUrl
-              }
-            }
-          } | ConvertTo-Json -Depth 8
-          Set-Content -Path "app/desktop/src-tauri/tauri.windows.signing.json" -Value $signingConfig -Encoding utf8
-
-      - name: Sign Windows sidecar inputs
-        if: env.WINDOWS_SIGNING_READY == 'true'
-        shell: pwsh
-        run: |
-          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
-            Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-
-          if (-not $signtool) {
-            Write-Output "::error title=signtool missing::Could not find signtool.exe on the Windows runner."
-            exit 1
-          }
-
-          $targets = Get-ChildItem "app/desktop/src-tauri/binaries" -File -Filter "listency-backend-*.exe"
-          if (-not $targets) {
-            Write-Output "::error title=No Windows sidecar signing targets::No listency-backend sidecar executable was found."
-            exit 1
-          }
-
-          foreach ($target in $targets) {
-            $signature = Get-AuthenticodeSignature $target.FullName
-            if ($signature.Status -eq "NotSigned") {
-              & $signtool.FullName sign /fd SHA256 /td SHA256 /tr $env:WINDOWS_TIMESTAMP_URL /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT $target.FullName
-              if ($LASTEXITCODE -ne 0) {
-                exit $LASTEXITCODE
-              }
-            }
-          }
-
       - name: Build Windows Tauri installer
         working-directory: app/desktop
-        shell: pwsh
-        run: |
-          if ($env:WINDOWS_SIGNING_READY -eq "true") {
-            pnpm exec tauri build --ci --bundles nsis --config $env:WINDOWS_TAURI_CONFIG
-          } else {
-            pnpm exec tauri build --ci --bundles nsis
-          }
+        run: pnpm exec tauri build --ci --bundles nsis
 
       - name: Package portable Windows app
         working-directory: app/desktop
         run: pnpm run windows:portable
+
+      - name: Verify Windows GUI subsystem
+        working-directory: app/desktop
+        run: pnpm run windows:subsystem:check
 
       - name: Smoke test Windows desktop launcher
         working-directory: app/desktop
@@ -399,61 +229,6 @@ jobs:
             Copy-Item "$nsis/*.exe" $stage -ErrorAction SilentlyContinue
           }
 
-      - name: Sign staged Windows executables
-        if: env.WINDOWS_SIGNING_READY == 'true'
-        shell: pwsh
-        run: |
-          $stage = Resolve-Path "app/desktop/dist-artifacts/windows"
-          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
-            Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-
-          if (-not $signtool) {
-            Write-Output "::error title=signtool missing::Could not find signtool.exe on the Windows runner."
-            exit 1
-          }
-
-          $targets = Get-ChildItem $stage -File -Recurse -Filter "*.exe" |
-            Where-Object { $_.Name -like "Listency*" -or $_.Name -like "listency-backend*" }
-
-          if (-not $targets) {
-            Write-Output "::error title=No Windows signing targets::No Listency executables were found in staged artifacts."
-            exit 1
-          }
-
-          foreach ($target in $targets) {
-            $signature = Get-AuthenticodeSignature $target.FullName
-            if ($signature.Status -eq "NotSigned") {
-              & $signtool.FullName sign /fd SHA256 /td SHA256 /tr $env:WINDOWS_TIMESTAMP_URL /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT $target.FullName
-              if ($LASTEXITCODE -ne 0) {
-                exit $LASTEXITCODE
-              }
-            }
-          }
-
-      - name: Verify Windows signatures
-        if: env.WINDOWS_SIGNING_READY == 'true'
-        shell: pwsh
-        run: |
-          $stage = Resolve-Path "app/desktop/dist-artifacts/windows"
-          $targets = Get-ChildItem $stage -File -Recurse -Filter "*.exe" |
-            Where-Object { $_.Name -like "Listency*" -or $_.Name -like "listency-backend*" }
-
-          $bad = @()
-          foreach ($target in $targets) {
-            $signature = Get-AuthenticodeSignature $target.FullName
-            Write-Host "$($target.FullName): $($signature.Status)"
-            if ($signature.Status -ne "Valid") {
-              $bad += $target.FullName
-            }
-          }
-
-          if ($bad.Count -gt 0) {
-            Write-Output "::error title=Windows signature verification failed::$($bad -join '; ')"
-            exit 1
-          }
-
       - name: Write Windows checksums
         shell: pwsh
         run: |
@@ -462,8 +237,7 @@ jobs:
           @(
             "platform=windows",
             "release_tag=$env:RELEASE_TAG",
-            "signed=$env:WINDOWS_SIGNING_READY",
-            "require_signed=$env:REQUIRE_SIGNED"
+            "signed=false"
           ) | Set-Content -Path $statusPath -Encoding utf8
 
           $files = Get-ChildItem $root -File -Recurse | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
@@ -519,7 +293,7 @@ jobs:
             echo
             echo "## Signing"
             echo
-            echo "Each platform artifact includes SIGNING_STATUS.txt. If signing secrets were not configured, this draft is an unsigned build."
+            echo "This release is intentionally unsigned. Each platform archive includes SIGNING_STATUS.txt."
             echo
             echo "## macOS unsigned build note"
             echo

@@ -1,7 +1,7 @@
 {
   "name": "listency-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "packageManager": "pnpm@10.33.2",
   "scripts": {
@@ -16,6 +16,7 @@
     "backend:sidecar:smoke": "node ../../scripts/smoke_packaged_backend.mjs",
     "macos:launcher:smoke": "node ../../scripts/smoke_macos_desktop_launcher.mjs",
     "windows:launcher:smoke": "node ../../scripts/smoke_windows_desktop_launcher.mjs",
+    "windows:subsystem:check": "node ../../scripts/check_windows_gui_subsystem.mjs src-tauri/target/release/portable/Listency.exe",
     "windows:portable": "node ../../scripts/package_windows_portable.mjs",
     "tauri:build": "tauri build",
     "tauri:build:sidecar": "pnpm run sidecars && tauri build"
