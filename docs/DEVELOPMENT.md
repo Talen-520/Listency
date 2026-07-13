@@ -183,6 +183,7 @@ Desktop shell, sidecar, packaging, or Tauri changes:
 
 ```bash
 pnpm --dir app/desktop run build
+pnpm --dir app/desktop run backend:sidecar
 cargo test --manifest-path app/desktop/src-tauri/Cargo.toml
 pnpm --dir app/desktop run backend:sidecar:smoke
 pnpm --dir app/desktop run macos:launcher:smoke
@@ -198,9 +199,14 @@ GitHub Actions or release workflow changes:
 - Run:
 
 ```bash
+pnpm --dir app/desktop run backend:sidecar
 cargo test --manifest-path app/desktop/src-tauri/Cargo.toml
 git diff --check
 ```
+
+Tauri validates configured `externalBin` files while compiling tests, so the
+backend sidecar must exist before `cargo test` on a clean checkout. The CI
+workflows preserve this order on both platforms.
 
 - The platform smoke workflows validate packaged startup and retain diagnostic
   logs only. They do not publish duplicate installers or portable archives.
