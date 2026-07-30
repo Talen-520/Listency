@@ -1,7 +1,7 @@
 {
   "name": "listency",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Local-first desktop app for running an AI phone assistant for small businesses.",
   "packageManager": "pnpm@10.33.2",
   "scripts": {
