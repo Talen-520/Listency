@@ -32,6 +32,17 @@ class PublicTunnelManagerTest(unittest.TestCase):
             with patch.dict(os.environ, {"CLOUDFLARED_BIN": bundled}, clear=False):
                 self.assertEqual(manager._find_cloudflared({"CLOUDFLARED_BIN": explicit}), explicit)
 
+    def test_connector_available_requires_existing_binary(self) -> None:
+        manager = PublicTunnelManager()
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            connector = Path(tmp) / "cloudflared"
+            connector.write_text("connector", encoding="utf-8")
+            connector.chmod(0o755)
+
+            self.assertTrue(manager.connector_available({"CLOUDFLARED_BIN": str(connector)}))
+            self.assertFalse(manager.connector_available({"CLOUDFLARED_BIN": str(connector.with_suffix('.missing'))}))
+
     def test_status_clears_stale_public_url_when_cloudflared_exits(self) -> None:
         manager = PublicTunnelManager()
         manager._process = ExitedProcess()  # type: ignore[assignment]

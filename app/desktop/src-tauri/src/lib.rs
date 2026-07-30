@@ -29,6 +29,17 @@ struct BackendLaunch {
     port: u16,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct BackendHealth {
+    cloudflared_available: bool,
+}
+
+impl BackendHealth {
+    fn supports(&self, requires_cloudflared: bool) -> bool {
+        !requires_cloudflared || self.cloudflared_available
+    }
+}
+
 impl BackendProcess {
     fn terminate(&self) {
         if let Ok(mut child) = self.child.lock() {
@@ -48,6 +59,8 @@ impl Drop for BackendProcess {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![backend_base_url])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -89,8 +102,14 @@ fn backend_base_url(endpoint: tauri::State<'_, BackendEndpoint>) -> String {
 }
 
 fn ensure_backend_started(app: &tauri::App) -> Result<BackendLaunch, String> {
+    let bundled_cloudflared = find_bundled_cloudflared(app);
+    let requires_cloudflared = bundled_cloudflared.is_some();
+
     for port in DEFAULT_BACKEND_PORT..=MAX_BACKEND_PORT {
-        if is_backend_healthy(port) {
+        let Some(health) = backend_health(port) else {
+            continue;
+        };
+        if health.supports(requires_cloudflared) {
             append_bootstrap_log(
                 app,
                 &format!(
@@ -99,6 +118,12 @@ fn ensure_backend_started(app: &tauri::App) -> Result<BackendLaunch, String> {
             );
             return Ok(BackendLaunch { child: None, port });
         }
+        append_bootstrap_log(
+            app,
+            &format!(
+                "Listency backend on port {port} has no cloudflared connector; starting the bundled backend separately."
+            ),
+        );
     }
 
     let port =
@@ -119,7 +144,7 @@ fn ensure_backend_started(app: &tauri::App) -> Result<BackendLaunch, String> {
             app,
             &format!("Starting bundled backend sidecar: {}", sidecar.display()),
         );
-        let mut child = spawn_sidecar_backend(app, &sidecar, port)?;
+        let mut child = spawn_sidecar_backend(app, &sidecar, port, bundled_cloudflared.as_deref())?;
         match wait_for_backend_start(&mut child, port, Duration::from_secs(20)) {
             BackendStartStatus::Healthy => {
                 append_bootstrap_log(app, "Bundled backend sidecar is healthy.");
@@ -150,13 +175,18 @@ fn ensure_backend_started(app: &tauri::App) -> Result<BackendLaunch, String> {
         app,
         "No bundled backend sidecar found; falling back to development backend.",
     );
-    spawn_dev_backend(port).map(|child| BackendLaunch {
+    spawn_dev_backend(port, bundled_cloudflared.as_deref()).map(|child| BackendLaunch {
         child: Some(child),
         port,
     })
 }
 
-fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path, port: u16) -> Result<Child, String> {
+fn spawn_sidecar_backend(
+    app: &tauri::App,
+    sidecar: &Path,
+    port: u16,
+    bundled_cloudflared: Option<&Path>,
+) -> Result<Child, String> {
     let app_data_dir = app
         .path()
         .app_local_data_dir()
@@ -183,7 +213,6 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path, port: u16) -> Result<
             )
         })?;
 
-    let bundled_cloudflared = find_bundled_cloudflared(app);
     let mut command = Command::new(sidecar);
     command
         .current_dir(&app_data_dir)
@@ -194,7 +223,7 @@ fn spawn_sidecar_backend(app: &tauri::App, sidecar: &Path, port: u16) -> Result<
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
-    if let Some(cloudflared) = &bundled_cloudflared {
+    if let Some(cloudflared) = bundled_cloudflared {
         command.env("CLOUDFLARED_BIN", cloudflared.as_os_str());
         append_bootstrap_log(
             app,
@@ -255,7 +284,7 @@ fn backend_log_hint(app: &tauri::App) -> String {
     }
 }
 
-fn spawn_dev_backend(port: u16) -> Result<Child, String> {
+fn spawn_dev_backend(port: u16, bundled_cloudflared: Option<&Path>) -> Result<Child, String> {
     let backend_dir = find_backend_dir()
         .ok_or_else(|| "Could not locate app/backend next to the desktop app.".to_string())?;
     let python = find_python_command(&backend_dir);
@@ -273,6 +302,9 @@ fn spawn_dev_backend(port: u16) -> Result<Child, String> {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    if let Some(cloudflared) = bundled_cloudflared {
+        command.env("CLOUDFLARED_BIN", cloudflared.as_os_str());
+    }
     hide_windows_console(&mut command);
     isolate_unix_process_group(&mut command);
 
@@ -373,44 +405,52 @@ fn wait_for_child_exit(process: &mut Child, timeout: Duration) -> bool {
 }
 
 fn is_backend_healthy(port: u16) -> bool {
+    backend_health(port).is_some()
+}
+
+fn backend_health(port: u16) -> Option<BackendHealth> {
     let addr: SocketAddr = match format!("127.0.0.1:{port}").parse() {
         Ok(addr) => addr,
-        Err(_) => return false,
+        Err(_) => return None,
     };
     let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(250)) else {
-        return false;
+        return None;
     };
     let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
     let request =
         format!("GET /health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n");
     if stream.write_all(request.as_bytes()).is_err() {
-        return false;
+        return None;
     }
 
     let mut response = Vec::new();
-    stream.take(16 * 1024).read_to_end(&mut response).is_ok()
-        && is_listency_health_response(&response)
+    if stream.take(16 * 1024).read_to_end(&mut response).is_err() {
+        return None;
+    }
+    parse_listency_health_response(&response)
 }
 
-fn is_listency_health_response(response: &[u8]) -> bool {
+fn parse_listency_health_response(response: &[u8]) -> Option<BackendHealth> {
     let text = String::from_utf8_lossy(response);
     let Some((headers, body)) = text.split_once("\r\n\r\n") else {
-        return false;
+        return None;
     };
     if !(headers.starts_with("HTTP/1.1 200") || headers.starts_with("HTTP/1.0 200")) {
-        return false;
+        return None;
     }
 
-    serde_json::from_str::<serde_json::Value>(body)
-        .ok()
-        .and_then(|payload| {
-            payload
-                .get("service")
-                .and_then(|value| value.as_str())
-                .map(str::to_owned)
-        })
-        .is_some_and(|service| service == "listency-backend")
+    let payload = serde_json::from_str::<serde_json::Value>(body).ok()?;
+    if payload.get("service").and_then(|value| value.as_str()) != Some("listency-backend") {
+        return None;
+    }
+
+    Some(BackendHealth {
+        cloudflared_available: payload
+            .get("cloudflared_available")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false),
+    })
 }
 
 fn find_available_backend_port(start: u16, end: u16) -> Option<u16> {
@@ -634,15 +674,35 @@ fn find_python_command(backend_dir: &Path) -> PathBuf {
 mod tests {
     use std::net::TcpListener;
 
-    use super::{find_available_backend_port, is_listency_health_response};
+    use super::{find_available_backend_port, parse_listency_health_response, BackendHealth};
 
     #[test]
-    fn health_response_requires_listency_service_marker() {
-        let listency = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"service\":\"listency-backend\",\"runtime\":{}}";
+    fn health_response_requires_listency_service_marker_and_reports_capabilities() {
+        let capable = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"service\":\"listency-backend\",\"cloudflared_available\":true,\"runtime\":{}}";
+        let legacy = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"service\":\"listency-backend\",\"runtime\":{}}";
         let unrelated = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"status\":\"ok\",\"service\":\"jobflow-backend\"}";
 
-        assert!(is_listency_health_response(listency));
-        assert!(!is_listency_health_response(unrelated));
+        assert_eq!(
+            parse_listency_health_response(capable),
+            Some(BackendHealth {
+                cloudflared_available: true
+            })
+        );
+        assert_eq!(
+            parse_listency_health_response(legacy),
+            Some(BackendHealth {
+                cloudflared_available: false
+            })
+        );
+        assert_eq!(parse_listency_health_response(unrelated), None);
+        assert!(BackendHealth {
+            cloudflared_available: true
+        }
+        .supports(true));
+        assert!(!BackendHealth {
+            cloudflared_available: false
+        }
+        .supports(true));
     }
 
     #[test]

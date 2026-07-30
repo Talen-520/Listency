@@ -113,6 +113,10 @@ class PublicTunnelManager:
             return ""
         return urlparse(public_base_url).netloc.lower()
 
+    def connector_available(self, env: dict[str, str]) -> bool:
+        binary = self._find_cloudflared(env)
+        return bool(binary and shutil.which(binary))
+
     def _start_cloudflared(self, env: dict[str, str]) -> TunnelStatus:
         current = self.status(env)
         if current.status == "running":

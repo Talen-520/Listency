@@ -115,11 +115,28 @@ If Windows blocks the downloaded installer or portable app, open PowerShell in
 the extracted release folder and remove the Mark-of-the-Web flag:
 
 ```powershell
-Unblock-File .\Listency_0.3.0_x64-setup.exe
+Unblock-File .\Listency_*_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
 These prompts are expected for unsigned builds.
+
+## Automatic Updates
+
+Packaged Listency apps starting with `v0.5.0` check the latest published GitHub
+Release shortly after startup and every 12 hours while the app stays open. You
+can also check manually from `Settings -> Application Updates`.
+
+- Choose `Update Now` to download, verify, install, and restart.
+- Choose `Later` to keep working and install from Settings when ready.
+- Installation is blocked while a Test Call or customer call is active.
+- Local API keys, business data, agents, transcripts, and logs are preserved.
+
+Updater packages are cryptographically signed even though the macOS and Windows
+apps remain unsigned at the operating-system level. Draft and prerelease builds
+are not offered by the `latest` update channel. Users on `v0.4.x` or earlier
+must install `v0.5.0` manually once; automatic updates apply from that version
+forward.
 
 For developers:
 

@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from voice_agent import __version__
 from voice_agent.analytics import build_local_analytics
 from voice_agent.config.env_store import EnvStore
 from voice_agent.core.business_hours import WEEKDAYS, default_business_hours, resolve_business_hours
@@ -169,7 +170,7 @@ backend_port = os.environ.get("LISTENCY_BACKEND_PORT", "8765")
 public_tunnel_manager = PublicTunnelManager(local_url=f"http://127.0.0.1:{backend_port}")
 phone_manager = PhoneManager(db, env_store, session_manager, public_tunnel_manager)
 
-app = FastAPI(title="Listency Local Backend", version="0.3.0")
+app = FastAPI(title="Listency Local Backend", version=__version__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -261,7 +262,14 @@ async def shutdown_phone_connection() -> None:
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    return {"ok": True, "service": "listency-backend", "runtime": session_manager.status()}
+    env = env_store.read()
+    return {
+        "ok": True,
+        "service": "listency-backend",
+        "version": __version__,
+        "cloudflared_available": public_tunnel_manager.connector_available(env),
+        "runtime": session_manager.status(),
+    }
 
 
 @app.get("/config")

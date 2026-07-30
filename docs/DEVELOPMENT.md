@@ -211,7 +211,8 @@ workflows preserve this order on both platforms.
 - The platform smoke workflows validate packaged startup and retain diagnostic
   logs only. They do not publish duplicate installers or portable archives.
 - Full macOS and Windows artifacts are generated only by the Release Draft
-  workflow, which requires an explicit release tag such as `v0.3.0`.
+  workflow, which requires an explicit release tag matching the synchronized
+  source version, such as `v0.5.0`.
 - After pushing, verify the affected GitHub Actions workflow.
 
 Documentation-only changes:

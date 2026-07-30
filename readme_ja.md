@@ -107,11 +107,28 @@ xattr -dr com.apple.quarantine /path/to/Listency.app
 Windows がダウンロードした installer または portable app をブロックする場合は、展開した release フォルダで PowerShell を開き、Mark-of-the-Web flag を削除します。
 
 ```powershell
-Unblock-File .\Listency_0.3.0_x64-setup.exe
+Unblock-File .\Listency_*_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
 これらの警告は unsigned build では想定される動作です。
+
+## 自動アップデート
+
+`v0.5.0` 以降の packaged Listency app は、起動直後と app の実行中
+12 時間ごとに、最新の公開済み GitHub Release を確認します。
+`設定 -> アプリのアップデート` から手動確認することもできます。
+
+- 「今すぐ更新」で download、検証、install、restart を実行します。
+- 「後で」を選ぶと作業を続け、準備ができたときに Settings から更新できます。
+- Test Call または顧客との通話中は install を禁止し、通話を中断しません。
+- Local API key、business data、Agent、transcript、log は保持されます。
+
+Updater package は暗号署名で検証されますが、macOS と Windows app
+自体は OS レベルでは unsigned のままです。Draft と prerelease は
+`latest` update channel には配信されません。`v0.4.x` 以前のユーザーは
+一度だけ `v0.5.0` を手動 install する必要があり、その後は自動更新を
+利用できます。
 
 開発者:
 

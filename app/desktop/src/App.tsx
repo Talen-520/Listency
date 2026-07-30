@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { AppShell } from "@/app/app-shell";
 import { navItems, type View } from "@/app/navigation";
@@ -14,6 +15,7 @@ import { TestCallView } from "@/features/test-call/test-call-view";
 import { ToolsView } from "@/features/tools/tools-view";
 import { VoiceView } from "@/features/voice/voice-view";
 import { useAppData } from "@/hooks/use-app-data";
+import { useAppUpdater } from "@/hooks/use-app-updater";
 import { useRealtimeTest } from "@/hooks/use-realtime-test";
 import { useSessionDetail } from "@/hooks/use-session-detail";
 import { api } from "@/lib/api";
@@ -23,6 +25,7 @@ export function App() {
   const { t } = useI18n();
   const [view, setView] = useState<View>("dashboard");
   const data = useAppData();
+  const updater = useAppUpdater({ hasActiveSession: Boolean(data.activeSession) });
   const realtime = useRealtimeTest({
     activeSession: data.activeSession,
     providerChoice: data.providerChoice,
@@ -40,6 +43,25 @@ export function App() {
       realtime.cleanupLocalStream();
     }
   }, [data.activeSession, realtime.cleanupLocalStream]);
+
+  useEffect(() => {
+    if (updater.phase !== "available" || !updater.nextVersion) {
+      return;
+    }
+    toast.info(t("updates.availableToast"), {
+      id: `listency-update-${updater.nextVersion}`,
+      description: updater.notes || t("updates.availableToastDetail"),
+      duration: Infinity,
+      action: {
+        label: t("updates.viewUpdate"),
+        onClick: () => setView("settings"),
+      },
+      cancel: {
+        label: t("updates.later"),
+        onClick: updater.deferUpdate,
+      },
+    });
+  }, [t, updater.deferUpdate, updater.nextVersion, updater.notes, updater.phase]);
 
   function renderView() {
     switch (view) {
@@ -140,6 +162,7 @@ export function App() {
             onClearLogs={() => void data.runAction(data.clearLogs, t("toast.logsCleared"))}
             onDownloadDiagnostics={() => void data.runAction(data.downloadDiagnostics, t("toast.diagnosticsDownloaded", "Diagnostics downloaded"))}
             hasActiveSession={Boolean(data.activeSession)}
+            updater={updater}
           />
         );
       case "agent":

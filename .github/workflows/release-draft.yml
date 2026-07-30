@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to create or update, for example v0.3.0"
+        description: "Release tag to create or update, for example v0.5.0"
         required: true
   push:
     tags: ["v*"]
@@ -28,6 +28,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate release version and updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          node scripts/sync_version.mjs --check --tag "$RELEASE_TAG"
+          npm run test:release
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error title=Missing updater key::Add TAURI_SIGNING_PRIVATE_KEY to the repository Actions secrets."
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -84,6 +95,8 @@ jobs:
 
       - name: Build macOS Tauri app and installer
         working-directory: app/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: pnpm exec tauri build --ci --bundles app,dmg
 
       - name: Smoke test macOS desktop launcher
@@ -104,12 +117,27 @@ jobs:
             find "$bundle_root/dmg" -maxdepth 1 -type f -name "*.dmg" -exec cp {} "$stage/" \;
           fi
 
+          updater_archive="$(find "$bundle_root/macos" -maxdepth 1 -type f -name "*.app.tar.gz" -print -quit)"
+          if [ -z "$updater_archive" ] || [ ! -f "$updater_archive.sig" ]; then
+            echo "Signed macOS updater artifact was not produced." >&2
+            exit 1
+          fi
+          cp "$updater_archive" "$updater_archive.sig" "$stage/"
+          case "$(uname -m)" in
+            arm64) updater_target="darwin-aarch64" ;;
+            x86_64) updater_target="darwin-x86_64" ;;
+            *) echo "Unsupported macOS updater architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          printf '%s\n' "$updater_target" > "$stage/UPDATER_TARGET.txt"
+          basename "$updater_archive" > "$stage/UPDATER_ARTIFACT.txt"
+
           cp app/desktop/smoke.log "$stage/smoke.log"
           {
             echo "platform=macos"
             echo "release_tag=$RELEASE_TAG"
             echo "signed=false"
             echo "notarization_configured=false"
+            echo "updater_signed=true"
           } > "$stage/SIGNING_STATUS.txt"
 
           cd "$stage"
@@ -131,6 +159,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate release version and updater signing key
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          node scripts/sync_version.mjs --check --tag "$env:RELEASE_TAG"
+          npm run test:release
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            Write-Output "::error title=Missing updater key::Add TAURI_SIGNING_PRIVATE_KEY to the repository Actions secrets."
+            exit 1
+          }
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -195,6 +235,8 @@ jobs:
 
       - name: Build Windows Tauri installer
         working-directory: app/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: pnpm exec tauri build --ci --bundles nsis
 
       - name: Package portable Windows app
@@ -229,6 +271,18 @@ jobs:
             Copy-Item "$nsis/*.exe" $stage -ErrorAction SilentlyContinue
           }
 
+          $updater = Get-ChildItem $nsis -Filter "*.exe" | Select-Object -First 1
+          if ($null -eq $updater -or -not (Test-Path "$($updater.FullName).sig")) {
+            throw "Signed Windows updater artifact was not produced."
+          }
+          Copy-Item "$($updater.FullName).sig" $stage
+          $updater.Name | Set-Content -Path "$stage/UPDATER_ARTIFACT.txt" -Encoding utf8
+          switch ($env:PROCESSOR_ARCHITECTURE) {
+            "AMD64" { "windows-x86_64" | Set-Content -Path "$stage/UPDATER_TARGET.txt" -Encoding utf8 }
+            "ARM64" { "windows-aarch64" | Set-Content -Path "$stage/UPDATER_TARGET.txt" -Encoding utf8 }
+            default { throw "Unsupported Windows updater architecture: $env:PROCESSOR_ARCHITECTURE" }
+          }
+
       - name: Write Windows checksums
         shell: pwsh
         run: |
@@ -237,7 +291,8 @@ jobs:
           @(
             "platform=windows",
             "release_tag=$env:RELEASE_TAG",
-            "signed=false"
+            "signed=false",
+            "updater_signed=true"
           ) | Set-Content -Path $statusPath -Encoding utf8
 
           $files = Get-ChildItem $root -File -Recurse | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
@@ -267,6 +322,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate release version
+        run: node scripts/sync_version.mjs --check --tag "$RELEASE_TAG"
+
       - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
@@ -289,11 +347,12 @@ jobs:
             echo
             echo "- macOS: app zip plus DMG when Tauri produces one."
             echo "- Windows: NSIS installer plus portable app folder."
+            echo "- Automatic updates: signed Tauri updater packages plus latest.json."
             echo "- Checksums: per-platform SHA256SUMS.txt and top-level SHA256SUMS-all.txt."
             echo
             echo "## Signing"
             echo
-            echo "This release is intentionally unsigned. Each platform archive includes SIGNING_STATUS.txt."
+            echo "The macOS and Windows applications are intentionally unsigned at the operating-system level. Tauri updater packages are cryptographically signed so installed apps can verify automatic updates. Each platform archive includes SIGNING_STATUS.txt."
             echo
             echo "## macOS unsigned build note"
             echo
@@ -314,7 +373,18 @@ jobs:
           done
 
           cp RELEASE_NOTES.md release-assets/RELEASE_NOTES.md
-          (cd release-assets && shasum -a 256 *.zip SHA256SUMS-files.txt RELEASE_NOTES.md > SHA256SUMS-all.txt)
+          node scripts/generate_update_manifest.mjs \
+            --artifacts-dir release-artifacts \
+            --release-assets-dir release-assets \
+            --output release-assets/latest.json \
+            --notes RELEASE_NOTES.md \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "$RELEASE_TAG" \
+            --version "${RELEASE_TAG#v}"
+
+          find release-assets -maxdepth 1 -type f ! -name "SHA256SUMS-all.txt" -print0 |
+            sort -z |
+            xargs -0 shasum -a 256 > release-assets/SHA256SUMS-all.txt
 
           cat release-assets/SHA256SUMS-all.txt
 

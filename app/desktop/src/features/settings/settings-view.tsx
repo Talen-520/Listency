@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ApiKeyHelp } from "@/features/settings/api-key-help";
+import { AppUpdateCard } from "@/features/settings/app-update-card";
 import { VoiceHelp } from "@/features/settings/voice-help";
+import type { AppUpdaterController } from "@/hooks/use-app-updater";
 import { formatMessage, translateStatus, useI18n } from "@/lib/i18n";
 import { DEFAULT_OPENAI_REALTIME_MODEL, geminiLiveModelOptions } from "@/lib/models";
 import type { CalendarAvailability, CalendarAvailabilitySlot, PhoneStatus, PublicConfig, TwilioDebuggerAlert, VoicePreviewCache } from "@/lib/types";
@@ -541,6 +543,7 @@ export function SettingsView({
   onClearLogs,
   onDownloadDiagnostics,
   hasActiveSession,
+  updater,
 }: {
   config: PublicConfig;
   phoneStatus: PhoneStatus;
@@ -607,6 +610,7 @@ export function SettingsView({
   onClearLogs: () => void;
   onDownloadDiagnostics: () => void;
   hasActiveSession: boolean;
+  updater: AppUpdaterController;
 }) {
   const { t } = useI18n();
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
@@ -1182,6 +1186,14 @@ export function SettingsView({
           />
         </div>
       </Card>
+
+      {/* Application Updates Section */}
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">{t("updates.sectionTitle")}</h2>
+        <p className="text-sm text-muted-foreground">{t("updates.sectionDescription")}</p>
+      </div>
+      <Separator />
+      <AppUpdateCard updater={updater} hasActiveSession={hasActiveSession} />
 
       {/* Data Section */}
       <div className="pt-2">

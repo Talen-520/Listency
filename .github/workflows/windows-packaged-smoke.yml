@@ -49,6 +49,11 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: app/desktop/pnpm-lock.yaml
 
+      - name: Validate synchronized versions and release tooling
+        run: |
+          node scripts/sync_version.mjs --check
+          npm run test:release
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -92,7 +97,7 @@ jobs:
 
       - name: Build Windows Tauri app
         working-directory: app/desktop
-        run: pnpm exec tauri build --bundles nsis
+        run: pnpm exec tauri build --no-sign --bundles nsis
 
       - name: Package portable Windows app
         working-directory: app/desktop

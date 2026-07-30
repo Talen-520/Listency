@@ -12,14 +12,14 @@ their diagnostic smoke logs.
 macOS artifacts usually include:
 
 - `Listency-macos.zip`
-- `Listency_0.3.0_aarch64.dmg`
+- `Listency_0.5.0_aarch64.dmg`
 - `SHA256SUMS.txt`
 - `SIGNING_STATUS.txt`
 - `smoke.log`
 
 Windows artifacts usually include:
 
-- `Listency_0.3.0_x64-setup.exe`
+- `Listency_0.5.0_x64-setup.exe`
 - `portable/Listency.exe`
 - `portable/binaries/listency-backend-*.exe`
 - `portable/binaries/cloudflared-*.exe`
@@ -45,7 +45,7 @@ This prompt is expected for unsigned builds.
 
 For the most predictable path, use one of:
 
-- `Listency_0.3.0_x64-setup.exe`
+- `Listency_0.5.0_x64-setup.exe`
 - `portable/Listency.exe`
 
 Do not launch raw `target/release/*.exe` from a build tree by itself. It does
@@ -60,7 +60,7 @@ release folder and remove the Mark-of-the-Web flag from the installer or
 portable app:
 
 ```powershell
-Unblock-File .\Listency_0.3.0_x64-setup.exe
+Unblock-File .\Listency_*_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 

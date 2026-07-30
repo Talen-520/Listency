@@ -1,6 +1,6 @@
 [package]
 name = "listency-desktop"
-version = "0.3.0"
+version = "0.5.0"
 description = "Local Listency desktop app"
 authors = ["Listency contributors"]
 edition = "2021"
@@ -16,3 +16,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tauri-plugin-process = "2"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"

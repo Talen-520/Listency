@@ -107,11 +107,27 @@ xattr -dr com.apple.quarantine /path/to/Listency.app
 如果 Windows 阻止下载的安装包或 portable app，在解压后的 release 文件夹中打开 PowerShell，移除 Mark-of-the-Web 标记：
 
 ```powershell
-Unblock-File .\Listency_0.3.0_x64-setup.exe
+Unblock-File .\Listency_*_x64-setup.exe
 Get-ChildItem .\portable -Recurse | Unblock-File
 ```
 
 这些提示是 unsigned 构建的预期行为。
+
+## 自动更新
+
+从 `v0.5.0` 开始，Listency 打包应用会在启动后不久检查最新的正式
+GitHub Release，并在应用持续运行时每 12 小时检查一次。也可以在
+`设置 -> 应用更新` 中手动检查。
+
+- 选择“立即更新”会下载、验证、安装并重启应用。
+- 选择“稍后”可继续工作，并在准备好后从设置页面安装。
+- Test Call 或客户通话进行期间禁止安装，避免中断通话。
+- 本地 API key、商家资料、Agent、对话记录和日志都会保留。
+
+更新包会进行加密签名验证，但 macOS 和 Windows 应用本身仍保持
+unsigned。Draft 和 prerelease 不会进入 `latest` 更新通道。使用
+`v0.4.x` 或更早版本的用户需要手动安装一次 `v0.5.0`，之后即可使用
+自动更新。
 
 开发者：
 
