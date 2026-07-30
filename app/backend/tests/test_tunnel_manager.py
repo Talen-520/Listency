@@ -36,7 +36,7 @@ class PublicTunnelManagerTest(unittest.TestCase):
         manager = PublicTunnelManager()
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-            connector = Path(tmp) / "cloudflared"
+            connector = Path(tmp) / "cloudflared.exe"
             connector.write_text("connector", encoding="utf-8")
             connector.chmod(0o755)
 
