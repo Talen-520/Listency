@@ -4,12 +4,12 @@ export type ModelOption = {
 };
 
 export const DEFAULT_OPENAI_REALTIME_MODEL = "gpt-realtime-2.1";
-export const DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview";
+export const DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.8-live";
 
 export const geminiLiveModelOptions: ModelOption[] = [
   {
-    value: "gemini-3.1-flash-live-preview",
-    label: "gemini-3.1-flash-live-preview",
+    value: "gemini-3.8-live",
+    label: "gemini-3.8-live",
   },
 ];
 

@@ -12,7 +12,7 @@ class GeminiLiveAdapterTest(unittest.TestCase):
         event = adapter._config_message(
             {
                 "GEMINI_DEFAULT_VOICE": "Kore",
-                "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+                "GEMINI_LIVE_MODEL": "gemini-3.8-live",
             },
             {
                 "instructions": "Answer briefly.",
@@ -34,7 +34,7 @@ class GeminiLiveAdapterTest(unittest.TestCase):
         setup = event["setup"]
         generation_config = setup["generationConfig"]
 
-        self.assertEqual(setup["model"], "models/gemini-3.1-flash-live-preview")
+        self.assertEqual(setup["model"], "models/gemini-3.8-live")
         self.assertEqual(generation_config["responseModalities"], ["AUDIO"])
         self.assertEqual(setup["systemInstruction"], {"parts": [{"text": "Answer briefly."}]})
         self.assertEqual(setup["inputAudioTranscription"], {})
@@ -44,6 +44,7 @@ class GeminiLiveAdapterTest(unittest.TestCase):
             {"voiceName": "Kore"},
         )
         self.assertEqual(setup["tools"][0]["functionDeclarations"][0]["name"], "business_info_lookup")
+        self.assertEqual(setup["tools"][0]["functionDeclarations"][0]["behavior"], "BLOCKING")
         self.assertEqual(
             setup["tools"][0]["functionDeclarations"][0]["parameters"]["properties"]["query"]["type"],
             "string",

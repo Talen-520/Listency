@@ -15,7 +15,7 @@ GEMINI_LIVE_BASE_URL = (
     "wss://generativelanguage.googleapis.com/ws/"
     "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 )
-DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview"
+DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.8-live"
 GEMINI_INPUT_SAMPLE_RATE = 16000
 GEMINI_OUTPUT_SAMPLE_RATE = 24000
 GEMINI_LIVE_VOICES = [
@@ -199,6 +199,7 @@ class GeminiLiveAdapter:
             declaration: dict[str, Any] = {
                 "name": name,
                 "description": str(tool.get("description") or ""),
+                "behavior": "BLOCKING",
             }
             parameters = tool.get("parameters")
             if isinstance(parameters, dict) and parameters:

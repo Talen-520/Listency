@@ -9,12 +9,14 @@ from voice_agent.config.paths import repo_root
 
 DEFAULT_OPENAI_REALTIME_MODEL = "gpt-realtime-2.1"
 LEGACY_OPENAI_REALTIME_DEFAULT_MODELS = {"gpt-realtime", "gpt-realtime-2"}
+DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.8-live"
+LEGACY_GEMINI_LIVE_DEFAULT_MODELS = {"gemini-3.1-flash-live-preview"}
 
 ENV_DEFAULTS: dict[str, str] = {
     "OPENAI_API_KEY": "",
     "GEMINI_API_KEY": "",
     "OPENAI_REALTIME_MODEL": DEFAULT_OPENAI_REALTIME_MODEL,
-    "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+    "GEMINI_LIVE_MODEL": DEFAULT_GEMINI_LIVE_MODEL,
     "OPENAI_REALTIME_MOCK": "false",
     "DEFAULT_REALTIME_PROVIDER": "openai",
     "OPENAI_DEFAULT_VOICE": "",
@@ -100,6 +102,8 @@ class EnvStore:
             values.update(_parse_env(self.path.read_text(encoding="utf-8")))
         if values.get("OPENAI_REALTIME_MODEL", "").strip() in LEGACY_OPENAI_REALTIME_DEFAULT_MODELS:
             values["OPENAI_REALTIME_MODEL"] = DEFAULT_OPENAI_REALTIME_MODEL
+        if values.get("GEMINI_LIVE_MODEL", "").strip() in LEGACY_GEMINI_LIVE_DEFAULT_MODELS:
+            values["GEMINI_LIVE_MODEL"] = DEFAULT_GEMINI_LIVE_MODEL
         return values
 
     def read_public(self) -> dict[str, str]:
@@ -108,7 +112,7 @@ class EnvStore:
             "OPENAI_API_KEY": mask_secret(values.get("OPENAI_API_KEY", "")),
             "GEMINI_API_KEY": mask_secret(values.get("GEMINI_API_KEY", "")),
             "OPENAI_REALTIME_MODEL": values.get("OPENAI_REALTIME_MODEL", DEFAULT_OPENAI_REALTIME_MODEL),
-            "GEMINI_LIVE_MODEL": values.get("GEMINI_LIVE_MODEL", "gemini-3.1-flash-live-preview"),
+            "GEMINI_LIVE_MODEL": values.get("GEMINI_LIVE_MODEL", DEFAULT_GEMINI_LIVE_MODEL),
             "OPENAI_REALTIME_MOCK": values.get("OPENAI_REALTIME_MOCK", "false"),
             "DEFAULT_REALTIME_PROVIDER": values.get("DEFAULT_REALTIME_PROVIDER", "openai"),
             "OPENAI_DEFAULT_VOICE": values.get("OPENAI_DEFAULT_VOICE", ""),

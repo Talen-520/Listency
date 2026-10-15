@@ -11,6 +11,7 @@ from voice_agent.providers.base import ProviderConfigError, ProviderEventCallbac
 
 
 OPENAI_REALTIME_BASE_URL = "wss://api.openai.com/v1/realtime"
+OPENAI_INPUT_TRANSCRIPTION_MODEL = "gpt-live-transcribe"
 OPENAI_REALTIME_VOICES = [
     "alloy",
     "ash",
@@ -140,7 +141,7 @@ class OpenAIRealtimeAdapter:
                         "rate": 24000,
                     },
                     "transcription": {
-                        "model": "gpt-4o-transcribe",
+                        "model": OPENAI_INPUT_TRANSCRIPTION_MODEL,
                     },
                     "turn_detection": {
                         "type": "server_vad",

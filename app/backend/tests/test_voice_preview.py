@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from voice_agent.config.env_store import EnvStore
-from voice_agent.core.voice_preview import VoicePreviewService
+from voice_agent.core.voice_preview import GEMINI_TTS_MODEL, VoicePreviewService
 from voice_agent.providers.openai_realtime import OpenAIRealtimeAdapter
 
 
@@ -60,6 +60,22 @@ class VoicePreviewServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(audio.startswith(b"RIFF"))
         self.assertIn(b"WAVE", audio[:16])
+
+    def test_gemini_preview_uses_current_tts_payload(self) -> None:
+        service = VoicePreviewService(EnvStore(), {}, Path("/tmp/unused"))
+
+        payload = service._gemini_preview_payload("Kore", "Hello")
+
+        self.assertEqual(GEMINI_TTS_MODEL, "gemini-3.8-flash-tts")
+        self.assertEqual(payload["contents"][0]["parts"][0]["text"], "Hello")
+        self.assertEqual(
+            payload["generationConfig"]["speechConfig"]["voiceConfig"],
+            {"voice": "Kore"},
+        )
+        self.assertEqual(
+            payload["generationConfig"]["responseFormat"]["audio"],
+            {"mimeType": "AUDIO_L16", "sampleRate": 24000},
+        )
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ from voice_agent.providers.base import ProviderConfigError, RealtimeProviderAdap
 
 
 DEFAULT_PREVIEW_TEXT = "Hello, this is your local voice assistant."
-GEMINI_TTS_MODEL = "gemini-3.1-flash-tts-preview"
+GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
 OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
 
 
@@ -106,20 +106,7 @@ class VoicePreviewService:
         return self._read_http_response(request)
 
     def _generate_gemini_preview(self, env: dict[str, str], voice: str, text: str) -> bytes:
-        payload = {
-            "contents": [{"parts": [{"text": text}]}],
-            "generationConfig": {
-                "responseModalities": ["AUDIO"],
-                "speechConfig": {
-                    "voiceConfig": {
-                        "prebuiltVoiceConfig": {
-                            "voiceName": voice,
-                        }
-                    }
-                },
-            },
-            "model": GEMINI_TTS_MODEL,
-        }
+        payload = self._gemini_preview_payload(voice, text)
         request = urllib.request.Request(
             f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TTS_MODEL}:generateContent",
             data=json.dumps(payload).encode("utf-8"),
@@ -140,6 +127,25 @@ class VoicePreviewService:
         if not raw_audio:
             raise ProviderConfigError("Gemini TTS did not return audio data.")
         return self._wav_bytes(base64.b64decode(raw_audio), rate=24000)
+
+    def _gemini_preview_payload(self, voice: str, text: str) -> dict[str, Any]:
+        return {
+            "contents": [{"parts": [{"text": text}]}],
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "responseFormat": {
+                    "audio": {
+                        "mimeType": "AUDIO_L16",
+                        "sampleRate": 24000,
+                    }
+                },
+                "speechConfig": {
+                    "voiceConfig": {
+                        "voice": voice,
+                    }
+                },
+            },
+        }
 
     def _read_http_response(self, request: urllib.request.Request) -> bytes:
         try:

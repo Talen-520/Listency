@@ -30,7 +30,7 @@ class OpenAIRealtimeAdapterTest(unittest.TestCase):
         self.assertEqual(session["output_modalities"], ["audio"])
         self.assertEqual(session["instructions"], "Answer briefly.")
         self.assertEqual(session["audio"]["input"]["format"], {"type": "audio/pcm", "rate": 24000})
-        self.assertEqual(session["audio"]["input"]["transcription"], {"model": "gpt-4o-transcribe"})
+        self.assertEqual(session["audio"]["input"]["transcription"], {"model": "gpt-live-transcribe"})
         self.assertEqual(session["audio"]["output"]["format"], {"type": "audio/pcm", "rate": 24000})
         self.assertEqual(session["audio"]["output"]["voice"], "marin")
         self.assertEqual(session["audio"]["input"]["turn_detection"]["type"], "server_vad")
